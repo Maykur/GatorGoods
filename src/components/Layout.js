@@ -3,45 +3,39 @@ import { Link, Outlet } from 'react-router-dom';
 export function Layout() {
   return (
     <div>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0.75rem 1.5rem',
-          borderBottom: '1px solid #e5e5e5',
-        }}
-      >
-        <div style={{ fontWeight: 700 }}>
-          <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <header className="app-header">
+        <div className="app-brand">
+          <Link to="/">
             GatorGoods
           </Link>
         </div>
-        <nav style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem' }}>
-          <Link to="/" style={{ textDecoration: 'none' }}>
+        <nav className="app-nav">
+          <Link to="/">
             Home
           </Link>
-          <Link to="/create" style={{ textDecoration: 'none' }}>
+          <Link to="/create">
             Create Listing
           </Link>
-          <Link to="/offers" style={{ textDecoration: 'none' }}>
+          <Link to="/offers">
             Offers
           </Link>
-          <Link to="/messages" style={{ textDecoration: 'none' }}>
+          <Link to="/messages">
             Messages
           </Link>
-          <Link to="/profile/demo" style={{ textDecoration: 'none' }}>
+          <Link to="/profile/demo">
             Profile
           </Link>
-          <Link to="/login" style={{ textDecoration: 'none' }}>
+          <Link to="/login">
             Login
           </Link>
-          <Link to="/signup" style={{ textDecoration: 'none' }}>
+          <Link to="/signup">
             Sign Up
           </Link>
         </nav>
       </header>
-      <Outlet />
+      <main className="app-content">
+        <Outlet />
+      </main>
     </div>
   );
 }
