@@ -8,18 +8,8 @@ export function SignUp() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [error, setError] = useState("");
-    const [emailVerif, setVerif] = useState(false);
-    const checkEmail = async(e) => {
-        const res = await fetch(`http://localhost:5000/emailverf?email=${encodeURIComponent(email)}`);
-        const data = await res.json();
-        setVerif(data.exists);
-        if (data.exists) {
-            setError("Email is already registered");
-        } else {
-            setError("");
-        }
-    };
     const handleOnSubmit = async (e) => {
+        e.preventDefault();
         if (!name.trim()){
             setError("Name Required");
             return;
@@ -32,11 +22,13 @@ export function SignUp() {
             setError("Email must end with ufl.edu")
             return;
         }
-        if (emailVerif){
+        const res = await fetch(`http://localhost:5000/emailverf?email=${encodeURIComponent(email)}`);
+        const data = await res.json();
+        if (data.exists) {
+            setError("Email is already registered");
             return;
         }
         setError("");
-        e.preventDefault();
         let result = await fetch(
         'http://localhost:5000/register', {
             method: "post",
@@ -60,8 +52,7 @@ export function SignUp() {
                 <input type="text" placeholder="name" 
                 value={name} onChange={(e) => setName(e.target.value)}/>
                 <input type="email" placeholder="ufl email"
-                value={email} onChange={(e) => setEmail(e.target.value)} 
-                onBlur={(e) => checkEmail(e.target.value)}/>
+                value={email} onChange={(e) => setEmail(e.target.value)}/>
                 <button type="submit"
                 onClick={handleOnSubmit}>submit</button>
                     {error && <p style={{ color:'red' }}>{error}</p>}
