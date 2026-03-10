@@ -4,7 +4,7 @@ This project is a React frontend (Create React App) with an Express + MongoDB ba
 
 ### 1. Install dependencies
 
-From the `gatorgoods/` directory:
+From the repository root:
 
 ```bash
 npm install
@@ -24,7 +24,7 @@ An example file is provided at `backend/.env.example`. **Do not commit your real
 
 ### 3. Scripts
 
-From the `gatorgoods/` directory:
+From the repository root:
 
 - **Frontend only**
 
@@ -46,7 +46,6 @@ From the `gatorgoods/` directory:
 - **Frontend + backend together**
 
   ```bash
-  cd gatorgoods
   npm run serverStart
   ```
 
