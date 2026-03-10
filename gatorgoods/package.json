@@ -13,13 +13,16 @@
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "frontStart": "npm start",
-    "backStart": "cd backend && npx nodemon index.js",
-    "serverStart": "run-p frontStart backStart",
+    "backStart": "cd backend && nodemon index.js",
+    "serverStart": "npm-run-all frontStart backStart",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
