@@ -9,6 +9,7 @@ import { OffersPage } from './pages/OffersPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { ChatThreadPage } from './pages/ChatThreadPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/messages/:conversationId" element={<ChatThreadPage />} />
           <Route path="/profile/:id" element={<ProfilePage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Router>
