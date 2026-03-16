@@ -1,3 +1,6 @@
+import { Show, SignInButton, SignUpButton } from '@clerk/react';
+import { Link } from 'react-router-dom';
+
 export function HomePage() {
   return (
     <section className="space-y-8">
@@ -12,6 +15,34 @@ export function HomePage() {
           Browse the latest listings, make structured offers, and keep
           transactions centered around the UF community.
         </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Show when="signed-out">
+            <SignUpButton mode="modal">
+              <button
+                type="button"
+                className="rounded-full bg-gatorOrange px-5 py-3 font-semibold text-white transition-colors hover:bg-orange-500"
+              >
+                Create account
+              </button>
+            </SignUpButton>
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                className="rounded-full border border-white/20 px-5 py-3 font-semibold text-slate-100 transition-colors hover:border-gatorOrange hover:text-gatorOrange"
+              >
+                Log in
+              </button>
+            </SignInButton>
+          </Show>
+          <Show when="signed-in">
+            <Link
+              to="/create"
+              className="rounded-full bg-gatorOrange px-5 py-3 font-semibold text-white no-underline transition-colors hover:bg-orange-500"
+            >
+              Post a listing
+            </Link>
+          </Show>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

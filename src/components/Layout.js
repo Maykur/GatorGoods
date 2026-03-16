@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/react';
 
-const navItems = [
+const publicNavItems = [
   { to: '/', label: 'Home', end: true },
+];
+
+const signedInNavItems = [
   { to: '/create', label: 'Create Listing' },
   { to: '/offers', label: 'Offers' },
   { to: '/messages', label: 'Messages' },
   { to: '/profile/demo', label: 'Profile' },
-  { to: '/login', label: 'Login' },
-  { to: '/signup', label: 'Sign Up' },
 ];
 
 function getNavLinkClass(isActive) {
@@ -49,7 +51,7 @@ export function Layout() {
               isMenuOpen ? 'flex' : 'hidden',
             ].join(' ')}
           >
-            {navItems.map(({ to, label, end }) => (
+            {publicNavItems.map(({ to, label, end }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -60,6 +62,44 @@ export function Layout() {
                 {label}
               </NavLink>
             ))}
+            <Show when="signed-in">
+              {signedInNavItems.map(({ to, label, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  className={({ isActive }) => getNavLinkClass(isActive)}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {label}
+                </NavLink>
+              ))}
+            </Show>
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:border-gatorOrange hover:text-gatorOrange"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Log in
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button
+                  type="button"
+                  className="rounded-full bg-gatorOrange px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-500"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Sign up
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <div className="flex items-center px-1 py-1">
+                <UserButton />
+              </div>
+            </Show>
           </nav>
         </div>
       </header>
