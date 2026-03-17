@@ -14,6 +14,8 @@ npm install
 
 ### 2. Environment variables
 
+### Backend
+
 The backend expects a MongoDB connection string in `backend/.env`:
 
 ```bash
@@ -21,6 +23,17 @@ mongo_url=your-mongodb-connection-string
 ```
 
 An example file is provided at `backend/.env.example`. **Do not commit your real `.env` file.**
+
+### Frontend (Clerk Auth)
+
+The frontend uses Clerk for authentication. Set your publishable key in the repo root `.env.local` for local development:
+
+```bash
+REACT_APP_CLERK_PUBLISHABLE_KEY=your-clerk-publishable-key
+```
+
+Clerk Allowlist is enabled in the Clerk dashboard for this project.
+The current `@ufl.edu` signup restriction is configured in Clerk, not enforced by frontend code in this repo. Review or change it in your Clerk dashboard settings at [dashboard.clerk.com](https://dashboard.clerk.com). Allowlist is free for development, but if we push to production, we may need to re-evaluate.
 
 ### 3. Scripts
 
@@ -50,4 +63,3 @@ From the repository root:
   ```
 
   Uses `npm-run-all` to start both the frontend (`frontStart`) and backend (`backStart`) in parallel.
-
