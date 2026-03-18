@@ -1,5 +1,7 @@
 // REFERENCE: https://www.geeksforgeeks.org/reactjs/how-to-connect-mongodb-with-reactjs/
 // https://medium.com/@bhupendra_Maurya/password-hashing-using-bcrypt-e36f5c655e09
+// https://stackoverflow.com/questions/70203488/how-can-i-fetch-data-from-mongodb-and-display-it-on-react-front-end 
+
 require("dotenv").config();
 const mongoose = require('mongoose');
 const express = require('express');
@@ -34,10 +36,55 @@ const UserSchema = new mongoose.Schema({
     },
 });
 
+const ItemSchema = new mongoose.Schema({
+    itemName: {
+        type: String,
+        required: true,
+    },
+    itemCost: {
+        type: String,
+        required: true,
+    },
+    itemCondition: {
+        type: String,
+        required: true,
+    },
+    itemLocation: {
+        type: String,
+        required: true,
+    },
+    itemPicture: {
+        type: String,
+        required: true,
+    },
+    itemDescription: {
+        type: String,
+        required: true,
+    },
+    itemDetails: {
+        type: String,
+        required: true,
+    },
+    userPublishingID: {
+        type: String,
+        required: true,
+    },
+    userPublishingName: {
+        type: String,
+        required: true,
+    },
+    date: {
+        type: Date,
+        default: Date.now,
+    },
+});
+
 const User = mongoose.model('users', UserSchema);
+const Item = mongoose.model('items', ItemSchema);
+
 
 // Express setup
-app.use(express.json());
+app.use(express.json({limit: "5mb"}));
 app.use(cors({
     origin: 'http://localhost:3000' // React frontend URL
 }));
@@ -91,6 +138,35 @@ app.get("/emailverf", async (req, resp) => {
     const {email} = req.query;
     const existing = await User.findOne({email});
     resp.send({exists: !!existing});
+});
+
+// API to create item listing
+app.post("/create-item", async (req, resp) => {
+    try {
+        const {itemName, itemCost, itemCondition, itemLocation,
+            itemPicture, itemDescription, itemDetails, userPublishingID, userPublishingName} = req.body;
+        const result = await Item.create({itemName, itemCost, itemCondition, itemLocation,
+            itemPicture, itemDescription, itemDetails, userPublishingID, userPublishingName});
+        if (result) {
+            delete result.password;
+            resp.status(201).send(result);
+        } else {
+            console.log("User already registered");
+            resp.status(400).send("Item already registered");
+        }
+    } catch (e) {
+        resp.status(500).send({ message: "Something went wrong", error: e.message });
+    }
+});
+
+// API to grab item listings
+app.get("/items", async (req, resp) => {
+    try {
+        const items = await Item.find();
+        resp.json(items);
+    } catch (e){
+        resp.status(500).json({ message: "Failed to fetch", error: e.message});
+    }
 });
 
 // Start the server
