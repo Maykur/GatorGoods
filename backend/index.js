@@ -1,5 +1,7 @@
 // REFERENCE: https://www.geeksforgeeks.org/reactjs/how-to-connect-mongodb-with-reactjs/
 // https://medium.com/@bhupendra_Maurya/password-hashing-using-bcrypt-e36f5c655e09
+// https://stackoverflow.com/questions/70203488/how-can-i-fetch-data-from-mongodb-and-display-it-on-react-front-end 
+
 require("dotenv").config();
 const mongoose = require('mongoose');
 const express = require('express');

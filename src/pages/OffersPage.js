@@ -1,3 +1,5 @@
+// REFERENCES: https://stackoverflow.com/questions/70203488/how-can-i-fetch-data-from-mongodb-and-display-it-on-react-front-end
+
 import { useEffect, useState } from "react";
 
 export function OffersPage() {

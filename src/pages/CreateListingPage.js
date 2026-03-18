@@ -1,3 +1,6 @@
+// REFERENCES: https://stackoverflow.com/questions/47176280/how-to-convert-files-to-base64-in-react
+// https://clerk.com/docs/nextjs/guides/users/reading
+
 import { useState } from 'react';
 import { useUser } from "@clerk/react";
 import { Navigate, useNavigate } from 'react-router-dom';
