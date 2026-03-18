@@ -1,3 +1,5 @@
+import { Show, SignIn } from '@clerk/react';
+import { Navigate } from 'react-router-dom';
 // REFERENCE: https://cruip.com/toggle-password-visibility-with-tailwind-css-and-nextjs/
 
 import { useState } from 'react';
@@ -39,6 +41,18 @@ export function LoginPage() {
     navigate('/home');
   };
   return (
+    <Show when="signed-out" fallback={<Navigate to="/home" replace />}>
+      <section className="flex justify-center">
+        <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/70 p-2 shadow-lg shadow-black/20 sm:p-4">
+          <SignIn
+            path="/login"
+            routing="path"
+            signUpUrl="/signup"
+            fallbackRedirectUrl="/home"
+          />
+        </div>
+      </section>
+    </Show>
     <section className="mx-auto max-w-xl rounded-3xl border border-slate-800 bg-slate-950/70 p-6 shadow-lg shadow-black/20 sm:p-8">
       <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
         Account Access

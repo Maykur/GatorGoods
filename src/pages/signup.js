@@ -1,3 +1,7 @@
+import { Show, SignUp as ClerkSignUp } from '@clerk/react';
+import { Navigate } from 'react-router-dom';
+
+export function SignUp() {
 // REFERENCE: https://www.geeksforgeeks.org/reactjs/how-to-connect-mongodb-with-reactjs/
 // https://cruip.com/toggle-password-visibility-with-tailwind-css-and-nextjs/
 
@@ -56,30 +60,18 @@ export function SignUp() {
   };
 
   return (
-    <section className="mx-auto max-w-xl rounded-3xl border border-slate-800 bg-slate-950/70 p-6 shadow-lg shadow-black/20 sm:p-8">
-      <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-        Join GatorGoods
-      </p>
-      <h1 className="text-3xl font-bold tracking-tight text-white">
-        Create your account
-      </h1>
-      <p className="mt-3 text-base leading-7 text-slate-300">
-        Register with your UF email so marketplace activity stays rooted in the
-        campus community.
-      </p>
-
-      <form className="mt-8 space-y-5" onSubmit={handleOnSubmit}>
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-slate-200">
-            Full name
-          </span>
-          <input
-            type="text"
-            placeholder="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none transition-colors placeholder:text-slate-500 focus:border-gatorOrange"
+    <Show when="signed-out" fallback={<Navigate to="/home" replace />}>
+      <section className="flex justify-center">
+        <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/70 p-2 shadow-lg shadow-black/20 sm:p-4">
+          <ClerkSignUp
+            path="/signup"
+            routing="path"
+            signInUrl="/login"
+            fallbackRedirectUrl="/home"
           />
+        </div>
+      </section>
+    </Show>
         </label>
 
         <label className="block">
