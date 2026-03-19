@@ -33,7 +33,7 @@ REACT_APP_CLERK_PUBLISHABLE_KEY=your-clerk-publishable-key
 ```
 
 Clerk Allowlist is enabled in the Clerk dashboard for this project.
-The current `@ufl.edu` signup restriction is configured in Clerk, not enforced by frontend code in this repo. Review or change it in your Clerk dashboard settings at [dashboard.clerk.com](https://dashboard.clerk.com).
+The current `@ufl.edu` signup restriction is configured in Clerk, not enforced by frontend code in this repo. Review or change it in your Clerk dashboard settings at [dashboard.clerk.com](https://dashboard.clerk.com). Allowlist is free for development, but if we push to production, we may need to re-evaluate.
 
 The Express backend no longer handles user login or signup. It currently stores marketplace listing data only.
 
