@@ -2,29 +2,29 @@
 // https://clerk.com/docs/nextjs/guides/users/reading
 
 import { useState } from 'react';
-import { useUser } from "@clerk/react";
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useUser } from '@clerk/react';
+import { useNavigate } from 'react-router-dom';
 
 export function CreateListingPage() {
   const navigate = useNavigate();
-  const {user} = useUser();
-  const [itemName, setItemName] = useState("");
-  const [itemCost, setItemCost] = useState("");
-  const [itemCondition, setItemCondition] = useState("");
-  const [itemLocation, setItemLocation] = useState("");
+  const { user } = useUser();
+  const [itemName, setItemName] = useState('');
+  const [itemCost, setItemCost] = useState('');
+  const [itemCondition, setItemCondition] = useState('');
+  const [itemLocation, setItemLocation] = useState('');
   const [itemPicture, setItemPicture] = useState(null);
-  const [itemDescription, setItemDescription] = useState("");
-  const [itemDetails, setItemDetails] = useState("");
-  const [error, setError] = useState("");
+  const [itemDescription, setItemDescription] = useState('');
+  const [itemDetails, setItemDetails] = useState('');
+  const [error, setError] = useState('');
   const userPublishingID = user?.id;
-  const userPublishingName = user?.fullName || user?.firstName;
+  const userPublishingName = user?.fullName || user?.firstName || '';
   const handleFile = (e) => {
     const file = e.target.files[0];
-    if (!file){
+    if (!file) {
       return;
     }
     const fileSize = 5;
-    if (file.size > fileSize * 1024 * 1024){
+    if (file.size > fileSize * 1024 * 1024) {
       alert(`File too big! Max size is ${fileSize} MB.`);
       return;
     }
@@ -36,50 +36,60 @@ export function CreateListingPage() {
   };
   const handleOnSubmit = async (e) => {
     e.preventDefault();
-    if (!itemName.trim()){
-      setError("Item Name Required");
+    if (!itemName.trim()) {
+      setError('Item Name Required');
       return;
     }
-    if (!itemCost.trim()){
-      setError("Item Price Required");
+    if (!itemCost.trim()) {
+      setError('Item Price Required');
       return;
     }
-    if (!itemCondition.trim()){
-      setError("Item Condition Required");
+    if (!itemCondition.trim()) {
+      setError('Item Condition Required');
       return;
     }
-    if (!itemLocation.trim()){
-      setError("Item Location Required");
+    if (!itemLocation.trim()) {
+      setError('Item Location Required');
       return;
     }
-    if (!itemPicture){
-      setError("Item Picture Required");
+    if (!itemPicture) {
+      setError('Item Picture Required');
       return;
     }
-    if (!itemDescription.trim()){
-      setError("Item Description Required");
+    if (!itemDescription.trim()) {
+      setError('Item Description Required');
       return;
     }
-    if (!itemDetails.trim()){
-      setError("Item Details Required");
+    if (!itemDetails.trim()) {
+      setError('Item Details Required');
       return;
     }
-    if (!userPublishingID.trim() || !userPublishingName.trim()){
+    if (!userPublishingID || !userPublishingName) {
       setError("Couldn't get user details");
       return;
     }
-    setError("");
+    setError('');
     let result = await fetch('http://localhost:5000/create-item', {
-      method: 'post',
-      body: JSON.stringify({ itemName, itemCost, itemCondition, itemLocation, itemPicture, itemDescription, itemDetails, userPublishingID, userPublishingName }),
+      method: 'POST',
+      body: JSON.stringify({
+        itemName,
+        itemCost,
+        itemCondition,
+        itemLocation,
+        itemPicture,
+        itemDescription,
+        itemDetails,
+        userPublishingID,
+        userPublishingName,
+      }),
       headers: {
         'Content-Type': 'application/json',
       },
     });
-    if (!result.ok){
-      setError("Invalid Listing");
+    if (!result.ok) {
+      setError('Invalid Listing');
       return;
-    }      
+    }
     alert('Item Created');
     setItemName('');
     setItemCost('');
@@ -93,8 +103,9 @@ export function CreateListingPage() {
   return (
     <main>
       <h1>Create Listing</h1>
-      <form onSubmit={handleOnSubmit}
-        style={{display: "flex", flexDirection: "Column", gap: "10px", maxWidth: "400px"}}
+      <form
+        onSubmit={handleOnSubmit}
+        style={{ display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}
       >
         <div>
           <label>Item Name: </label>
@@ -103,7 +114,7 @@ export function CreateListingPage() {
             placeholder="Item Name"
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
-            style={{color: "black", backgroundColor: "white"}}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -113,7 +124,7 @@ export function CreateListingPage() {
             placeholder="Price"
             value={itemCost}
             onChange={(e) => setItemCost(e.target.value)}
-            style={{color: "black", backgroundColor: "white"}}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -121,7 +132,8 @@ export function CreateListingPage() {
           <select
             value={itemCondition}
             onChange={(e) => setItemCondition(e.target.value)}
-            style={{color: "black", backgroundColor: "white"}}>
+            style={{ color: 'black', backgroundColor: 'white' }}
+          >
             <option value="">Select Condition</option>
             <option value="Perfect">Perfect</option>
             <option value="Good">Good</option>
@@ -136,7 +148,7 @@ export function CreateListingPage() {
             placeholder="Location"
             value={itemLocation}
             onChange={(e) => setItemLocation(e.target.value)}
-            style={{color: "black", backgroundColor: "white"}}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -146,7 +158,7 @@ export function CreateListingPage() {
             accept="image/*"
             placeholder="Image URL"
             onChange={handleFile}
-            style={{color: "black", backgroundColor: "white"}}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -156,7 +168,7 @@ export function CreateListingPage() {
             placeholder="Description"
             value={itemDescription}
             onChange={(e) => setItemDescription(e.target.value)}
-            style={{color: "black", backgroundColor: "white"}}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -166,18 +178,32 @@ export function CreateListingPage() {
             placeholder="Details"
             value={itemDetails}
             onChange={(e) => setItemDetails(e.target.value)}
-            style={{color: "black", backgroundColor: "white"}}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
-        {error && <p style={{color:'red'}}>{error}</p>}
-        <button type="submit"
-        style={{backgroundColor: "grey", color: "white", padding: "10px", border: "none", borderRadius: "5px", fontWeight: "bold"}}>
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button
+          type="submit"
+          style={{
+            backgroundColor: 'grey',
+            color: 'white',
+            padding: '10px',
+            border: 'none',
+            borderRadius: '5px',
+            fontWeight: 'bold',
+          }}
+        >
           Create Listing
         </button>
       </form>
       <label>Item Picture Preview:</label>
-        {itemPicture && (<img src={itemPicture} alt="preview" style={{width: "200px", height: "auto"}}/>)}
+      {itemPicture && (
+        <img
+          src={itemPicture}
+          alt="preview"
+          style={{ width: '200px', height: 'auto' }}
+        />
+      )}
     </main>
   );
 }
-
