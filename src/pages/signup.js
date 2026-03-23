@@ -1,4 +1,3 @@
-// REFERENCE: https://www.geeksforgeeks.org/reactjs/how-to-connect-mongodb-with-reactjs/
 import { Show, SignUp as ClerkSignUp } from '@clerk/react';
 import { Navigate } from 'react-router-dom';
 

@@ -1,81 +1,88 @@
 // REFERENCES: https://stackoverflow.com/questions/47176280/how-to-convert-files-to-base64-in-react
 // https://clerk.com/docs/nextjs/guides/users/reading
 
-import { useState } from "react";
-import { useUser } from "@clerk/react";
-import { useNavigate } from "react-router-dom";
+import { useState } from 'react';
+import { useUser } from '@clerk/react';
+import { useNavigate } from 'react-router-dom';
 
 export function CreateListingPage() {
   const navigate = useNavigate();
   const { user } = useUser();
-  const [itemName, setItemName] = useState("");
-  const [itemCost, setItemCost] = useState("");
-  const [itemCondition, setItemCondition] = useState("");
-  const [itemLocation, setItemLocation] = useState("");
+  const [itemName, setItemName] = useState('');
+  const [itemCost, setItemCost] = useState('');
+  const [itemCondition, setItemCondition] = useState('');
+  const [itemLocation, setItemLocation] = useState('');
   const [itemPicture, setItemPicture] = useState(null);
-  const [itemDescription, setItemDescription] = useState("");
-  const [itemDetails, setItemDetails] = useState("");
-  const [error, setError] = useState("");
+  const [itemDescription, setItemDescription] = useState('');
+  const [itemDetails, setItemDetails] = useState('');
+  const [error, setError] = useState('');
   const userPublishingID = user?.id;
-  const userPublishingName = user?.fullName || user?.firstName;
+  const userPublishingName = user?.fullName || user?.firstName || '';
+
   const handleFile = (e) => {
     const file = e.target.files[0];
     if (!file) {
       return;
     }
+
     const fileSize = 5;
     if (file.size > fileSize * 1024 * 1024) {
       setItemPicture(null);
       setError(
-        `File too big. Choose an image under ${fileSize} MB to avoid upload payload limits.`,
+        `File too big. Choose an image under ${fileSize} MB to avoid upload payload limits.`
       );
       return;
     }
-    setError("");
+
+    setError('');
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onloadend = () => {
       setItemPicture(reader.result);
     };
   };
+
   const handleOnSubmit = async (e) => {
     e.preventDefault();
+
     if (!itemName.trim()) {
-      setError("Item Name Required");
+      setError('Item Name Required');
       return;
     }
     if (!itemCost.trim()) {
-      setError("Item Price Required");
+      setError('Item Price Required');
       return;
     }
     if (!itemCondition.trim()) {
-      setError("Item Condition Required");
+      setError('Item Condition Required');
       return;
     }
     if (!itemLocation.trim()) {
-      setError("Item Location Required");
+      setError('Item Location Required');
       return;
     }
     if (!itemPicture) {
-      setError("Item Picture Required");
+      setError('Item Picture Required');
       return;
     }
     if (!itemDescription.trim()) {
-      setError("Item Description Required");
+      setError('Item Description Required');
       return;
     }
     if (!itemDetails.trim()) {
-      setError("Item Details Required");
+      setError('Item Details Required');
       return;
     }
-    if (!userPublishingID || !userPublishingName?.trim()) {
+    if (!userPublishingID || !userPublishingName.trim()) {
       setError("Couldn't get user details");
       return;
     }
-    setError("");
+
+    setError('');
+
     try {
-      const result = await fetch("http://localhost:5000/create-item", {
-        method: "post",
+      const result = await fetch('http://localhost:5000/create-item', {
+        method: 'POST',
         body: JSON.stringify({
           itemName,
           itemCost,
@@ -88,47 +95,40 @@ export function CreateListingPage() {
           userPublishingName,
         }),
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       });
 
       if (result.status === 413) {
-        setError(
-          "Image upload is too large after encoding. Try a smaller image.",
-        );
+        setError('Image upload is too large after encoding. Try a smaller image.');
         return;
       }
 
       if (!result.ok) {
-        setError("Unable to create listing. Check the form and try again.");
+        setError('Unable to create listing. Check the form and try again.');
         return;
       }
 
-      alert("Item Created");
-      setItemName("");
-      setItemCost("");
-      setItemCondition("");
-      setItemLocation("");
+      alert('Item Created');
+      setItemName('');
+      setItemCost('');
+      setItemCondition('');
+      setItemLocation('');
       setItemPicture(null);
-      setItemDescription("");
-      setItemDetails("");
-      navigate("/offers");
+      setItemDescription('');
+      setItemDetails('');
+      navigate('/offers');
     } catch (err) {
-      setError("Unable to reach the server. Check your connection and retry.");
-      return;
+      setError('Unable to reach the server. Check your connection and retry.');
     }
   };
+
   return (
     <main>
       <h1>Create Listing</h1>
       <form
         onSubmit={handleOnSubmit}
-        style={{
-          display: "flex",
-          flexDirection: "Column",
-          gap: "10px",
-          maxWidth: "400px",
-        }}
+        style={{ display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}
       >
         <div>
           <label>Item Name: </label>
@@ -137,7 +137,7 @@ export function CreateListingPage() {
             placeholder="Item Name"
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -147,7 +147,7 @@ export function CreateListingPage() {
             placeholder="Price"
             value={itemCost}
             onChange={(e) => setItemCost(e.target.value)}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -155,7 +155,7 @@ export function CreateListingPage() {
           <select
             value={itemCondition}
             onChange={(e) => setItemCondition(e.target.value)}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           >
             <option value="">Select Condition</option>
             <option value="Perfect">Perfect</option>
@@ -171,7 +171,7 @@ export function CreateListingPage() {
             placeholder="Location"
             value={itemLocation}
             onChange={(e) => setItemLocation(e.target.value)}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -181,7 +181,7 @@ export function CreateListingPage() {
             accept="image/*"
             placeholder="Image URL"
             onChange={handleFile}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -191,7 +191,7 @@ export function CreateListingPage() {
             placeholder="Description"
             value={itemDescription}
             onChange={(e) => setItemDescription(e.target.value)}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
         <div>
@@ -201,19 +201,19 @@ export function CreateListingPage() {
             placeholder="Details"
             value={itemDetails}
             onChange={(e) => setItemDetails(e.target.value)}
-            style={{ color: "black", backgroundColor: "white" }}
+            style={{ color: 'black', backgroundColor: 'white' }}
           />
         </div>
-        {error && <p style={{ color: "red" }}>{error}</p>}
+        {error && <p style={{ color: 'red' }}>{error}</p>}
         <button
           type="submit"
           style={{
-            backgroundColor: "grey",
-            color: "white",
-            padding: "10px",
-            border: "none",
-            borderRadius: "5px",
-            fontWeight: "bold",
+            backgroundColor: 'grey',
+            color: 'white',
+            padding: '10px',
+            border: 'none',
+            borderRadius: '5px',
+            fontWeight: 'bold',
           }}
         >
           Create Listing
@@ -224,7 +224,7 @@ export function CreateListingPage() {
         <img
           src={itemPicture}
           alt="preview"
-          style={{ width: "200px", height: "auto" }}
+          style={{ width: '200px', height: 'auto' }}
         />
       )}
     </main>
