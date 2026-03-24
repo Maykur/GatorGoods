@@ -115,7 +115,7 @@ app.get('/items/:id', async (req, resp) => {
     const {id} = req.params;
     const item = await Item.findById(id);
     if (!item){
-        resp.status(404).json({ message: 'Item not found', error: e.message });
+        return resp.status(404).json({ message: 'Item not found' });
     }
     resp.status(200).json(item);    
   } catch (e) {
