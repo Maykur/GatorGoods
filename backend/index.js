@@ -110,6 +110,19 @@ app.get('/items', async (req, resp) => {
   }
 });
 
+app.get('/items/:id', async (req, resp) => {
+  try {
+    const {id} = req.params;
+    const item = await Item.findById(id);
+    if (!item){
+        return resp.status(404).json({ message: 'Item not found' });
+    }
+    resp.status(200).json(item);    
+  } catch (e) {
+    resp.status(500).json({ message: 'Failed to fetch', error: e.message });
+  }
+});
+
 app.listen(5000, () => {
   console.log('App is running on port 5000');
 });

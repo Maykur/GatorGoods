@@ -10,6 +10,7 @@ import { MessagesPage } from './pages/MessagesPage';
 import { ChatThreadPage } from './pages/ChatThreadPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ItemPage } from './pages/ItemPage';
 
 function ProtectedRoute({ children }) {
   return (
@@ -65,6 +66,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/items/:id"
+            element={
+              <ProtectedRoute>
+                <ItemPage />
               </ProtectedRoute>
             }
           />
