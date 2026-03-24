@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 
+// Page to display whatever item is clicked on by id
 export function ItemPage() {
     const {id} = useParams();
     const [item, setItem] = useState(null);
@@ -29,20 +30,16 @@ export function ItemPage() {
   }
   return (
     <main style={{padding: "15px"}}>
-        <h1>Name: {item.itemName}</h1>
-        <h1>Price: ${item.itemCost}</h1>
-        <h1>Condition: {item.itemCondition}</h1>
-        <h1>Location: {item.itemLocation}</h1>
-        {item.itemPicture && (
-                <img
-                  src={item.itemPicture}
-                  alt={item.itemName}
-                  style={{width: "20%", borderRadius: "5px", marginBottom: "10px"}}
-                />
-              )}
-        <h1>Description: {item.itemDescription}</h1>
-        <h1>Details: {item.itemDetails}</h1>
-        <h1>Published by: {item.userPublishingName}</h1>
+        <p>Name: {item.itemName}</p>
+        <p>Price: ${item.itemCost}</p>
+        <p>Condition: {item.itemCondition}</p>
+        <p>Location: {item.itemLocation}</p>
+        {item.itemPicture && (<img src={item.itemPicture}/>)}
+        <p>Description: {item.itemDescription}</p>
+        <p>Details: {item.itemDetails}</p>
+        <Link to={`/profile/${item.userPublishingID}`}>
+            <p>Published by: {item.userPublishingName}</p>
+        </Link>
     </main>
   );
 }

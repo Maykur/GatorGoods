@@ -1,6 +1,7 @@
 import { Show } from '@clerk/react';
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { UserProfile } from './components/UserProfile';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { SignUp } from './pages/signup';
@@ -23,6 +24,7 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <Router>
+      <UserProfile />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
