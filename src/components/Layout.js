@@ -1,16 +1,9 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/react';
+import { Show, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/react';
 
 const publicNavItems = [
   { to: '/', label: 'Home', end: true },
-];
-
-const signedInNavItems = [
-  { to: '/create', label: 'Create Listing' },
-  { to: '/offers', label: 'Offers' },
-  { to: '/messages', label: 'Messages' },
-  { to: '/profile/demo', label: 'Profile' },
 ];
 
 function getNavLinkClass(isActive) {
@@ -24,6 +17,14 @@ function getNavLinkClass(isActive) {
 
 export function Layout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user } = useUser();
+
+  const signedInNavItems = user ? [
+    { to: '/create', label: 'Create Listing' },
+    { to: '/offers', label: 'Offers' },
+    { to: '/messages', label: 'Messages' },
+    { to: `/profile/${user.id}`, label: 'Profile' },
+  ] : [];
 
   return (
     <div className="flex min-h-screen flex-col bg-gatorDark text-gatorLight">
