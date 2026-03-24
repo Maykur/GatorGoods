@@ -1,3 +1,15 @@
+## GatorGoods
+
+Canonical project/planning docs now live under [`docs/`](docs/):
+
+- [`docs/project-status.md`](docs/project-status.md) - current scope, issue map, milestones, and blockers
+- [`docs/architecture.md`](docs/architecture.md) - routes, auth rules, data model, and API contracts
+- [`docs/evaluation-plan.md`](docs/evaluation-plan.md) - study conditions, tasks, metrics, and data collection
+- [`docs/demo-runbook.md`](docs/demo-runbook.md) - final demo/video walkthrough and fallback plan
+- [`docs/workflow.md`](docs/workflow.md) - issue, branch, PR, and definition-of-done rules
+
+The older `.cursor/plans/*.plan.md` files are preserved for history but are now superseded by the docs above.
+
 ## GatorGoods Dev Setup
 
 This project is a React frontend (Create React App) with an Express + MongoDB backend.
