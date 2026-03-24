@@ -18,24 +18,33 @@ export function CreateListingPage() {
   const [error, setError] = useState('');
   const userPublishingID = user?.id;
   const userPublishingName = user?.fullName || user?.firstName || '';
+
   const handleFile = (e) => {
     const file = e.target.files[0];
     if (!file) {
       return;
     }
+
     const fileSize = 5;
     if (file.size > fileSize * 1024 * 1024) {
-      alert(`File too big! Max size is ${fileSize} MB.`);
+      setItemPicture(null);
+      setError(
+        `File too big. Choose an image under ${fileSize} MB to avoid upload payload limits.`
+      );
       return;
     }
+
+    setError('');
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onloadend = () => {
       setItemPicture(reader.result);
     };
   };
+
   const handleOnSubmit = async (e) => {
     e.preventDefault();
+
     if (!itemName.trim()) {
       setError('Item Name Required');
       return;
@@ -64,42 +73,56 @@ export function CreateListingPage() {
       setError('Item Details Required');
       return;
     }
-    if (!userPublishingID || !userPublishingName) {
+    if (!userPublishingID || !userPublishingName.trim()) {
       setError("Couldn't get user details");
       return;
     }
+
     setError('');
-    let result = await fetch('http://localhost:5000/create-item', {
-      method: 'POST',
-      body: JSON.stringify({
-        itemName,
-        itemCost,
-        itemCondition,
-        itemLocation,
-        itemPicture,
-        itemDescription,
-        itemDetails,
-        userPublishingID,
-        userPublishingName,
-      }),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!result.ok) {
-      setError('Invalid Listing');
-      return;
+
+    try {
+      const result = await fetch('http://localhost:5000/create-item', {
+        method: 'POST',
+        body: JSON.stringify({
+          itemName,
+          itemCost,
+          itemCondition,
+          itemLocation,
+          itemPicture,
+          itemDescription,
+          itemDetails,
+          userPublishingID,
+          userPublishingName,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (result.status === 413) {
+        setError('Image upload is too large after encoding. Try a smaller image.');
+        return;
+      }
+
+      if (!result.ok) {
+        setError('Unable to create listing. Check the form and try again.');
+        return;
+      }
+
+      alert('Item Created');
+      setItemName('');
+      setItemCost('');
+      setItemCondition('');
+      setItemLocation('');
+      setItemPicture(null);
+      setItemDescription('');
+      setItemDetails('');
+      navigate('/offers');
+    } catch (err) {
+      setError('Unable to reach the server. Check your connection and retry.');
     }
-    alert('Item Created');
-    setItemName('');
-    setItemCost('');
-    setItemCondition('');
-    setItemLocation('');
-    setItemPicture('');
-    setItemDescription('');
-    setItemDetails('');
-    navigate('/offers');
   };
+
   return (
     <main>
       <h1>Create Listing</h1>

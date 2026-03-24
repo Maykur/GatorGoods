@@ -56,12 +56,23 @@ const ItemSchema = new mongoose.Schema({
 
 const Item = mongoose.model('items', ItemSchema);
 
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(
   cors({
     origin: 'http://localhost:3000',
   })
 );
+
+app.use((err, req, res, next) => {
+  if (err.code === 'entity.too.large' || err.type === 'entity.too.large') {
+    res.status(413).json({
+      message: 'File too large. Choose a smaller image and try again.',
+    });
+    return;
+  }
+
+  next(err);
+});
 
 app.get('/', (req, resp) => {
   resp.send('App is working');
