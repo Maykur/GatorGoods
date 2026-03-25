@@ -1,11 +1,32 @@
+// REFERENCES: https://stackoverflow.com/questions/52034868/confirm-window-in-react
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/react";
 
 // Page to display whatever item is clicked on by id
 export function ItemPage() {
+    const {user} = useUser();
     const {id} = useParams();
+    const navigate = useNavigate();
     const [item, setItem] = useState(null);
     const [error, setError] = useState("");
+    const handleOnSubmit = async (e, id) => {
+        e.preventDefault();
+        const verif = window.confirm("This action will delete this item. Are you sure?");
+        if (!verif) {
+            return;
+        }
+        const apiUrl = `http://localhost:5000/item/${id}`;
+        try {
+            const res = await fetch(apiUrl, {
+                method: 'DELETE',
+            });
+            alert('Item Deleted');
+            navigate('/offers');
+        } catch (e) {
+            setError('Error during delete');
+        }
+    };
     useEffect(() => {
     const itemFetch = async () => {
       try {
@@ -40,6 +61,22 @@ export function ItemPage() {
         <Link to={`/profile/${item.userPublishingID}`}>
             <p>Published by: {item.userPublishingName}</p>
         </Link>
+        {user.id === item.userPublishingID 
+        ?
+            <button
+                onClick={(e) => handleOnSubmit(e, item._id)}
+                style={{
+                    backgroundColor: 'red',
+                    color: 'white',
+                    padding: '10px',
+                    border: 'none',
+                    borderRadius: '5px',
+                    fontWeight: 'bold',
+                }}
+                >
+                Delete Listing
+            </button>
+        : <p>AHHHHH</p>}
     </main>
   );
 }
