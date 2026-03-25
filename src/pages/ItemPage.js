@@ -16,9 +16,8 @@ export function ItemPage() {
         if (!verif) {
             return;
         }
-        const apiUrl = `http://localhost:5000/item/${id}`;
         try {
-            const res = await fetch(apiUrl, {
+            const res = await fetch(`http://localhost:5000/item/${id}`, {
                 method: 'DELETE',
             });
             alert('Item Deleted');
