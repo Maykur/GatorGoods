@@ -6,8 +6,7 @@ import { useUser } from "@clerk/react";
 import Profile from "../assets/profile.jpg";
 import VerifiedBadge from "../assets/verified-badge.png";
 import Star from "../assets/Star.png";
-import Iphone from "../assets/Iphone.jpg";
-import { ItemCard } from "../components/ProfilePage/ItemCard.js";
+import ItemCard from "../components/ProfilePage/ItemCard";
 
 // Page to display user profiles
 export function ProfilePage() {
@@ -71,57 +70,59 @@ export function ProfilePage() {
 
 	return (
 		<main>
-      {/* {console.log(id)} */}
+			{/* {console.log(id)} */}
 			{/* Profile picture and name with verified badge and rating */}
-			<img
-				src={Profile}
-				alt="An anime character with a shocked face"
-				class="rounded-full w-32 h-32"
-			/>
-			<span class="flex mt-2">
-				<h1 class="text-3xl font-bold mt-0.5">Shashank Gutta</h1>
+			<div>
 				<img
-					src={VerifiedBadge}
-					alt="Verified badge"
-					class="mt-0.5 ml-1 w-10 h-10"
+					src={Profile}
+					alt="An anime character with a shocked face"
+					class="rounded-full w-32 h-32"
 				/>
-				<h1 class="text-3xl font-bold mt-0.5 ml-1">4.9</h1>
-				<img src={Star} alt="Star" class="mt-[6px] ml-1 w-7 h-7" />
-			</span>
+				<span class="flex mt-2">
+					<h1 class="text-3xl font-bold mt-0.5">Shashank Gutta</h1>
+					<img
+						src={VerifiedBadge}
+						alt="Verified badge"
+						class="mt-0.5 ml-1 w-10 h-10"
+					/>
+					<h1 class="text-3xl font-bold mt-0.5 ml-1">4.9</h1>
+					<img src={Star} alt="Star" class="mt-[6px] ml-1 w-7 h-7" />
+				</span>
 
-			{/* Listing Stats */}
-			<div class="flex">
-				<p>5 active listings</p>
-				<p class="ml-9">30 total listings</p>
+				{/* Listing Stats */}
+				<div class="flex">
+					<p>5 active listings</p>
+					<p class="ml-9">30 total listings</p>
+				</div>
 			</div>
 
+			{/* A scren that shows active and past orders made by the user both as a buyer and a seller */}
 			<div class="h-screen max-h-[500px] bg-[#0033A0]/60 mt-4 rounded-3xl">
 				<div class="flex flex-row justify-between">
-					<span class="flex flex-row">
-						{/* {orderState === "active" ? "bg-gray-500" : "bg-[#0033A0]/60"} */}
+					<div class="flex flex-row">
 						<div
 							class={`cursor-pointer ${orderState === "active" ? "bg-zinc-700  rounded-tl-2xl" : ""}`}
 							onClick={() => setOrderState("active")}
 						>
-							<div class="text-white text-2xl m-5 ml-5">Active Orders</div>
+							<p class="text-white text-2xl m-5 ml-5">Active Orders</p>
 						</div>
 						<div
 							class={`cursor-pointer ${orderState === "past" ? "bg-zinc-700" : ""}`}
 							onClick={() => setOrderState("past")}
 						>
-							<div class="text-white text-2xl m-5 ml-5 pl-5 pr-5">
+							<p class="text-white text-2xl m-5 ml-5 pl-5 pr-5">
 								Past Orders
-							</div>
+							</p>
 						</div>
-					</span>
-					<span class="flex flex-row">
+					</div>
+					<div class="flex flex-row">
 						<div
 							onClick={() => {
 								console.log("Buyer clicked");
 							}}
 							class="p-5 hover:bg-gatorOrange mr-3 cursor-pointer"
 						>
-							<div class="text-white text-2xl">Buyer</div>
+							<p class="text-white text-2xl">Buyer</p>
 						</div>
 						<div
 							onClick={() => {
@@ -129,46 +130,13 @@ export function ProfilePage() {
 							}}
 							class="p-5 hover:bg-gatorOrange rounded-tr-2xl -ml-3 cursor-pointer"
 						>
-							<div class="text-white text-2xl">Seller</div>
+							<p class="text-white text-2xl">Seller</p>
 						</div>
-					</span>
+					</div>
 				</div>
 				{orderState === "active" || "past" ? (
 					<div class="bg-zinc-700 h-full rounded-b-3xl">
-						<ItemCard/>
-						<hr class="border-[#0033A0]/60 border-y-2" />
-						<div class="flex flex-row justify-between bg-black/40 h-[187px]">
-							<div class="flex flex-row">
-								<img
-									src={Iphone}
-									class="w-[180px] p-5 h-full object-contain"
-								></img>
-
-								<p class="text-2xl ml-10 mt-1.5">
-									Iphone 11, charger not included
-								</p>
-							</div>
-							<div class="flex flex-col gap-y-3 mr-3">
-								<a
-									href=""
-									class="bg-gatorOrange rounded-full text-center p-1 mt-3"
-								>
-									Contact Seller
-								</a>
-								<a href="" class="bg-gatorOrange rounded-full text-center p-1">
-									Cancel Order
-								</a>
-								<a href="" class="bg-gatorOrange rounded-full text-center p-1">
-									Write a Review
-								</a>
-								<a
-									href=""
-									class="bg-gatorOrange rounded-full text-center p-1 mb-3"
-								>
-									Change Details
-								</a>
-							</div>
-						</div>
+						<ItemCard />
 						<hr class="border-[#0033A0]/60 border-y-2" />
 					</div>
 				) : (
