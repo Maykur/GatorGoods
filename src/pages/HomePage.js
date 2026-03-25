@@ -6,7 +6,7 @@ export function HomePage() {
     <section className="space-y-8">
       <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-10 shadow-lg shadow-black/20 sm:px-8">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-          UF Marketplace
+          A UF Marketplace
         </p>
         <h1 className="mb-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
           Buy, sell, and trade around campus without the usual chaos.
@@ -47,21 +47,21 @@ export function HomePage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <h2 className="text-lg font-semibold text-white">Trusted network</h2>
+          <h2 className="text-lg font-semibold text-white">Trusted Network</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             Built around a campus community where meetup coordination and trust
             matter.
           </p>
         </article>
         <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <h2 className="text-lg font-semibold text-white">Offer-first flow</h2>
+          <h2 className="text-lg font-semibold text-white">Offer-First Flow</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            A cleaner negotiation path for buyers and sellers than generic
-            classifieds.
+            A cleaner negotiation path for buyers and sellers than general-use
+            classified services.
           </p>
         </article>
         <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <h2 className="text-lg font-semibold text-white">Coming next</h2>
+          <h2 className="text-lg font-semibold text-white">Upcoming Features</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             Listing feed, search, messaging, and profile trust signals will
             live here.

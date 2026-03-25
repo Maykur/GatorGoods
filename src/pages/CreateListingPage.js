@@ -125,83 +125,83 @@ export function CreateListingPage() {
 
   return (
     <main>
-      <h1>Create Listing</h1>
+          <h1 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">Item For Sale</h1>
       <form
         onSubmit={handleOnSubmit}
         style={{ display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}
       >
-        <div>
-          <label>Item Name: </label>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Name: </label>
           <input
             type="text"
             placeholder="Item Name"
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
-            style={{ color: 'black', backgroundColor: 'white' }}
+            style={{ color: 'white', backgroundColor: 'transparent' }}
           />
         </div>
-        <div>
-          <label>Item Price: </label>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Price: </label>
           <input
             type="number"
-            placeholder="Price"
+            placeholder="Item Price (USD)"
             value={itemCost}
             onChange={(e) => setItemCost(e.target.value)}
-            style={{ color: 'black', backgroundColor: 'white' }}
+            style={{ color: 'white', backgroundColor: 'transparent' }}
           />
         </div>
-        <div>
-          <label>Item Condition: </label>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Condition: </label>
           <select
             value={itemCondition}
             onChange={(e) => setItemCondition(e.target.value)}
-            style={{ color: 'black', backgroundColor: 'white' }}
+             style={{ color: 'grey', backgroundColor: 'transparent' }}
           >
-            <option value="">Select Condition</option>
+            <option value="">Select Item Condition</option>
             <option value="Perfect">Perfect</option>
             <option value="Good">Good</option>
             <option value="Fair">Fair</option>
             <option value="Poor">Poor</option>
           </select>
         </div>
-        <div>
-          <label>Item Location: </label>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Location: </label>
           <input
             type="text"
-            placeholder="Location"
+            placeholder="Item Location"
             value={itemLocation}
             onChange={(e) => setItemLocation(e.target.value)}
-            style={{ color: 'black', backgroundColor: 'white' }}
+            style={{ color: 'white', backgroundColor: 'transparent' }}
           />
         </div>
-        <div>
-          <label>Item Picture: </label>
+        <div className="rounded-3xl border border-slate bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Image: </label>
           <input
             type="file"
             accept="image/*"
             placeholder="Image URL"
             onChange={handleFile}
-            style={{ color: 'black', backgroundColor: 'white' }}
+            style={{ color: 'grey', backgroundColor: 'transparent' }}
           />
         </div>
-        <div>
-          <label>Item Description: </label>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Description: </label>
           <input
             type="text"
-            placeholder="Description"
+            placeholder="Item Description"
             value={itemDescription}
             onChange={(e) => setItemDescription(e.target.value)}
-            style={{ color: 'black', backgroundColor: 'white' }}
+            style={{ color: 'white', backgroundColor: 'transparent' }}
           />
         </div>
-        <div>
-          <label>Item Details: </label>
+        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+          <label>Details: </label>
           <input
             type="text"
-            placeholder="Details"
+            placeholder="Item Details"
             value={itemDetails}
             onChange={(e) => setItemDetails(e.target.value)}
-            style={{ color: 'black', backgroundColor: 'white' }}
+            style={{ color: 'white', backgroundColor: 'transparent' }}
           />
         </div>
         {error && <p style={{ color: 'red' }}>{error}</p>}
@@ -215,11 +215,13 @@ export function CreateListingPage() {
             borderRadius: '5px',
             fontWeight: 'bold',
           }}
-        >
-          Create Listing
-        </button>
-      </form>
-      <label>Item Picture Preview:</label>
+              >
+        
+        <h1 className=" text-sm font-semibold uppercase tracking-[0.2em] ">Create Listing</h1>
+              </button>
+          </form>
+          <div style={{ height: '6px' }}></div>
+      <h1 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">Item Picture Preview:</h1>
       {itemPicture && (
         <img
           src={itemPicture}
