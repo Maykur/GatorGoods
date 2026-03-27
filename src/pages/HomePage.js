@@ -4,7 +4,7 @@ import { useUser } from "@clerk/react";
 import ProductCard from "../components/HomePage/ProductCard.js";
 import { useState, useEffect } from "react";
 
-// Sample card data sets
+// Placeholder card data sets
 const cardDataSets = [
 	[
 		{ id: 1, price: "399$", title: "iPhone 11", location: "Gainesville, FL" },
@@ -48,7 +48,10 @@ export function HomePage() {
 	const { isLoaded, isSignedIn, user } = useUser();
 	const [animationState, setAnimationState] = useState("");
 	const [currentDataIndex, setCurrentDataIndex] = useState(0);
+	const [activeTimeout, setActiveTimeout] = useState(null);
 
+  //Object class that maps the names of different animation variables with tailwind names
+  //This is used to dynamically set the animation on the card div element
 	const animationClasses = {
 		"slide-out-left": "animate-slide-out-left",
 		"slide-out-right": "animate-slide-out-right",
@@ -56,59 +59,89 @@ export function HomePage() {
 		"slide-in-from-left": "animate-slide-in-from-left",
 	};
 
-	const leftHandler = () => {
+  //These comments are for both startLeftAnimation and startRightAnimation
+  // The functionality of these functions is as follows:
+  //      1) Slide out the existing cards in the direction of the arrow button clicked
+  //      2) Change the data of the slide cards off-screen
+  //      3) Slide in the new cards from the other side of the screen
+	const startLeftAnimation = () => {
+		// Clear any existing timeout
+		if (activeTimeout) clearTimeout(activeTimeout);
+		
+		// Start slide-out animation
 		setAnimationState("slide-out-left");
-	};
+		
+		// Schedule data change and slide-in
+    // Outer Timer scheduled to run after the slide-out-left animation ends
+    //    it sets the animation state to slide-in-from right and changes the card data
 
-	const rightHandler = () => {
-		setAnimationState("slide-out-right");
-	};
-
-	useEffect(() => {
-		if (animationState === "slide-out-left") {
-			// After slide-out animation completes, switch to slide-in with new data
-			const timer = setTimeout(() => {
-				setCurrentDataIndex((prev) => (prev + 1) % cardDataSets.length);
-				setAnimationState("slide-in-from-right");
-			}, 800); // Match slide-out duration
-
-			return () => clearTimeout(timer);
-		} else if (animationState === "slide-out-right") {
-			// After slide-out animation completes, switch to slide-in with previous data
-			const timer = setTimeout(() => {
-				setCurrentDataIndex(
-					(prev) => (prev - 1 + cardDataSets.length) % cardDataSets.length,
-				);
-				setAnimationState("slide-in-from-left");
-			}, 800); // Match slide-out duration
-
-			return () => clearTimeout(timer);
-		} else if (
-			animationState === "slide-in-from-right" ||
-			animationState === "slide-in-from-left"
-		) {
-			// After slide-in animation completes, reset state
-			const timer = setTimeout(() => {
+    // Inner Timer scheduled to run after slide-in-from-right animation finishes
+    // It cleans the timer and setAnimationState for the next use
+		const timer = setTimeout(() => {
+			setCurrentDataIndex((prev) => (prev + 1) % cardDataSets.length);
+			setAnimationState("slide-in-from-right");
+			
+			// Schedule reset after slide-in completes
+			const resetTimer = setTimeout(() => {
 				setAnimationState("");
-			}, 800); // Match slide-in duration
+				setActiveTimeout(null);
+			}, 800);
+			
+			setActiveTimeout(resetTimer);
+		}, 800);
+		
+		setActiveTimeout(timer);
+	};
 
-			return () => clearTimeout(timer);
-		}
-	}, [animationState]);
+	const startRightAnimation = () => {
+		// Clear any existing timeout
+		if (activeTimeout) clearTimeout(activeTimeout);
+		
+		// Start slide-out animation
+		setAnimationState("slide-out-right");
+		
+    // Schedule data change and slide-in
+    // Outer Timer scheduled to run after the slide-out-right animation ends
+    //    it sets the animation state to slide-in-from-left and changes the card data
 
+    // Inner Timer scheduled to run after slide-in-from-left animation finishes
+    // It cleans the timer and setAnimationState for the next use
+		const timer = setTimeout(() => {
+			setCurrentDataIndex((prev) => (prev - 1 + cardDataSets.length) % cardDataSets.length);
+			setAnimationState("slide-in-from-left");
+			
+			// Schedule reset after slide-in completes
+			const resetTimer = setTimeout(() => {
+				setAnimationState("");
+				setActiveTimeout(null);
+			}, 800);
+			
+			setActiveTimeout(resetTimer);
+		}, 800);
+		
+		setActiveTimeout(timer);
+	};
+
+  //If the user is signedIn then display the products else display the place holder homescreen
 	if (isSignedIn)
 		return (
+      //Outer div for the product screen
 			<div>
+
+        {/* Category 1 */}
 				<h2 class="mb-2">Electronics</h2>
+        {/* Outer Div that styles the borders and backgrounds of the card elements */}
 				<div class="flex relative bg-black rounded-lg mb-2 flex-nonwrap">
+          {/* Left arrow button */}
 					<p
 						class="bg-slate-700 h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-slate-600 transition-colors"
-						onClick={leftHandler}
+						onClick={startLeftAnimation}
 					>
 						&lt;
 					</p>
+          {/* Inner Div that contains the cards */}
 					<div
-						class={`flex w-full h-[300px] p-3 justify-between rounded-lg overflow-hidden ${
+						class={`flex w-full h-[300px] p-3 justify-between overflow-hidden ${
 							animationClasses[animationState] || ""
 						}`}
 					>
@@ -119,14 +152,16 @@ export function HomePage() {
 							/>
 						))}
 					</div>
+          {/* Right arrow button */}
 					<p
 						class="bg-slate-700 h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-slate-600 transition-colors"
-						onClick={rightHandler}
+						onClick={startRightAnimation}
 					>
 						&gt;
 					</p>
 				</div>
 
+        {/* Category 2 */}
 				<h2 class="mb-2">Video Games</h2>
 				<div class="flex bg-black w-full h-[300px] p-3 justify-between rounded-lg">
 					<ProductCard />
@@ -138,6 +173,7 @@ export function HomePage() {
 			</div>
 		);
 	else
+    // Code to return the placeholder Home screen if not logged in
 		return (
 			<section className="space-y-8">
 				<div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-10 shadow-lg shadow-black/20 sm:px-8">

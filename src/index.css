@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+//Custom css animations to animate the movement of the cards
 @layer utilities {
   .animate-slide-out-left > * {
     animation: slide-out-left 0.8s ease-out;
