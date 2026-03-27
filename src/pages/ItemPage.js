@@ -9,16 +9,32 @@ export function ItemPage() {
     const {id} = useParams();
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
+    const [favorite, setFav] = useState(false);
     const [error, setError] = useState("");
+    const toggleFavorite = async (e, user, id) => {
+      e.preventDefault();
+      try{
+        const favStatus = favorite ? "DELETE" : "POST";
+        const res = await fetch(`http://localhost:5000/user/${user.id}/fav/${id}`, {
+          method: favStatus,
+        });
+        if (!res.ok){
+          throw new Error("Couldn't fav");
+        }
+        setFav(!favorite);
+      } catch (e) {
+        alert("Update Favorites Failed.");
+      }
+    }
     const handleOnSubmit = async (e, id) => {
-        e.preventDefault();
-        const verif = window.confirm("This action will delete this item. Are you sure?");
+      e.preventDefault();
+      const verif = window.confirm("This action will delete this item. Are you sure?");
         if (!verif) {
             return;
         }
         try {
             const res = await fetch(`http://localhost:5000/item/${id}`, {
-                method: 'DELETE',
+              method: 'DELETE',
             });
             alert('Item Deleted');
             navigate('/offers');
@@ -29,19 +45,23 @@ export function ItemPage() {
     useEffect(() => {
     const itemFetch = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/items/${id}`);
-        if (!res.ok){
+        const [itemResp, userResp] = await Promise.all([
+          fetch(`http://localhost:5000/items/${id}`),
+          fetch(`http://localhost:5000/profile/${user.id}`)]);
+        if (!itemResp.ok || !userResp.ok){
           throw new Error("Failed to fetch");
         }
-        const data = await res.json();
+        const data = await itemResp.json();
+        const favData = await userResp.json();
         setItem(data);
+        setFav(favData.profile.profileFavorites?.includes(id));
         setError("");
       } catch (err){
         setError(err.message);
       }
     };
     itemFetch();
-  }, [id]);
+  }, [user.id, id]);
   if (error){
     return <p style={{color: "red"}}>{error}</p>;
   }
@@ -50,6 +70,22 @@ export function ItemPage() {
   }
   return (
     <main style={{padding: "15px"}}>
+        {user.id !== item.userPublishingID 
+        ?
+            <button
+                onClick={(e) => toggleFavorite(e, user, id)}
+                style={{
+                    backgroundColor: favorite ? 'gold' : 'grey',
+                    color: favorite ? 'black' : 'white',
+                    padding: '10px',
+                    border: 'none',
+                    borderRadius: '5px',
+                    fontWeight: 'bold',
+                }}
+                >
+                {favorite ? "Favorited" : "Favorite"}
+            </button>
+        : []}
         <p>Name: {item.itemName}</p>
         <p>Price: ${item.itemCost}</p>
         <p>Condition: {item.itemCondition}</p>
