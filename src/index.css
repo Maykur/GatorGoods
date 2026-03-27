@@ -2,6 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .animate-slide-out-left > * {
+    animation: slide-out-left 0.8s ease-out;
+  }
+
+  .animate-slide-out-right > * {
+    animation: slide-out-right 0.8s ease-out;
+  }
+
+  .animate-slide-in-from-right > * {
+    animation: slide-in-from-right 0.8s ease-out;
+  }
+
+  .animate-slide-in-from-left > * {
+    animation: slide-in-from-left 0.8s ease-out;
+  }
+}
+
+@keyframes slide-out-left {
+  0% {
+    translate: 0%
+  }
+  100% {
+    translate: -600%
+  }
+}
+
+@keyframes slide-out-right {
+  0% {
+    translate: 0%
+  }
+  100% {
+    translate: 600%
+  }
+}
+
+@keyframes slide-in-from-right {
+  0% {
+    translate: 600%
+  }
+  100% {
+    translate: 0%
+  }
+}
+
+@keyframes slide-in-from-left {
+  0% {
+    translate: -600%
+  }
+  100% {
+    translate: 0%
+  }
+}
+
+/* Add overflow hidden to containers with sliding cards */
+.overflow-hidden {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
