@@ -75,6 +75,10 @@ const profileSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  profileFavorites: {
+    type: [String],
+    default: [],
+  },
   date: {
     type: Date,
     default: Date.now,
@@ -173,6 +177,7 @@ app.delete('/item/:item', async (req, resp) => {
             return res.status(404).json({message: 'Not found'});
         }
         await Item.findByIdAndDelete(req.params.item);
+        await Profile.updateMany({profileFavorites: req.params.item}, {$pull:{profileFavorites: req.params.item}});
         res.json({message: "Listing deleted"});
     } catch (e) {
         resp.status(500).json({error: e.message})
@@ -223,6 +228,34 @@ app.post('/update_score/:profileID', async (req,resp) => {
     } catch (e) {
         resp.status(500).json({error:e.message});
     }
+});
+
+// Adding favorite listings
+app.post('/user/:uid/fav/:fid', async (req, resp) => {
+  const {uid, fid} = req.params;
+  try {
+    const profile = await Profile.findOne({profileID: uid});
+    if (!profile.profileFavorites.includes(fid)){
+      profile.profileFavorites.push(fid);
+      await profile.save();
+    }
+    resp.json({profileFavorites: profile.profileFavorites});
+  } catch (e) {
+    resp.status(500).json({error:e.message});
+  }
+});
+
+// Deleting favorite listings
+app.delete('/user/:uid/fav/:fid', async (req, resp) => {
+  const {uid, fid} = req.params;
+  try {
+    const profile = await Profile.findOne({profileID: uid});
+    profile.profileFavorites = profile.profileFavorites.filter(fav => fav.toString() !== fid);
+    await profile.save();
+    resp.json({profileFavorites: profile.profileFavorites});
+  } catch (e) {
+    resp.status(500).json({error:e.message});
+  }
 });
 
 app.listen(5000, () => {

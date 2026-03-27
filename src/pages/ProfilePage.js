@@ -7,6 +7,7 @@ import Profile from "../assets/profile.jpg";
 import VerifiedBadge from "../assets/verified-badge.png";
 import Star from "../assets/Star.png";
 import ItemCard from "../components/ProfilePage/ItemCard";
+import FavCard from "../components/ProfilePage/FavCard";
 
 // Page to display user profiles
 export function ProfilePage() {
@@ -72,129 +73,82 @@ export function ProfilePage() {
 		<main>
 			{/* {console.log(id)} */}
 			{/* Profile picture and name with verified badge and rating */}
+			{info
+			? (
 			<div>
-				<img
-					src={Profile}
-					alt="An anime character with a shocked face"
-					class="rounded-full w-32 h-32"
-				/>
-				<span class="flex mt-2">
-					<h1 class="text-3xl font-bold mt-0.5">Shashank Gutta</h1>
-					<img
-						src={VerifiedBadge}
-						alt="Verified badge"
-						class="mt-0.5 ml-1 w-10 h-10"
-					/>
-					<h1 class="text-3xl font-bold mt-0.5 ml-1">4.9</h1>
-					<img src={Star} alt="Star" class="mt-[6px] ml-1 w-7 h-7" />
-				</span>
+				<div>
+					<img src={info.profile.profilePicture}/>
+					<span class="flex mt-2">
+						<h1 class="text-3xl font-bold mt-0.5">{info.profile.profileName}</h1>
+						<img
+							src={VerifiedBadge}
+							alt="Verified badge"
+							class="mt-0.5 ml-1 w-10 h-10"
+						/>
+						<h1 class="text-3xl font-bold mt-0.5 ml-1">{info.profile.profileRating?.toFixed(1)}/5</h1>
+						<img src={Star} alt="Star" class="mt-[6px] ml-1 w-7 h-7" />
+					</span>
 
-				{/* Listing Stats */}
-				<div class="flex">
-					<p>5 active listings</p>
-					<p class="ml-9">30 total listings</p>
-				</div>
-			</div>
-
-			{/* A scren that shows active and past orders made by the user both as a buyer and a seller */}
-			<div class="h-screen max-h-[500px] bg-[#0033A0]/60 mt-4 rounded-3xl">
-				<div class="flex flex-row justify-between">
-					<div class="flex flex-row">
-						<div
-							class={`cursor-pointer ${orderState === "active" ? "bg-zinc-700  rounded-tl-2xl" : ""}`}
-							onClick={() => setOrderState("active")}
-						>
-							<p class="text-white text-2xl m-5 ml-5">Active Orders</p>
-						</div>
-						<div
-							class={`cursor-pointer ${orderState === "past" ? "bg-zinc-700" : ""}`}
-							onClick={() => setOrderState("past")}
-						>
-							<p class="text-white text-2xl m-5 ml-5 pl-5 pr-5">
-								Past Orders
-							</p>
-						</div>
-					</div>
-					<div class="flex flex-row">
-						<div
-							onClick={() => {
-								console.log("Buyer clicked");
-							}}
-							class="p-5 hover:bg-gatorOrange mr-3 cursor-pointer"
-						>
-							<p class="text-white text-2xl">Buyer</p>
-						</div>
-						<div
-							onClick={() => {
-								console.log("Seller clicked");
-							}}
-							class="p-5 hover:bg-gatorOrange rounded-tr-2xl -ml-3 cursor-pointer"
-						>
-							<p class="text-white text-2xl">Seller</p>
-						</div>
+					{/* Listing Stats */}
+					<div class="flex gap-x-4">
+						<p>{info.listings.length} active listing(s) </p>
+						{user.id === info.profile.profileID
+						? <p>{info.profile.profileFavorites.length} listing(s) favorited</p>
+						: []}
 					</div>
 				</div>
-				{orderState === "active" || "past" ? (
-					<div class="bg-zinc-700 h-full rounded-b-3xl">
-						<ItemCard />
-						<hr class="border-[#0033A0]/60 border-y-2" />
-					</div>
-				) : (
-					<p>Loading orders...</p>
-				)}
-			</div>
 
-			{/* {info ? (
-        <div>
-          <p>{info.profile.profileName}</p>
-          <img src={info.profile.profilePicture}/>
-          <p>Rating: {info.profile.profileRating?.toFixed(1)}/5 {'  '}
-            <span style={{fontSize: '10px'}}>
-              ({info.profile.profileTotalRating} Rating(s))
-            </span>
-          </p>
-          <p>Listings:</p>
-          {info.listings.length > 0 
-          ? (info.listings.map((item) => (
-            <Link key={item._id} to={`/items/${item._id}`}>
-              <p>*{item.itemName}</p>
-            </Link>))) 
-          : (<p>Nothing to see here</p>)}
-          {user.id != info.profile.profileID 
-          ? <form onSubmit={handleOnSubmit} style={{ display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}>
-              <div>
-                <label>Review Rating: </label>
-                <select
-                  value={reviewScore}
-                  onChange={(e) => setScore(e.target.value)}
-                  style={{ color: 'black', backgroundColor: 'white' }}
-                >
-                  <option value="">Select Review Score</option>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                </select>
-                <button
-                  type="submit"
-                  style={{
-                    backgroundColor: 'grey',
-                    color: 'white',
-                    padding: '10px',
-                    border: 'none',
-                    borderRadius: '5px',
-                    fontWeight: 'bold',
-                  }}>
-                  Submit Review Score
-                </button>
-              </div>
-            </form>
-          : <></>}
-        </div>)
-      : (!error && <p>Loading profile</p>)}
-      {error && <p style={{ color: 'red' }}>{error}</p>} */}
+				{/* A scren that shows active and favorite orders made by the user */}
+				<div class="flex flex-col mt-4 rounded-3xl bg-gatorBlue">
+					<div class="flex flex-row justify-between">
+						<div class="flex flex-row">
+							<div
+								class={`cursor-pointer ${orderState === "active" ? "bg-gatorOrange rounded-tl-2xl" : "hover:bg-gatorOrange/80 transition-colors rounded-tl-2xl"}`}
+								onClick={() => setOrderState("active")}
+							>
+								<p class="text-white text-2xl m-5 ml-5">Personal Orders</p>
+							</div>
+							<div
+								class={`cursor-pointer ${orderState === "past" ? "bg-gatorOrange" : "hover:bg-gatorOrange/80 transition-colors"}`}
+								onClick={() => setOrderState("past")}
+							>
+								{user.id === info.profile.profileID
+								? <p class="text-white text-2xl m-5 ml-5 pl-5 pr-5">Favorited Orders</p>
+								: []}
+							</div>
+						</div>
+					</div>
+					<div class="flex-1 overflow-y-auto bg-gatorShade rounded-b-3xl">
+    					{orderState === "active" ? <ItemCard /> : <FavCard />}
+				  	</div>
+				</div>
+				{user.id != info.profile.profileID 
+          		? <form onSubmit={handleOnSubmit} style={{ padding: '15px', display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}>
+				<div>
+					<label class={'mb-2'}>Review Rating: </label>
+					<select
+						value={reviewScore}
+						onChange={(e) => setScore(e.target.value)}
+						class={'bg-gatorShade rounded-xl py-1 px-2 focus:ring-2 focus:ring-gatorOrange'}>
+						<option value="">Select Review Score</option>
+						<option value="0">0</option>
+						<option value="1">1</option>
+						<option value="2">2</option>
+						<option value="3">3</option>
+						<option value="4">4</option>
+						<option value="5">5</option>
+					</select>
+				</div>
+					<button
+						type="submit"
+						class={'bg-gatorBlue hover:bg-gatorOrange/80 rounded-2xl transition-colors py-1.5 px-3'}>
+						Submit Review Score
+					</button>
+				</form>
+          		: <></>}
+			</div>)
+			: (!error && <p>Loading profile</p>)}
+      		{error && <p style={{ color: 'red' }}>{error}</p>}
 		</main>
 	);
 }

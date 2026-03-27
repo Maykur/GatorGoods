@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 
-function ItemCard(){
+function FavCard(){
 	const { id } = useParams();
 	const [info, setInfo] = useState(null);
 	const navigate = useNavigate();
@@ -18,23 +18,37 @@ function ItemCard(){
 				throw new Error("Failed to fetch");
 			}
 			const data = await res.json();
-			setInfo(data);
+			const favItems = await Promise.all(
+				data.profile.profileFavorites.map(async (itemID) => {
+					const itemResp = await fetch(`http://localhost:5000/items/${itemID}`);
+					if (!itemResp.ok) {
+						throw new Error("Failed to fetch.");
+					}
+					const itemData = await itemResp.json();
+					const profileID = itemData.userPublishingID;
+					return {...itemData, profileID};
+				})
+			)
+			setInfo({...data, favItems});
 			setError("");
 		} catch (err) {
 			setError(err.message);
 		}
 	};
-	const handleOnSubmit = async (e, inf) => {
+	const handleOnSubmit = async (e, user, inf) => {
         e.preventDefault();
-        const verif = window.confirm("This action will delete this item. Are you sure?");
+        const verif = window.confirm("This action will remove this item from favorites. Are you sure?");
         if (!verif) {
             return;
         }
         try {
-            const res = await fetch(`http://localhost:5000/item/${inf}`, {
-                method: 'DELETE',
-            });
-            alert('Item Deleted');
+			const res = await fetch(`http://localhost:5000/user/${user}/fav/${inf}`, {
+				method: 'DELETE',
+			});
+			if (!res.ok){
+			throw new Error("Couldn't fav");
+			}
+            alert('Item Unfavorited');
 			itemFetch();
         } catch (e) {
             setError('Error during delete');
@@ -47,8 +61,8 @@ function ItemCard(){
 		<div class="flex flex-col gap-y-1">
 			{info
 			? (
-				info.listings.length > 0 
-				? (info.listings.map((item) => (
+				info.favItems.length > 0 
+				? (info.favItems.map((item) => (
 				<div key={item._id} class="flex flex-row justify-between bg-black/40 h-[187px] rounded-xl">
 					<div class="flex flex-row items-center">
 									<img
@@ -60,15 +74,18 @@ function ItemCard(){
 									</p>
 					</div>
 					<div class="flex flex-col gap-y-3 mr-2">
-									<a href="" 
-										class="bg-gatorBlue rounded-full text-center p-1 mt-12 hover:bg-gatorOrange/80 transition-colors"
-										onClick={(e) => handleOnSubmit(e, item._id)}>
-										Delete Listing
+									<a href="" class="bg-gatorBlue rounded-full text-center p-1 mt-8 hover:bg-gatorOrange/80 transition-colors" 
+										onClick={(e) => handleOnSubmit(e, id, item._id)}>
+										Unfavorite
 									</a>
-									<a
+									<a href={`/profile/${item.profileID}`} class="bg-gatorBlue rounded-full text-center p-1 hover:bg-gatorOrange/80 transition-colors">
+										View Seller Profile
+									</a>
+									<a	
 										href=""
 										class="bg-gatorBlue rounded-full text-center p-1 mb-2 hover:bg-gatorOrange/80 transition-colors"
-										onClick={(e) => handleNav(e, item._id)}>
+										onClick={(e) => handleNav(e, item._id)}
+									>
 										View Details
 									</a>
 					</div>
@@ -80,4 +97,4 @@ function ItemCard(){
     )
 }
 
-export default ItemCard;
+export default FavCard;

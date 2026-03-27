@@ -5,6 +5,7 @@ module.exports = {
     extend: {
       colors: {
         gatorBlue: '#0033A0',
+        gatorShade: '#00226a',
         gatorOrange: '#FA4616',
         gatorDark: '#111827',
         gatorLight: '#F9FAFB',
