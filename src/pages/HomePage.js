@@ -135,7 +135,7 @@ export function HomePage() {
           {/* Left arrow button */}
 					<p
 						class="bg-slate-700 h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-slate-600 transition-colors"
-						onClick={startLeftAnimation}
+						onClick={startLeftAnimation} 
 					>
 						&lt;
 					</p>
