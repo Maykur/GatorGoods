@@ -165,6 +165,14 @@ function normalizeParticipantIds(participantIds = []) {
   return [...new Set(participantIds.map((participantId) => participantId?.trim()).filter(Boolean))].sort();
 }
 
+function toObjectId(value) {
+  if (!value || !mongoose.Types.ObjectId.isValid(value)) {
+    return null;
+  }
+
+  return new mongoose.Types.ObjectId(value);
+}
+
 app.use(express.json({ limit: '10mb' }));
 app.use(
   cors({
@@ -240,6 +248,103 @@ app.post('/api/conversations', async (req, resp) => {
     resp.status(201).json(conversation);
   } catch (e) {
     resp.status(500).json({message: 'Failed to create conversation', error: e.message});
+  }
+});
+
+app.get('/api/conversations/:id/messages', async (req, resp) => {
+  try {
+    const conversationId = toObjectId(req.params.id);
+    const participantId = req.query.participantId?.trim();
+
+    if (!conversationId) {
+      return resp.status(400).json({message: 'Valid conversation id is required'});
+    }
+
+    if (!participantId) {
+      return resp.status(400).json({message: 'participantId is required'});
+    }
+
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      return resp.status(404).json({message: 'Conversation not found'});
+    }
+
+    if (!conversation.participantIds.includes(participantId)) {
+      return resp.status(403).json({message: 'You are not a participant in this conversation'});
+    }
+
+    conversation.lastReadAtByUser.set(participantId, new Date());
+    await conversation.save();
+
+    const messages = await Message.find({conversationId}).sort({createdAt: 1});
+
+    resp.json({
+      conversation,
+      messages,
+    });
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to fetch messages', error: e.message});
+  }
+});
+
+app.post('/api/conversations/:id/messages', async (req, resp) => {
+  try {
+    const conversationId = toObjectId(req.params.id);
+    const {senderClerkUserId, body, attachedListingId} = req.body;
+    const trimmedSenderId = senderClerkUserId?.trim();
+    const trimmedBody = body?.trim();
+
+    if (!conversationId) {
+      return resp.status(400).json({message: 'Valid conversation id is required'});
+    }
+
+    if (!trimmedSenderId) {
+      return resp.status(400).json({message: 'senderClerkUserId is required'});
+    }
+
+    if (!trimmedBody) {
+      return resp.status(400).json({message: 'Message body is required'});
+    }
+
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      return resp.status(404).json({message: 'Conversation not found'});
+    }
+
+    if (!conversation.participantIds.includes(trimmedSenderId)) {
+      return resp.status(403).json({message: 'You are not a participant in this conversation'});
+    }
+
+    const message = await Message.create({
+      conversationId,
+      senderClerkUserId: trimmedSenderId,
+      body: trimmedBody,
+      attachedListingId: toObjectId(attachedListingId),
+    });
+
+    conversation.lastMessageText = trimmedBody;
+    conversation.lastMessageAt = message.createdAt;
+    conversation.lastReadAtByUser.set(trimmedSenderId, message.createdAt);
+
+    if (message.attachedListingId) {
+      const alreadyLinked = conversation.linkedListingIds.some(
+        (listingId) => listingId.toString() === message.attachedListingId.toString()
+      );
+
+      if (!alreadyLinked) {
+        conversation.linkedListingIds.push(message.attachedListingId);
+      }
+
+      conversation.activeListingId = message.attachedListingId;
+    }
+
+    await conversation.save();
+
+    resp.status(201).json(message);
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to send message', error: e.message});
   }
 });
 
