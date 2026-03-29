@@ -1,8 +1,10 @@
 //import Iphone from "../../assets/Iphone.jpg"
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/react";
 
 function ItemCard(){
+	const { user } = useUser();
 	const { id } = useParams();
 	const [info, setInfo] = useState(null);
 	const navigate = useNavigate();
@@ -59,19 +61,27 @@ function ItemCard(){
 										{item.itemName}
 									</p>
 					</div>
-					<div class="flex flex-col gap-y-3 mr-2">
-									<a href="" 
-										class="bg-gatorBlue rounded-full text-center p-1 mt-12 hover:bg-gatorOrange/80 transition-colors"
-										onClick={(e) => handleOnSubmit(e, item._id)}>
-										Delete Listing
-									</a>
-									<a
-										href=""
-										class="bg-gatorBlue rounded-full text-center p-1 mb-2 hover:bg-gatorOrange/80 transition-colors"
-										onClick={(e) => handleNav(e, item._id)}>
-										View Details
-									</a>
-					</div>
+					{user.id === id
+					? ( <div class="flex flex-col gap-y-3 mr-2">
+							<a href="" 
+								class="bg-gatorBlue rounded-full text-center p-1 mt-12 hover:bg-gatorOrange/80 transition-colors"
+								onClick={(e) => handleOnSubmit(e, item._id)}>
+								Delete Listing
+							</a>
+							<a href=""
+								class="bg-gatorBlue rounded-full text-center p-1 mb-2 hover:bg-gatorOrange/80 transition-colors"
+								onClick={(e) => handleNav(e, item._id)}>
+								View Details
+							</a>
+						</div>)
+					: (	<div class="flex flex-col items-center gap-y-2 mr-2">
+							<a href=""
+								class="bg-gatorBlue rounded-full text-center p-1 mt-16 hover:bg-gatorOrange/80 transition-colors"
+								onClick={(e) => handleNav(e, item._id)}>
+								View Details
+							</a>
+						</div>)
+					}
 				</div>
 				)))
 				: (<p>Nothing to see here</p>))

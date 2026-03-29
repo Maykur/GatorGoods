@@ -4,51 +4,32 @@ import { useUser } from "@clerk/react";
 import ProductCard from "../components/HomePage/ProductCard.js";
 import { useState, useEffect } from "react";
 
-// Placeholder card data sets
-const cardDataSets = [
-	[
-		{ id: 1, price: "399$", title: "iPhone 11", location: "Gainesville, FL" },
-		{ id: 2, price: "299$", title: "MacBook Air", location: "Orlando, FL" },
-		{ id: 3, price: "199$", title: "iPad Pro", location: "Tampa, FL" },
-		{ id: 4, price: "149$", title: "AirPods Pro", location: "Miami, FL" },
-		{ id: 5, price: "599$", title: "iPhone 13", location: "Jacksonville, FL" },
-	],
-	[
-		{
-			id: 6,
-			price: "249$",
-			title: "Sony Headphones",
-			location: "Gainesville, FL",
-		},
-		{ id: 7, price: "189$", title: "Nintendo Switch", location: "Orlando, FL" },
-		{ id: 8, price: "329$", title: "Dell Laptop", location: "Tampa, FL" },
-		{ id: 9, price: "79$", title: "Bluetooth Speaker", location: "Miami, FL" },
-		{ id: 10, price: "449$", title: "iPad Air", location: "Jacksonville, FL" },
-	],
-	[
-		{
-			id: 11,
-			price: "129$",
-			title: "Wireless Mouse",
-			location: "Gainesville, FL",
-		},
-		{ id: 12, price: "89$", title: "Phone Case", location: "Orlando, FL" },
-		{ id: 13, price: "299$", title: "Gaming Monitor", location: "Tampa, FL" },
-		{ id: 14, price: "59$", title: "USB Cable", location: "Miami, FL" },
-		{
-			id: 15,
-			price: "699$",
-			title: "MacBook Pro",
-			location: "Jacksonville, FL",
-		},
-	],
-];
-
 export function HomePage() {
 	const { isLoaded, isSignedIn, user } = useUser();
 	const [animationState, setAnimationState] = useState("");
+	const [items, setItems] = useState([]);
 	const [currentDataIndex, setCurrentDataIndex] = useState(0);
 	const [activeTimeout, setActiveTimeout] = useState(null);
+	const [error, setError] = useState("");
+	const itemsPerPage = 5;
+	const totalPages = Math.ceil(items.length / itemsPerPage);
+	const currItems = items.slice(currentDataIndex * itemsPerPage, (currentDataIndex+1) * itemsPerPage);
+	useEffect(() => {
+    const itemFetch = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/items");
+        if (!res.ok){
+          throw new Error("Failed to fetch");
+        }
+        const data = await res.json();
+        setItems(data);
+		setError("");
+      } catch (err){
+		setError(err);
+      }
+    };
+    	itemFetch();
+  	}, []);
 
   //Object class that maps the names of different animation variables with tailwind names
   //This is used to dynamically set the animation on the card div element
@@ -78,7 +59,7 @@ export function HomePage() {
     // Inner Timer scheduled to run after slide-in-from-right animation finishes
     // It cleans the timer and setAnimationState for the next use
 		const timer = setTimeout(() => {
-			setCurrentDataIndex((prev) => (prev + 1) % cardDataSets.length);
+			setCurrentDataIndex((prev) => (prev - 1 + totalPages) % totalPages);
 			setAnimationState("slide-in-from-right");
 			
 			// Schedule reset after slide-in completes
@@ -107,7 +88,7 @@ export function HomePage() {
     // Inner Timer scheduled to run after slide-in-from-left animation finishes
     // It cleans the timer and setAnimationState for the next use
 		const timer = setTimeout(() => {
-			setCurrentDataIndex((prev) => (prev - 1 + cardDataSets.length) % cardDataSets.length);
+			setCurrentDataIndex((prev) => (prev + 1) % totalPages);
 			setAnimationState("slide-in-from-left");
 			
 			// Schedule reset after slide-in completes
@@ -121,7 +102,9 @@ export function HomePage() {
 		
 		setActiveTimeout(timer);
 	};
-
+	if (error){
+		return <p style={{color: "red"}}>{error}</p>;
+	}
   //If the user is signedIn then display the products else display the place holder homescreen
 	if (isSignedIn)
 		return (
@@ -129,39 +112,51 @@ export function HomePage() {
 			<div>
 
         {/* Category 1 */}
-				<h2 class="mb-2">Electronics</h2>
+				<h2 class="mb-2">Offers</h2>
         {/* Outer Div that styles the borders and backgrounds of the card elements */}
-				<div class="flex relative bg-black rounded-lg mb-2 flex-nonwrap">
+				<div class="flex relative bg-gatorShade rounded-lg mb-2 flex-nonwrap">
           {/* Left arrow button */}
 					<p
-						class="bg-slate-700 h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-slate-600 transition-colors"
-						onClick={startLeftAnimation} 
+						class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
+						onClick={startRightAnimation} 
 					>
 						&lt;
 					</p>
           {/* Inner Div that contains the cards */}
 					<div
-						class={`flex w-full h-[300px] p-3 justify-between overflow-hidden ${
+						class={`flex w-full h-[300px] p-3 justify-start gap-5 overflow-hidden ${
 							animationClasses[animationState] || ""
 						}`}
 					>
-						{cardDataSets[currentDataIndex].map((cardData, index) => (
+						{currItems.map((item) => (
 							<ProductCard
-								key={`${currentDataIndex}-${index}`}
-								data={cardData}
+								key={item._id}
+								data={item}
 							/>
 						))}
 					</div>
           {/* Right arrow button */}
 					<p
-						class="bg-slate-700 h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-slate-600 transition-colors"
-						onClick={startRightAnimation}
+						class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
+						onClick={startLeftAnimation}
 					>
 						&gt;
 					</p>
 				</div>
+				{/* Dots to show page #s */}
+				<div class="flex justify-center mt-2 gap-2">
+						{Array.from({length: totalPages}).map((x, index) => 
+							<div
+								key={index}
+								onClick={() => setCurrentDataIndex(index)}
+								class={`h-2 w-2 rounded-full cursor-pointer hover:bg-gatorOrange/80 transition-all
+									${index === currentDataIndex ? "bg-gatorOrange scale-125" : "bg-gatorBlue"}`}
+							/>
+						)}
+				</div>
 
         {/* Category 2 */}
+		{/*
 				<h2 class="mb-2">Video Games</h2>
 				<div class="flex bg-black w-full h-[300px] p-3 justify-between rounded-lg">
 					<ProductCard />
@@ -170,6 +165,7 @@ export function HomePage() {
 					<ProductCard />
 					<ProductCard />
 				</div>
+		*/}
 			</div>
 		);
 	else

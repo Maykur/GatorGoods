@@ -21,7 +21,7 @@ export function Layout() {
 
   const signedInNavItems = user ? [
     { to: '/create', label: 'Create Listing' },
-    { to: '/offers', label: 'Offers' },
+    //{ to: '/offers', label: 'Offers' },
     { to: '/messages', label: 'Messages' },
     { to: `/profile/${user.id}`, label: 'Profile' },
   ] : [];
