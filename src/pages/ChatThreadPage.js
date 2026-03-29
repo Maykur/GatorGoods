@@ -148,6 +148,7 @@ export function ChatThreadPage() {
           borderRadius: "12px",
           padding: "16px",
           backgroundColor: "white",
+          color: "#111827",
           minHeight: "320px",
           marginBottom: "16px",
           display: "flex",
@@ -167,9 +168,11 @@ export function ChatThreadPage() {
                 style={{
                   alignSelf: isOwnMessage ? "flex-end" : "flex-start",
                   maxWidth: "75%",
-                  backgroundColor: isOwnMessage ? "#dbeafe" : "#f3f4f6",
+                  backgroundColor: isOwnMessage ? "#bfdbfe" : "#e5e7eb",
+                  color: "#111827",
                   borderRadius: "12px",
                   padding: "12px",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
                 }}
               >
                 <p style={{ margin: "0 0 6px 0", whiteSpace: "pre-wrap" }}>{message.body}</p>
@@ -193,6 +196,8 @@ export function ChatThreadPage() {
             borderRadius: "12px",
             border: "1px solid #000000",
             padding: "12px",
+            color: "#111827",
+            backgroundColor: "#f8fafc",
             resize: "vertical",
           }}
         />
