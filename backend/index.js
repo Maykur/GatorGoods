@@ -161,6 +161,10 @@ const Profile = mongoose.model('profiles', profileSchema);
 const Conversation = mongoose.model('conversations', conversationSchema);
 const Message = mongoose.model('messages', messageSchema);
 
+function normalizeParticipantIds(participantIds = []) {
+  return [...new Set(participantIds.map((participantId) => participantId?.trim()).filter(Boolean))].sort();
+}
+
 app.use(express.json({ limit: '10mb' }));
 app.use(
   cors({
@@ -181,6 +185,62 @@ app.use((err, req, res, next) => {
 
 app.get('/', (req, resp) => {
   resp.send('App is working');
+});
+
+app.get('/api/conversations', async (req, resp) => {
+  try {
+    const participantId = req.query.participantId?.trim();
+
+    if (!participantId) {
+      return resp.status(400).json({message: 'participantId is required'});
+    }
+
+    const conversations = await Conversation.find({
+      participantIds: participantId,
+    }).sort({lastMessageAt: -1, updatedAt: -1});
+
+    resp.json(conversations);
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to fetch conversations', error: e.message});
+  }
+});
+
+app.post('/api/conversations', async (req, resp) => {
+  try {
+    const {participantIds, activeListingId} = req.body;
+    const normalizedParticipantIds = normalizeParticipantIds(participantIds);
+
+    if (normalizedParticipantIds.length !== 2) {
+      return resp.status(400).json({
+        message: 'Exactly two unique participantIds are required',
+      });
+    }
+
+    let conversation = await Conversation.findOne({
+      participantIds: normalizedParticipantIds,
+      ...(activeListingId ? {linkedListingIds: activeListingId} : {}),
+    });
+
+    if (conversation) {
+      if (activeListingId && !conversation.linkedListingIds.some((listingId) => listingId.toString() === activeListingId)) {
+        conversation.linkedListingIds.push(activeListingId);
+        conversation.activeListingId = activeListingId;
+        await conversation.save();
+      }
+
+      return resp.json(conversation);
+    }
+
+    conversation = await Conversation.create({
+      participantIds: normalizedParticipantIds,
+      linkedListingIds: activeListingId ? [activeListingId] : [],
+      activeListingId: activeListingId || null,
+    });
+
+    resp.status(201).json(conversation);
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to create conversation', error: e.message});
+  }
 });
 
 // Create an item to put into listing
