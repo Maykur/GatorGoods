@@ -18,13 +18,18 @@ export function MessagesPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadConversations = async () => {
+    let isMounted = true;
+
+    const loadConversations = async (showLoadingState = true) => {
       if (!user?.id) {
         return;
       }
 
       try {
-        setIsLoading(true);
+        if (showLoadingState && isMounted) {
+          setIsLoading(true);
+        }
+
         const conversationData = await getConversations(user.id);
 
         const enrichedConversations = await Promise.all(
@@ -62,16 +67,32 @@ export function MessagesPage() {
           })
         );
 
+        if (!isMounted) {
+          return;
+        }
+
         setConversations(enrichedConversations);
         setError("");
       } catch (err) {
-        setError(err.message || "Failed to load conversations");
+        if (isMounted) {
+          setError(err.message || "Failed to load conversations");
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     loadConversations();
+    const intervalId = window.setInterval(() => {
+      loadConversations(false);
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [user?.id]);
 
   if (isLoading) {

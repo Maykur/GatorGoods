@@ -20,14 +20,23 @@ export function ChatThreadPage() {
   const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
-    const loadConversation = async () => {
+    let isMounted = true;
+
+    const loadConversation = async (showLoadingState = true) => {
       if (!user?.id || !conversationId) {
         return;
       }
 
       try {
-        setIsLoading(true);
+        if (showLoadingState && isMounted) {
+          setIsLoading(true);
+        }
+
         const threadData = await getConversationMessages(conversationId, user.id);
+        if (!isMounted) {
+          return;
+        }
+
         setConversation(threadData.conversation);
         setMessages(threadData.messages);
 
@@ -48,17 +57,33 @@ export function ChatThreadPage() {
           : Promise.resolve(null);
 
         const [profileData, listingData] = await Promise.all([profilePromise, listingPromise]);
+        if (!isMounted) {
+          return;
+        }
+
         setOtherParticipantName(profileData?.profile?.profileName || otherParticipantId || "Conversation");
         setListingName(listingData?.itemName || "");
         setError("");
       } catch (err) {
-        setError(err.message || "Failed to load conversation");
+        if (isMounted) {
+          setError(err.message || "Failed to load conversation");
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     loadConversation();
+    const intervalId = window.setInterval(() => {
+      loadConversation(false);
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [conversationId, user?.id]);
 
   const handleSendMessage = async (event) => {
@@ -83,6 +108,10 @@ export function ChatThreadPage() {
         ...currentConversation,
         lastMessageText: newMessage.body,
         lastMessageAt: newMessage.createdAt,
+        lastReadAtByUser: {
+          ...(currentConversation.lastReadAtByUser || {}),
+          [user.id]: newMessage.createdAt,
+        },
       } : currentConversation);
       setDraftMessage("");
       setError("");
