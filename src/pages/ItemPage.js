@@ -1,12 +1,13 @@
 // REFERENCES: https://stackoverflow.com/questions/52034868/confirm-window-in-react
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useUser } from "@clerk/react";
+import { useAuth, useUser } from "@clerk/react";
 import { createConversation } from "../lib/messagesApi";
 
 // Page to display whatever item is clicked on by id
 export function ItemPage() {
     const {user} = useUser();
+    const {getToken} = useAuth();
     const {id} = useParams();
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
@@ -48,7 +49,8 @@ export function ItemPage() {
       try {
         setIsStartingConversation(true);
         const conversation = await createConversation({
-          participantIds: [user.id, item.userPublishingID],
+          getToken,
+          recipientId: item.userPublishingID,
           activeListingId: item._id,
         });
         navigate(`/messages/${conversation._id}`);

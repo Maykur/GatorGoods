@@ -4,6 +4,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
+const { clerkMiddleware, getAuth } = require('@clerk/express');
 
 const app = express();
 
@@ -173,12 +174,24 @@ function toObjectId(value) {
   return new mongoose.Types.ObjectId(value);
 }
 
+function requireApiAuth(req, resp, next) {
+  const { userId } = getAuth(req);
+
+  if (!userId) {
+    return resp.status(401).json({message: 'Authentication required'});
+  }
+
+  req.authUserId = userId;
+  next();
+}
+
 app.use(express.json({ limit: '10mb' }));
 app.use(
   cors({
     origin: 'http://localhost:3000',
   })
 );
+app.use(clerkMiddleware());
 
 app.use((err, req, res, next) => {
   if (err.code === 'entity.too.large' || err.type === 'entity.too.large') {
@@ -195,16 +208,10 @@ app.get('/', (req, resp) => {
   resp.send('App is working');
 });
 
-app.get('/api/conversations', async (req, resp) => {
+app.get('/api/conversations', requireApiAuth, async (req, resp) => {
   try {
-    const participantId = req.query.participantId?.trim();
-
-    if (!participantId) {
-      return resp.status(400).json({message: 'participantId is required'});
-    }
-
     const conversations = await Conversation.find({
-      participantIds: participantId,
+      participantIds: req.authUserId,
     }).sort({lastMessageAt: -1, updatedAt: -1});
 
     resp.json(conversations);
@@ -213,14 +220,14 @@ app.get('/api/conversations', async (req, resp) => {
   }
 });
 
-app.post('/api/conversations', async (req, resp) => {
+app.post('/api/conversations', requireApiAuth, async (req, resp) => {
   try {
-    const {participantIds, activeListingId} = req.body;
-    const normalizedParticipantIds = normalizeParticipantIds(participantIds);
+    const {recipientId, activeListingId} = req.body;
+    const normalizedParticipantIds = normalizeParticipantIds([req.authUserId, recipientId]);
 
     if (normalizedParticipantIds.length !== 2) {
       return resp.status(400).json({
-        message: 'Exactly two unique participantIds are required',
+        message: 'A valid recipientId is required',
       });
     }
 
@@ -251,17 +258,12 @@ app.post('/api/conversations', async (req, resp) => {
   }
 });
 
-app.get('/api/conversations/:id/messages', async (req, resp) => {
+app.get('/api/conversations/:id/messages', requireApiAuth, async (req, resp) => {
   try {
     const conversationId = toObjectId(req.params.id);
-    const participantId = req.query.participantId?.trim();
 
     if (!conversationId) {
       return resp.status(400).json({message: 'Valid conversation id is required'});
-    }
-
-    if (!participantId) {
-      return resp.status(400).json({message: 'participantId is required'});
     }
 
     const conversation = await Conversation.findById(conversationId);
@@ -270,11 +272,11 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
       return resp.status(404).json({message: 'Conversation not found'});
     }
 
-    if (!conversation.participantIds.includes(participantId)) {
+    if (!conversation.participantIds.includes(req.authUserId)) {
       return resp.status(403).json({message: 'You are not a participant in this conversation'});
     }
 
-    conversation.lastReadAtByUser.set(participantId, new Date());
+    conversation.lastReadAtByUser.set(req.authUserId, new Date());
     await conversation.save();
 
     const messages = await Message.find({conversationId}).sort({createdAt: 1});
@@ -288,19 +290,14 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
   }
 });
 
-app.post('/api/conversations/:id/messages', async (req, resp) => {
+app.post('/api/conversations/:id/messages', requireApiAuth, async (req, resp) => {
   try {
     const conversationId = toObjectId(req.params.id);
-    const {senderClerkUserId, body, attachedListingId} = req.body;
-    const trimmedSenderId = senderClerkUserId?.trim();
+    const {body, attachedListingId} = req.body;
     const trimmedBody = body?.trim();
 
     if (!conversationId) {
       return resp.status(400).json({message: 'Valid conversation id is required'});
-    }
-
-    if (!trimmedSenderId) {
-      return resp.status(400).json({message: 'senderClerkUserId is required'});
     }
 
     if (!trimmedBody) {
@@ -313,20 +310,20 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
       return resp.status(404).json({message: 'Conversation not found'});
     }
 
-    if (!conversation.participantIds.includes(trimmedSenderId)) {
+    if (!conversation.participantIds.includes(req.authUserId)) {
       return resp.status(403).json({message: 'You are not a participant in this conversation'});
     }
 
     const message = await Message.create({
       conversationId,
-      senderClerkUserId: trimmedSenderId,
+      senderClerkUserId: req.authUserId,
       body: trimmedBody,
       attachedListingId: toObjectId(attachedListingId),
     });
 
     conversation.lastMessageText = trimmedBody;
     conversation.lastMessageAt = message.createdAt;
-    conversation.lastReadAtByUser.set(trimmedSenderId, message.createdAt);
+    conversation.lastReadAtByUser.set(req.authUserId, message.createdAt);
 
     if (message.attachedListingId) {
       const alreadyLinked = conversation.linkedListingIds.some(
