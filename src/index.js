@@ -5,8 +5,7 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-const clerkPublishableKey =
-  typeof window !== 'undefined' ? window.CLERK_PUBLISHABLE_KEY : '';
+const clerkPublishableKey = process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || '';
 
 const hasClerkPublishableKey =
   typeof clerkPublishableKey === 'string' &&

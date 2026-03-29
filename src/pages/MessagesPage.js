@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth, useUser } from "@clerk/react";
+import { useUser } from "@clerk/react";
 import { getConversations } from "../lib/messagesApi";
 
 function formatTimestamp(value) {
@@ -13,7 +13,6 @@ function formatTimestamp(value) {
 
 export function MessagesPage() {
   const { user } = useUser();
-  const { getToken } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +30,7 @@ export function MessagesPage() {
           setIsLoading(true);
         }
 
-        const conversationData = await getConversations(getToken);
+        const conversationData = await getConversations(user.id);
 
         const enrichedConversations = await Promise.all(
           conversationData.map(async (conversation) => {
@@ -94,7 +93,7 @@ export function MessagesPage() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [getToken, user?.id]);
+  }, [user?.id]);
 
   if (isLoading) {
     return <p>Loading conversations...</p>;

@@ -1,13 +1,12 @@
 // REFERENCES: https://stackoverflow.com/questions/52034868/confirm-window-in-react
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useAuth, useUser } from "@clerk/react";
+import { useUser } from "@clerk/react";
 import { createConversation } from "../lib/messagesApi";
 
 // Page to display whatever item is clicked on by id
 export function ItemPage() {
     const {user} = useUser();
-    const {getToken} = useAuth();
     const {id} = useParams();
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
@@ -36,7 +35,7 @@ export function ItemPage() {
             return;
         }
         try {
-            const res = await fetch(`http://localhost:5000/item/${id}`, {
+            await fetch(`http://localhost:5000/item/${id}`, {
               method: 'DELETE',
             });
             alert('Item Deleted');
@@ -49,8 +48,7 @@ export function ItemPage() {
       try {
         setIsStartingConversation(true);
         const conversation = await createConversation({
-          getToken,
-          recipientId: item.userPublishingID,
+          participantIds: [user.id, item.userPublishingID],
           activeListingId: item._id,
         });
         navigate(`/messages/${conversation._id}`);
@@ -126,7 +124,7 @@ export function ItemPage() {
         <p>Price: ${item.itemCost}</p>
         <p>Condition: {item.itemCondition}</p>
         <p>Location: {item.itemLocation}</p>
-        {item.itemPicture && (<img src={item.itemPicture}/>)}
+        {item.itemPicture && (<img src={item.itemPicture} alt={item.itemName} />)}
         <p>Description: {item.itemDescription}</p>
         <p>Details: {item.itemDetails}</p>
         <Link to={`/profile/${item.userPublishingID}`}>

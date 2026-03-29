@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAuth, useUser } from "@clerk/react";
+import { useUser } from "@clerk/react";
 import { getConversationMessages, sendMessage } from "../lib/messagesApi";
 
 function formatMessageTime(value) {
@@ -10,7 +10,6 @@ function formatMessageTime(value) {
 export function ChatThreadPage() {
   const { conversationId } = useParams();
   const { user } = useUser();
-  const { getToken } = useAuth();
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [otherParticipantName, setOtherParticipantName] = useState("");
@@ -33,7 +32,7 @@ export function ChatThreadPage() {
           setIsLoading(true);
         }
 
-        const threadData = await getConversationMessages(conversationId, getToken);
+        const threadData = await getConversationMessages(conversationId, user.id);
         if (!isMounted) {
           return;
         }
@@ -85,7 +84,7 @@ export function ChatThreadPage() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [conversationId, getToken, user?.id]);
+  }, [conversationId, user?.id]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -99,7 +98,7 @@ export function ChatThreadPage() {
       setIsSending(true);
       const newMessage = await sendMessage({
         conversationId,
-        getToken,
+        senderClerkUserId: user.id,
         body: draftMessage,
         attachedListingId: conversation?.activeListingId || null,
       });
@@ -192,7 +191,7 @@ export function ChatThreadPage() {
           style={{
             width: "100%",
             borderRadius: "12px",
-            border: "1px solid #cbd5e1",
+            border: "1px solid #000000",
             padding: "12px",
             resize: "vertical",
           }}
