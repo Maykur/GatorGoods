@@ -85,8 +85,81 @@ const profileSchema = new mongoose.Schema({
   },
 });
 
+const conversationSchema = new mongoose.Schema(
+  {
+    participantIds: {
+      type: [String],
+      required: true,
+      validate: {
+        validator: (participants) => Array.isArray(participants) && participants.length === 2,
+        message: 'A conversation must have exactly two participants.',
+      },
+    },
+    linkedListingIds: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: 'items',
+      default: [],
+    },
+    activeListingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'items',
+      default: null,
+    },
+    lastMessageText: {
+      type: String,
+      default: '',
+    },
+    lastMessageAt: {
+      type: Date,
+      default: Date.now,
+    },
+    lastReadAtByUser: {
+      type: Map,
+      of: Date,
+      default: {},
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+conversationSchema.index({participantIds: 1, lastMessageAt: -1});
+
+const messageSchema = new mongoose.Schema(
+  {
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'conversations',
+      required: true,
+      index: true,
+    },
+    senderClerkUserId: {
+      type: String,
+      required: true,
+    },
+    body: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    attachedListingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'items',
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+messageSchema.index({conversationId: 1, createdAt: 1});
+
 const Item = mongoose.model('items', ItemSchema);
 const Profile = mongoose.model('profiles', profileSchema);
+const Conversation = mongoose.model('conversations', conversationSchema);
+const Message = mongoose.model('messages', messageSchema);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(
