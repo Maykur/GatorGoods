@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/react";
+import { createConversation } from "../lib/messagesApi";
 
 // Page to display whatever item is clicked on by id
 export function ItemPage() {
@@ -10,6 +11,7 @@ export function ItemPage() {
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
     const [favorite, setFav] = useState(false);
+    const [isStartingConversation, setIsStartingConversation] = useState(false);
     const [error, setError] = useState("");
     const toggleFavorite = async (e, user, id) => {
       e.preventDefault();
@@ -42,6 +44,20 @@ export function ItemPage() {
             setError('Error during delete');
         }
     };
+    const handleStartConversation = async () => {
+      try {
+        setIsStartingConversation(true);
+        const conversation = await createConversation({
+          participantIds: [user.id, item.userPublishingID],
+          activeListingId: item._id,
+        });
+        navigate(`/messages/${conversation._id}`);
+      } catch (e) {
+        setError("Unable to start conversation");
+      } finally {
+        setIsStartingConversation(false);
+      }
+    };
     useEffect(() => {
     const itemFetch = async () => {
       try {
@@ -72,19 +88,37 @@ export function ItemPage() {
     <main style={{padding: "15px"}}>
         {user.id !== item.userPublishingID 
         ?
-            <button
-                onClick={(e) => toggleFavorite(e, user, id)}
-                style={{
-                    backgroundColor: favorite ? 'gold' : 'grey',
-                    color: favorite ? 'black' : 'white',
-                    padding: '10px',
-                    border: 'none',
-                    borderRadius: '5px',
-                    fontWeight: 'bold',
-                }}
-                >
-                {favorite ? "Favorited" : "Favorite"}
-            </button>
+            <div style={{display: "flex", gap: "10px", marginBottom: "15px"}}>
+                <button
+                    onClick={(e) => toggleFavorite(e, user, id)}
+                    style={{
+                        backgroundColor: favorite ? 'gold' : 'grey',
+                        color: favorite ? 'black' : 'white',
+                        padding: '10px',
+                        border: 'none',
+                        borderRadius: '5px',
+                        fontWeight: 'bold',
+                    }}
+                    >
+                    {favorite ? "Favorited" : "Favorite"}
+                </button>
+                <button
+                    onClick={handleStartConversation}
+                    disabled={isStartingConversation}
+                    style={{
+                        backgroundColor: '#1d4ed8',
+                        color: 'white',
+                        padding: '10px',
+                        border: 'none',
+                        borderRadius: '5px',
+                        fontWeight: 'bold',
+                        cursor: isStartingConversation ? 'wait' : 'pointer',
+                        opacity: isStartingConversation ? 0.7 : 1,
+                    }}
+                    >
+                    {isStartingConversation ? "Opening chat..." : "Message Seller"}
+                </button>
+            </div>
         : []}
         <p>Name: {item.itemName}</p>
         <p>Price: ${item.itemCost}</p>
