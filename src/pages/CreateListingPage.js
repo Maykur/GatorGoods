@@ -117,7 +117,7 @@ export function CreateListingPage() {
       setItemPicture(null);
       setItemDescription('');
       setItemDetails('');
-      navigate('/offers');
+      navigate('/');
     } catch (err) {
       setError('Unable to reach the server. Check your connection and retry.');
     }
