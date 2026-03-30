@@ -1,5 +1,7 @@
 // REFERENCES: https://daily.dev/blog/js-create-array-of-objects-simplified
 // REFERENCES: https://medium.com/@finnkumar6/array-grouping-in-javascript-a-quick-and-efficient-guide-771a974fa4d4
+// REFERENCES: https://stackoverflow.com/questions/74574022/change-the-focus-border-color-in-tailwind-css
+// REFERENCES: https://medium.com/@nicholasfagner/filtering-data-with-react-js-350b3ca696fa
 
 import { Show, SignInButton, SignUpButton } from "@clerk/react";
 import { Link } from "react-router-dom";
@@ -13,6 +15,7 @@ export function HomePage() {
 	const [items, setItems] = useState([]);
 	const [currentDataIndex, setCurrentDataIndex] = useState({});
 	const [activeTimeout, setActiveTimeout] = useState(null);
+	const [search, setSearch] = useState("");
 	const [error, setError] = useState("");
 	const itemsPerPage = 5;
 	useEffect(() => {
@@ -25,18 +28,23 @@ export function HomePage() {
 				const data = await res.json();
 				setItems(data);
 				setError("");
-				const indexInit = data.reduce((group, item) => {
-					group[item.itemCat] = 0;
-					return group;
-				}, {});
-				setCurrentDataIndex(indexInit);
 			} catch (err){
 				setError(err);
 			}
 		};
     	itemFetch();
   	}, []);
-	const categories = items.reduce((group, item) => {
+	const filter = items.filter((item) =>
+		item.itemName.toLowerCase().includes(search.toLowerCase())
+	);
+	useEffect(() => {
+		const indexInit = filter.reduce((group, item) => {
+			group[item.itemCat] = 0;
+			return group;
+		}, {});
+		setCurrentDataIndex(indexInit);
+	}, [items, search]);
+	const categories = filter.reduce((group, item) => {
 		if (!group[item.itemCat]) {
 			group[item.itemCat] = [];
 		}
@@ -123,6 +131,14 @@ export function HomePage() {
 	if (isSignedIn){
 		return (
 			<div>
+				<div>
+					<input class="w-full mb-4 p-2 rounded-lg bg-gatorBlue text-white 
+							border border-gatorShade hover:border-gatorOrange focus:outline-none focus:border-gatorOrange"
+						type="text"
+						placeholder="Search for item"
+						value={search}
+						onChange={(e)=>setSearch(e.target.value)}/>
+				</div>
 				{Object.entries(categories).map(([group, catItem]) => {
 					const totalPages = Math.ceil(catItem.length / itemsPerPage);
 					const index = currentDataIndex[group] || 0;
