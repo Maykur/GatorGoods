@@ -48,6 +48,10 @@ const ItemSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  itemCat: {
+    type: String,
+    default: "Miscellaneous",
+  },
   date: {
     type: Date,
     default: Date.now,
@@ -361,6 +365,7 @@ app.post('/create-item', async (req, resp) => {
       itemDetails,
       userPublishingID,
       userPublishingName,
+      itemCat,
     } = req.body;
 
     const result = await Item.create({
@@ -373,6 +378,7 @@ app.post('/create-item', async (req, resp) => {
       itemDetails,
       userPublishingID,
       userPublishingName,
+      itemCat,
     });
 
     resp.status(201).json(result);
