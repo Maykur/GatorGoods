@@ -1,3 +1,6 @@
+// REFERENCES: https://daily.dev/blog/js-create-array-of-objects-simplified
+// REFERENCES: https://medium.com/@finnkumar6/array-grouping-in-javascript-a-quick-and-efficient-guide-771a974fa4d4
+
 import { Show, SignInButton, SignUpButton } from "@clerk/react";
 import { Link } from "react-router-dom";
 import { useUser } from "@clerk/react";
@@ -8,29 +11,38 @@ export function HomePage() {
 	const { isLoaded, isSignedIn, user } = useUser();
 	const [animationState, setAnimationState] = useState("");
 	const [items, setItems] = useState([]);
-	const [currentDataIndex, setCurrentDataIndex] = useState(0);
+	const [currentDataIndex, setCurrentDataIndex] = useState({});
 	const [activeTimeout, setActiveTimeout] = useState(null);
 	const [error, setError] = useState("");
 	const itemsPerPage = 5;
-	const totalPages = Math.ceil(items.length / itemsPerPage);
-	const currItems = items.slice(currentDataIndex * itemsPerPage, (currentDataIndex+1) * itemsPerPage);
 	useEffect(() => {
-    const itemFetch = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/items");
-        if (!res.ok){
-          throw new Error("Failed to fetch");
-        }
-        const data = await res.json();
-        setItems(data);
-		setError("");
-      } catch (err){
-		setError(err);
-      }
-    };
+		const itemFetch = async () => {
+			try {
+				const res = await fetch("http://localhost:5000/items");
+				if (!res.ok){
+				throw new Error("Failed to fetch");
+				}
+				const data = await res.json();
+				setItems(data);
+				setError("");
+				const indexInit = data.reduce((group, item) => {
+					group[item.itemCat] = 0;
+					return group;
+				}, {});
+				setCurrentDataIndex(indexInit);
+			} catch (err){
+				setError(err);
+			}
+		};
     	itemFetch();
   	}, []);
-
+	const categories = items.reduce((group, item) => {
+		if (!group[item.itemCat]) {
+			group[item.itemCat] = [];
+		}
+		group[item.itemCat].push(item);
+		return group;
+	}, {});
   //Object class that maps the names of different animation variables with tailwind names
   //This is used to dynamically set the animation on the card div element
 	const animationClasses = {
@@ -45,6 +57,7 @@ export function HomePage() {
   //      1) Slide out the existing cards in the direction of the arrow button clicked
   //      2) Change the data of the slide cards off-screen
   //      3) Slide in the new cards from the other side of the screen
+  /*
 	const startLeftAnimation = () => {
 		// Clear any existing timeout
 		if (activeTimeout) clearTimeout(activeTimeout);
@@ -102,73 +115,76 @@ export function HomePage() {
 		
 		setActiveTimeout(timer);
 	};
+	*/
 	if (error){
 		return <p style={{color: "red"}}>{error}</p>;
 	}
-  //If the user is signedIn then display the products else display the place holder homescreen
-	if (isSignedIn)
+  	//If the user is signedIn then display the products else display the place holder homescreen
+	if (isSignedIn){
 		return (
-      //Outer div for the product screen
 			<div>
-
-        {/* Category 1 */}
-				<h2 class="mb-2">Offers</h2>
-        {/* Outer Div that styles the borders and backgrounds of the card elements */}
-				<div class="flex relative bg-gatorShade rounded-lg mb-2 flex-nonwrap">
-          {/* Left arrow button */}
-					<p
-						class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
-						onClick={startRightAnimation} 
-					>
-						&lt;
-					</p>
-          {/* Inner Div that contains the cards */}
-					<div
-						class={`flex w-full h-[300px] p-3 justify-start gap-5 overflow-hidden ${
-							animationClasses[animationState] || ""
-						}`}
-					>
-						{currItems.map((item) => (
-							<ProductCard
-								key={item._id}
-								data={item}
-							/>
-						))}
-					</div>
-          {/* Right arrow button */}
-					<p
-						class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
-						onClick={startLeftAnimation}
-					>
-						&gt;
-					</p>
-				</div>
-				{/* Dots to show page #s */}
-				<div class="flex justify-center mt-2 gap-2">
-						{Array.from({length: totalPages}).map((x, index) => 
+				{Object.entries(categories).map(([group, catItem]) => {
+					const totalPages = Math.ceil(catItem.length / itemsPerPage);
+					const index = currentDataIndex[group] || 0;
+					const currItems = catItem.slice(index * itemsPerPage, (index + 1) * itemsPerPage);
+				return(
+      				//Outer div for the product screen
+					<div key={group}>
+						{/* Category 1 */}
+						<h2 class="mb-2">{group}</h2>
+						{/* Outer Div that styles the borders and backgrounds of the card elements */}
+						<div class="flex relative bg-gatorShade rounded-lg mb-2 flex-nonwrap">
+							{/* Left arrow button */}
+							<p
+								class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
+								onClick={() => setCurrentDataIndex((prev) => ({
+									...prev, [group]: (index - 1 + totalPages) % totalPages,
+								}))}
+							>
+							&lt;
+							</p>
+          					{/* Inner Div that contains the cards */}
 							<div
-								key={index}
-								onClick={() => setCurrentDataIndex(index)}
-								class={`h-2 w-2 rounded-full cursor-pointer hover:bg-gatorOrange/80 transition-all
-									${index === currentDataIndex ? "bg-gatorOrange scale-125" : "bg-gatorBlue"}`}
-							/>
-						)}
-				</div>
-
-        {/* Category 2 */}
-		{/*
-				<h2 class="mb-2">Video Games</h2>
-				<div class="flex bg-black w-full h-[300px] p-3 justify-between rounded-lg">
-					<ProductCard />
-					<ProductCard />
-					<ProductCard />
-					<ProductCard />
-					<ProductCard />
-				</div>
-		*/}
+								class={`flex w-full h-[300px] p-3 justify-start gap-5 overflow-hidden ${
+									animationClasses[animationState] || ""
+								}`}
+							>
+							{currItems.map((item) => (
+								<ProductCard
+									key={item._id}
+									data={item}
+								/>
+							))}
+						</div>
+          				{/* Right arrow button */}
+						<p
+							class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
+							onClick={() => setCurrentDataIndex((prev) => ({
+								...prev, [group]: (index + 1) % totalPages,
+							}))}
+						>
+							&gt;
+						</p>
+					</div>
+					{/* Dots to show page #s */}
+					<div class="flex justify-center mt-2 gap-2">
+							{Array.from({length: totalPages}).map((x, index) => 
+								<div
+									key={index}
+									onClick={() => setCurrentDataIndex((prev) => ({
+										...prev, [group]:index,
+									}))}
+									class={`h-2 w-2 rounded-full cursor-pointer hover:bg-gatorOrange/80 transition-all
+									${index === currentDataIndex[group] ? "bg-gatorOrange scale-125" : "bg-gatorBlue"}`}
+								/>
+							)}
+					</div>
+				</div>);
+			})}
 			</div>
 		);
-	else
+	}
+	else {
     // Code to return the placeholder Home screen if not logged in
 		return (
 			<section className="space-y-8">
@@ -244,4 +260,5 @@ export function HomePage() {
 				</div>
 			</section>
 		);
+	}
 }

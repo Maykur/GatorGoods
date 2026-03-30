@@ -39,7 +39,7 @@ export function ItemPage() {
               method: 'DELETE',
             });
             alert('Item Deleted');
-            navigate('/offers');
+            navigate('/');
         } catch (e) {
             setError('Error during delete');
         }

@@ -15,6 +15,7 @@ export function CreateListingPage() {
   const [itemPicture, setItemPicture] = useState(null);
   const [itemDescription, setItemDescription] = useState('');
   const [itemDetails, setItemDetails] = useState('');
+  const [itemCat, setItemCat] = useState('');
   const [error, setError] = useState('');
   const userPublishingID = user?.id;
   const userPublishingName = user?.fullName || user?.firstName || '';
@@ -77,7 +78,10 @@ export function CreateListingPage() {
       setError("Couldn't get user details");
       return;
     }
-
+    if (!itemCat.trim()) {
+      setError('Item Category Required');
+      return;
+    }
     setError('');
 
     try {
@@ -93,6 +97,7 @@ export function CreateListingPage() {
           itemDetails,
           userPublishingID,
           userPublishingName,
+          itemCat,
         }),
         headers: {
           'Content-Type': 'application/json',
@@ -117,6 +122,7 @@ export function CreateListingPage() {
       setItemPicture(null);
       setItemDescription('');
       setItemDetails('');
+      setItemCat('');
       navigate('/');
     } catch (err) {
       setError('Unable to reach the server. Check your connection and retry.');
@@ -125,37 +131,41 @@ export function CreateListingPage() {
 
   return (
     <main>
-          <h1 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">Item For Sale</h1>
+      <h1 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">Item For Sale</h1>
+      <div style={{display: "flex", gap: "40px", alignItems: "flex-start"}}>
       <form
         onSubmit={handleOnSubmit}
         style={{ display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}
       >
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Name: </label>
           <input
-            type="text"
+            type="text" 
             placeholder="Item Name"
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
-            style={{ color: 'white', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           />
         </div>
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Price: </label>
           <input
             type="number"
             placeholder="Item Price (USD)"
             value={itemCost}
             onChange={(e) => setItemCost(e.target.value)}
-            style={{ color: 'white', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           />
         </div>
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Condition: </label>
           <select
             value={itemCondition}
             onChange={(e) => setItemCondition(e.target.value)}
-             style={{ color: 'grey', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           >
             <option value="">Select Item Condition</option>
             <option value="Perfect">Perfect</option>
@@ -164,51 +174,73 @@ export function CreateListingPage() {
             <option value="Poor">Poor</option>
           </select>
         </div>
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Location: </label>
           <input
             type="text"
             placeholder="Item Location"
             value={itemLocation}
             onChange={(e) => setItemLocation(e.target.value)}
-            style={{ color: 'white', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           />
         </div>
-        <div className="rounded-3xl border border-slate bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Image: </label>
           <input
             type="file"
             accept="image/*"
             placeholder="Image URL"
             onChange={handleFile}
-            style={{ color: 'grey', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           />
         </div>
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Description: </label>
           <input
             type="text"
             placeholder="Item Description"
             value={itemDescription}
             onChange={(e) => setItemDescription(e.target.value)}
-            style={{ color: 'white', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           />
         </div>
-        <div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-1 shadow-lg shadow-black/20 ">
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
           <label>Details: </label>
           <input
             type="text"
             placeholder="Item Details"
             value={itemDetails}
             onChange={(e) => setItemDetails(e.target.value)}
-            style={{ color: 'white', backgroundColor: 'transparent' }}
+            class="bg-gatorShade rounded-3xl px-2 py-1"
+            style={{color: 'white'}}
           />
         </div>
+        <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
+					<label class={'mb-2'}>Category: </label>
+					<select
+						value={itemCat}
+						onChange={(e) => setItemCat(e.target.value)}
+						class={'bg-gatorShade rounded-xl py-1 px-2 focus:ring-2 focus:ring-gatorOrange'}
+            style={{color:'white'}}>
+						<option value="">Select Category</option>
+						<option value="Vehicles">Vehicles</option>
+						<option value="Property Rentals">Property Rentals</option>
+						<option value="Apparel & Accessories">Apparel & Accessories</option>
+						<option value="Electronics & Computers">Electronics & Computers</option>
+						<option value="Home & Garden">Home & Garden</option>
+						<option value="Entertainment & Hobbies">Entertainment & Hobbies</option>
+            <option value="Family">Family</option>
+						<option value="Miscellaneous">Miscellaneous</option>
+					</select>
+				</div>
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <button
+          class="bg-gatorBlue hover:bg-gatorOrange/80 transition-color"
           type="submit"
           style={{
-            backgroundColor: 'grey',
             color: 'white',
             padding: '10px',
             border: 'none',
@@ -221,14 +253,17 @@ export function CreateListingPage() {
               </button>
           </form>
           <div style={{ height: '6px' }}></div>
-      <h1 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">Item Picture Preview:</h1>
-      {itemPicture && (
-        <img
-          src={itemPicture}
-          alt="preview"
-          style={{ width: '200px', height: 'auto' }}
-        />
-      )}
+        <div>
+          <h1 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">Item Picture Preview:</h1>
+          {itemPicture && (
+            <img
+              src={itemPicture}
+              alt="preview"
+              style={{ width: '200px', height: 'auto' }}
+            />
+          )}
+        </div>
+      </div>
     </main>
   );
 }
