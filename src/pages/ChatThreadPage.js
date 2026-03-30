@@ -18,6 +18,8 @@ export function ChatThreadPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [otherID, setOtherID] = useState("");
+  const [listingID, setListingID] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -43,7 +45,7 @@ export function ChatThreadPage() {
         const otherParticipantId = threadData.conversation.participantIds.find(
           (participantId) => participantId !== user.id
         );
-
+        setOtherID(otherParticipantId);
         const profilePromise = otherParticipantId
           ? fetch(`http://localhost:5000/profile/${otherParticipantId}`)
               .then((response) => (response.ok ? response.json() : null))
@@ -63,6 +65,7 @@ export function ChatThreadPage() {
 
         setOtherParticipantName(profileData?.profile?.profileName || otherParticipantId || "Conversation");
         setListingName(listingData?.itemName || "");
+        setListingID(listingData?._id || "");
         setError("");
       } catch (err) {
         if (isMounted) {
@@ -134,11 +137,11 @@ export function ChatThreadPage() {
     <main style={{ padding: "20px", maxWidth: "800px", margin: "0 auto" }}>
       <header style={{ marginBottom: "20px" }}>
         <p style={{ margin: "0 0 8px 0" }}>
-          <Link to="/messages">Back to messages</Link>
+          <Link to="/messages">{'<---'} Back to messages</Link>
         </p>
-        <h1 style={{ margin: "0 0 8px 0" }}>{otherParticipantName}</h1>
+        <h1 style={{ margin: "0 0 8px 0" }}><Link to={`/profile/${otherID}`}>{otherParticipantName}</Link></h1>
         {listingName ? (
-          <p style={{ margin: 0, color: "#4b5563" }}>Talking about: {listingName}</p>
+          <p style={{ margin: 0, color: "#4b5563" }}>Talking about: <Link to={`/items/${listingID}`}>{listingName}</Link></p>
         ) : null}
       </header>
 
