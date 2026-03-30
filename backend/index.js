@@ -6,10 +6,7 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-
-mongoose.connect(process.env.mongo_url).then(() => {
-  console.log('Connected to database');
-});
+const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -160,10 +157,41 @@ const messageSchema = new mongoose.Schema(
 
 messageSchema.index({conversationId: 1, createdAt: 1});
 
-const Item = mongoose.model('items', ItemSchema);
-const Profile = mongoose.model('profiles', profileSchema);
-const Conversation = mongoose.model('conversations', conversationSchema);
-const Message = mongoose.model('messages', messageSchema);
+const Item = mongoose.models.items || mongoose.model('items', ItemSchema);
+const Profile = mongoose.models.profiles || mongoose.model('profiles', profileSchema);
+const Conversation = mongoose.models.conversations || mongoose.model('conversations', conversationSchema);
+const Message = mongoose.models.messages || mongoose.model('messages', messageSchema);
+
+async function connectToDatabase(uri = process.env.mongo_url) {
+  if (!uri) {
+    throw new Error('mongo_url is required');
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  if (mongoose.connection.readyState === 2) {
+    await mongoose.connection.asPromise();
+    return mongoose.connection;
+  }
+
+  await mongoose.connect(uri);
+  return mongoose.connection;
+}
+
+async function disconnectFromDatabase() {
+  if (mongoose.connection.readyState === 0) {
+    return;
+  }
+
+  await mongoose.disconnect();
+}
+
+async function clearDatabase() {
+  const {collections} = mongoose.connection;
+  await Promise.all(Object.values(collections).map((collection) => collection.deleteMany({})));
+}
 
 function normalizeParticipantIds(participantIds = []) {
   return [...new Set(participantIds.map((participantId) => participantId?.trim()).filter(Boolean))].sort();
@@ -415,17 +443,22 @@ app.get('/items/:id', async (req, resp) => {
 
 // Delete listing item
 app.delete('/item/:item', async (req, resp) => {
-    try {
-        const item = await Item.findById(req.params.item);
-        if (!item) {
-            return res.status(404).json({message: 'Not found'});
-        }
-        await Item.findByIdAndDelete(req.params.item);
-        await Profile.updateMany({profileFavorites: req.params.item}, {$pull:{profileFavorites: req.params.item}});
-        res.json({message: "Listing deleted"});
-    } catch (e) {
-        resp.status(500).json({error: e.message})
+  try {
+    const deletedItem = await Item.findByIdAndDelete(req.params.item);
+
+    if (!deletedItem) {
+      return resp.status(404).json({message: 'Not found'});
     }
+
+    await Profile.updateMany(
+      {profileFavorites: req.params.item},
+      {$pull: {profileFavorites: req.params.item}}
+    );
+
+    resp.json({message: 'Listing deleted'});
+  } catch (e) {
+    resp.status(500).json({error: e.message});
+  }
 });
 
 // Grabbing user profile information from DB
@@ -502,6 +535,31 @@ app.delete('/user/:uid/fav/:fid', async (req, resp) => {
   }
 });
 
-app.listen(5000, () => {
-  console.log('App is running on port 5000');
-});
+async function startServer(port = DEFAULT_PORT) {
+  await connectToDatabase();
+
+  return app.listen(port, () => {
+    console.log(`App is running on port ${port}`);
+  });
+}
+
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error('Failed to start server', error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  app,
+  clearDatabase,
+  connectToDatabase,
+  disconnectFromDatabase,
+  models: {
+    Conversation,
+    Item,
+    Message,
+    Profile,
+  },
+  startServer,
+};

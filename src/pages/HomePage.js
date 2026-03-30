@@ -30,9 +30,9 @@ export function HomePage() {
 					return group;
 				}, {});
 				setCurrentDataIndex(indexInit);
-			} catch (err){
-				setError(err);
-			}
+				} catch (err){
+					setError(err.message || "Failed to fetch");
+				}
 		};
     	itemFetch();
   	}, []);
