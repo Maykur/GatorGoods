@@ -127,7 +127,7 @@ export function MessagesPage() {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
                   <div>
-                    <h2 style={{ margin: "0 0 8px 0", fontSize: "18px" }}>
+                    <h2 style={{ margin: "0 0 8px 0", fontSize: "18px", color: "#374151" }}>
                       {conversation.otherParticipantName}
                     </h2>
                     <p style={{ margin: "0 0 6px 0", color: "#374151" }}>
