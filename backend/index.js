@@ -418,11 +418,11 @@ app.delete('/item/:item', async (req, resp) => {
     try {
         const item = await Item.findById(req.params.item);
         if (!item) {
-            return res.status(404).json({message: 'Not found'});
+            return resp.status(404).json({message: 'Not found'});
         }
         await Item.findByIdAndDelete(req.params.item);
         await Profile.updateMany({profileFavorites: req.params.item}, {$pull:{profileFavorites: req.params.item}});
-        res.json({message: "Listing deleted"});
+        resp.json({message: "Listing deleted"});
     } catch (e) {
         resp.status(500).json({error: e.message})
     }
