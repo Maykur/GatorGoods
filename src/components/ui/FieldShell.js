@@ -1,10 +1,11 @@
 import { cn } from '../../lib/ui';
 
-export function getFieldClassName(className) {
+export function getFieldClassName(className, { hasLeadingIcon = false } = {}) {
   return cn(
     'focus-ring block w-full rounded-2xl border border-app-border/80 bg-app-surface/80 px-4 py-3 text-sm text-app-text placeholder:text-app-muted',
     'transition-colors duration-200 hover:border-white/15',
     'focus:border-gatorOrange focus:ring-focus',
+    hasLeadingIcon ? 'pl-11' : '',
     className
   );
 }
