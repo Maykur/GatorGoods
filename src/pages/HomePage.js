@@ -1,211 +1,383 @@
-// REFERENCES: https://daily.dev/blog/js-create-array-of-objects-simplified
-// REFERENCES: https://medium.com/@finnkumar6/array-grouping-in-javascript-a-quick-and-efficient-guide-771a974fa4d4
-// REFERENCES: https://stackoverflow.com/questions/74574022/change-the-focus-border-color-in-tailwind-css
-// REFERENCES: https://medium.com/@nicholasfagner/filtering-data-with-react-js-350b3ca696fa
+import { useUser } from '@clerk/react';
+import { useDeferredValue, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import ProductCard from '../components/HomePage/ProductCard.js';
+import { Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Select, Skeleton } from '../components/ui';
+import { getCachedListings, getListingsPage, hasCachedListings } from '../lib/listingsApi';
+import { LISTING_CATEGORIES, toListingCardViewModel } from '../lib/viewModels';
+import { cn } from '../lib/ui';
 
-import { Show, SignInButton, SignUpButton } from "@clerk/react";
-import { Link } from "react-router-dom";
-import { useUser } from "@clerk/react";
-import ProductCard from "../components/HomePage/ProductCard.js";
-import { useState, useEffect } from "react";
+const PAGE_SIZE = 9;
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'price-low', label: 'Price: low to high' },
+  { value: 'price-high', label: 'Price: high to low' },
+  { value: 'title', label: 'Title: A to Z' },
+];
 
-const DEFAULT_CATEGORY = "Miscellaneous";
+function getVisiblePages(currentPage, totalPages) {
+  if (totalPages <= 1) {
+    return [];
+  }
 
-function normalizeCategory(itemCat) {
-	return itemCat?.trim() || DEFAULT_CATEGORY;
+  const startPage = Math.max(1, currentPage - 1);
+  const endPage = Math.min(totalPages, startPage + 2);
+  const adjustedStart = Math.max(1, endPage - 2);
+
+  return Array.from({length: endPage - adjustedStart + 1}, (_, index) => adjustedStart + index);
 }
 
-export function HomePage() {
-	const { isSignedIn } = useUser();
-	const [items, setItems] = useState([]);
-	const [currentDataIndex, setCurrentDataIndex] = useState({});
-	const [search, setSearch] = useState("");
-	const [error, setError] = useState("");
-	const itemsPerPage = 5;
-	useEffect(() => {
-		const itemFetch = async () => {
-			try {
-				const res = await fetch("http://localhost:5000/items");
-				if (!res.ok){
-				throw new Error("Failed to fetch");
-				}
-				const data = await res.json();
-				setItems(data);
-				setError("");
-			} catch (err){
-				setError(err.message || "Failed to fetch");
-			}
-		};
-    	itemFetch();
-  	}, []);
-	const filter = items.filter((item) =>
-		item.itemName.toLowerCase().includes(search.toLowerCase())
-	);
-	useEffect(() => {
-		const indexInit = filter.reduce((group, item) => {
-			group[normalizeCategory(item.itemCat)] = 0;
-			return group;
-		}, {});
-		setCurrentDataIndex(indexInit);
-	}, [items, search]);
-	const categories = filter.reduce((group, item) => {
-		const category = normalizeCategory(item.itemCat);
-		if (!group[category]) {
-			group[category] = [];
-		}
-		group[category].push({
-			...item,
-			itemCat: category,
-		});
-		return group;
-	}, {});
-	if (error){
-		return <p style={{color: "red"}}>{error}</p>;
-	}
-  	//If the user is signedIn then display the products else display the place holder homescreen
-	if (isSignedIn){
-		return (
-			<div>
-				<div>
-					<input className="w-full mb-4 p-2 rounded-lg bg-gatorBlue text-white 
-							border border-gatorShade hover:border-gatorOrange focus:outline-none focus:border-gatorOrange"
-						type="text"
-						placeholder="Search for item"
-						value={search}
-						onChange={(e)=>setSearch(e.target.value)}/>
-				</div>
-				{Object.entries(categories).map(([group, catItem]) => {
-					const totalPages = Math.ceil(catItem.length / itemsPerPage);
-					const index = currentDataIndex[group] || 0;
-					const currItems = catItem.slice(index * itemsPerPage, (index + 1) * itemsPerPage);
-				return(
-      				//Outer div for the product screen
-					<div key={group}>
-						{/* Category 1 */}
-						<h2 className="mb-2">{group}</h2>
-						{/* Outer Div that styles the borders and backgrounds of the card elements */}
-						<div className="flex relative bg-gatorShade rounded-lg mb-2 flex-nonwrap">
-							{/* Left arrow button */}
-							<p
-								className="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
-								onClick={() => setCurrentDataIndex((prev) => ({
-									...prev, [group]: (index - 1 + totalPages) % totalPages,
-								}))}
-							>
-							&lt;
-							</p>
-          					{/* Inner Div that contains the cards */}
-							<div className="flex w-full h-[300px] p-3 justify-start gap-5 overflow-hidden">
-							{currItems.map((item) => (
-								<ProductCard
-									key={item._id}
-									data={item}
-								/>
-							))}
-						</div>
-          				{/* Right arrow button */}
-						<p
-							className="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
-							onClick={() => setCurrentDataIndex((prev) => ({
-								...prev, [group]: (index + 1) % totalPages,
-							}))}
-						>
-							&gt;
-						</p>
-					</div>
-					{/* Dots to show page #s */}
-					<div className="flex justify-center mt-2 gap-2">
-							{Array.from({length: totalPages}).map((x, index) => 
-								<div
-									key={index}
-									onClick={() => setCurrentDataIndex((prev) => ({
-										...prev, [group]:index,
-									}))}
-									className={`h-2 w-2 rounded-full cursor-pointer hover:bg-gatorOrange/80 transition-all
-									${index === currentDataIndex[group] ? "bg-gatorOrange scale-125" : "bg-gatorBlue"}`}
-								/>
-							)}
-					</div>
-				</div>);
-			})}
-			</div>
-		);
-	}
-	else {
-    // Code to return the placeholder Home screen if not logged in
-		return (
-			<section className="space-y-8">
-				<div className="rounded-3xl border border-slate-800 bg-slate-950/60 px-6 py-10 shadow-lg shadow-black/20 sm:px-8">
-					<p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-						A UF Marketplace
-					</p>
-					<h1 className="mb-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-						Buy, sell, and trade around campus without the usual chaos.
-					</h1>
-					<p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-						Browse the latest listings, make structured offers, and keep
-						transactions centered around the UF community.
-					</p>
-					<div className="mt-8 flex flex-wrap gap-3">
-						<Show when="signed-out">
-							<SignUpButton mode="modal">
-								<button
-									type="button"
-									className="rounded-full bg-gatorOrange px-5 py-3 font-semibold text-white transition-colors hover:bg-orange-500"
-								>
-									Create account
-								</button>
-							</SignUpButton>
-							<SignInButton mode="modal">
-								<button
-									type="button"
-									className="rounded-full border border-white/20 px-5 py-3 font-semibold text-slate-100 transition-colors hover:border-gatorOrange hover:text-gatorOrange"
-								>
-									Log in
-								</button>
-							</SignInButton>
-						</Show>
-						<Show when="signed-in">
-							<Link
-								to="/create"
-								className="rounded-full bg-gatorOrange px-5 py-3 font-semibold text-white no-underline transition-colors hover:bg-orange-500"
-							>
-								Post a listing
-							</Link>
-						</Show>
-					</div>
-				</div>
+function ListingGridSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <Card key={index} padding="none" className="overflow-hidden">
+          <Skeleton className="aspect-[3/2] rounded-none sm:aspect-[4/3]" />
+          <div className="space-y-2 p-3 sm:space-y-3 sm:p-5">
+            <Skeleton className="h-6 w-20 sm:h-7 sm:w-24" />
+            <Skeleton className="h-4 w-full sm:h-6" />
+            <Skeleton className="h-4 w-24 sm:h-6 sm:w-32" />
+            <Skeleton className="h-3 w-20 sm:h-4 sm:w-24" />
+            <Skeleton className="h-3 w-24 sm:h-4 sm:w-28" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
-				<div className="grid gap-4 md:grid-cols-3">
-					<article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-						<h2 className="text-lg font-semibold text-white">
-							Trusted Network
-						</h2>
-						<p className="mt-2 text-sm leading-6 text-slate-300">
-							Built around a campus community where meetup coordination and
-							trust matter.
-						</p>
-					</article>
-					<article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-						<h2 className="text-lg font-semibold text-white">
-							Offer-First Flow
-						</h2>
-						<p className="mt-2 text-sm leading-6 text-slate-300">
-							A cleaner negotiation path for buyers and sellers than general-use
-							classified services.
-						</p>
-					</article>
-					<article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-						<h2 className="text-lg font-semibold text-white">
-							Upcoming Features
-						</h2>
-						<p className="mt-2 text-sm leading-6 text-slate-300">
-							Listing feed, search, messaging, and profile trust signals will
-							live here.
-						</p>
-					</article>
-				</div>
-			</section>
-		);
-	}
+export function HomePage({ forceSignedOutView = false }) {
+  const { isLoaded, isSignedIn } = useUser();
+  const shouldRenderLanding = forceSignedOutView || !isSignedIn;
+  const initialRequestParams = {
+    page: 1,
+    limit: PAGE_SIZE,
+    search: '',
+    category: 'All',
+    sort: 'newest',
+  };
+  const initialCachedResponse = !shouldRenderLanding ? getCachedListings(initialRequestParams) : null;
+  const [items, setItems] = useState(() => initialCachedResponse?.items || []);
+  const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('newest');
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState(
+    () =>
+      initialCachedResponse?.meta || {
+        page: 1,
+        limit: PAGE_SIZE,
+        totalItems: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      }
+  );
+  const [error, setError] = useState('');
+  const [hasLoadedFeed, setHasLoadedFeed] = useState(Boolean(initialCachedResponse));
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (shouldRenderLanding) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    const requestParams = {
+      page,
+      limit: PAGE_SIZE,
+      search: deferredSearch,
+      category: selectedCategory,
+      sort: sortBy,
+    };
+    const shouldUseInitialLoading = !hasLoadedFeed && !hasCachedListings(requestParams);
+
+    const itemFetch = async () => {
+      try {
+        if (isMounted) {
+          if (shouldUseInitialLoading) {
+            setIsLoading(true);
+          } else {
+            setIsRefreshing(true);
+          }
+        }
+
+        const data = await getListingsPage(requestParams);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setItems(Array.isArray(data.items) ? data.items : []);
+        setMeta(data.meta);
+        setError('');
+        setHasLoadedFeed(true);
+      } catch (fetchError) {
+        if (isMounted) {
+          setError(fetchError.message || 'Failed to fetch listings');
+          setHasLoadedFeed(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
+      }
+    };
+
+    itemFetch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [deferredSearch, hasLoadedFeed, page, selectedCategory, shouldRenderLanding, sortBy]);
+
+  if (shouldRenderLanding) {
+    return (
+      <section className="w-full space-y-8">
+        <Card padding="lg" className="overflow-hidden">
+          <PageHeader
+            eyebrow="A UF Marketplace"
+            title="Buy, sell, and trade around campus without the usual chaos."
+            description="Browse the latest listings, make structured offers, and keep transactions centered around the UF community."
+            actions={
+              <div className="flex flex-wrap gap-3">
+                {isLoaded && isSignedIn ? (
+                  <Link to="/create" className="no-underline">
+                    <Button>Post a listing</Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link to="/signup" className="no-underline">
+                      <Button>Create account</Button>
+                    </Link>
+                    <Link to="/login" className="no-underline">
+                      <Button variant="secondary">Log in</Button>
+                    </Link>
+                  </>
+                )}
+              </div>
+            }
+          />
+        </Card>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card variant="subtle" className="space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+              Trusted Network
+            </p>
+            <h2 className="text-xl font-semibold text-white">Built for campus meetups</h2>
+            <p className="text-sm leading-7 text-app-soft">
+              Keep buying and selling centered around a UF student community where trust and pickup logistics matter.
+            </p>
+          </Card>
+          <Card variant="subtle" className="space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+              Cleaner browsing
+            </p>
+            <h2 className="text-xl font-semibold text-white">Find the right listing faster</h2>
+            <p className="text-sm leading-7 text-app-soft">
+              Search, category filters, and a calmer marketplace layout make it easier to spot the listings worth messaging about.
+            </p>
+          </Card>
+          <Card variant="subtle" className="space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+              Messaging first
+            </p>
+            <h2 className="text-xl font-semibold text-white">Negotiate without switching tools</h2>
+            <p className="text-sm leading-7 text-app-soft">
+              Listings, seller identity, and direct conversation stay in one place instead of getting scattered across campus group chats.
+            </p>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
+  const listingCards = items.map(toListingCardViewModel);
+  const categoryOptions = ['All', ...LISTING_CATEGORIES];
+  const hasFilters = deferredSearch.trim().length > 0 || selectedCategory !== 'All' || sortBy !== 'newest';
+  const visiblePages = getVisiblePages(meta.page, meta.totalPages);
+
+  return (
+    <section className="w-full space-y-6 sm:space-y-8">
+      <PageHeader
+        eyebrow="Marketplace"
+        title="Browse campus listings"
+        description="Search current student listings, narrow the grid by category, and jump into a seller conversation once something looks right."
+        actions={
+          <Link to="/create" className="no-underline">
+            <Button size="sm">Create listing</Button>
+          </Link>
+        }
+      />
+
+      <Card className="space-y-4 sm:space-y-5">
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.5fr)_220px]">
+          <Input
+            id="marketplace-search"
+            label="Search listings"
+            placeholder="Search by title, seller, location, or category"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+          <Select
+            id="marketplace-sort"
+            label="Sort by"
+            value={sortBy}
+            onChange={(event) => {
+              setSortBy(event.target.value);
+              setPage(1);
+            }}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+          {categoryOptions.map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => {
+                setSelectedCategory(category);
+                setPage(1);
+              }}
+              className={cn(
+                'focus-ring shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:py-2 sm:text-sm',
+                category === selectedCategory
+                  ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
+                  : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
+              )}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-app-soft sm:text-sm">
+            {meta.totalItems} {meta.totalItems === 1 ? 'listing' : 'listings'}
+            {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}.
+          </p>
+          <div className="flex items-center gap-3">
+            {isRefreshing ? (
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-app-muted sm:text-xs">
+                Updating results...
+              </p>
+            ) : null}
+            {hasFilters ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch('');
+                  setSelectedCategory('All');
+                  setSortBy('newest');
+                  setPage(1);
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </Card>
+
+      {error ? (
+        <ErrorBanner
+          title="We couldn't load the marketplace feed"
+          message={`${error}. Try refreshing or come back in a moment.`}
+        />
+      ) : null}
+
+      {isLoading || !hasLoadedFeed ? <ListingGridSkeleton /> : null}
+
+      {!isLoading && hasLoadedFeed && !error && listingCards.length === 0 ? (
+        <EmptyState
+          title="No listings match your current filters"
+          description="Try a broader search, switch categories, or reset the sort and filters to see more campus listings."
+          action={
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSearch('');
+                  setSelectedCategory('All');
+                  setSortBy('newest');
+                  setPage(1);
+                }}
+              >
+                Reset filters
+              </Button>
+              <Link to="/create" className="no-underline">
+                <Button>Create a listing</Button>
+              </Link>
+            </div>
+          }
+        />
+      ) : null}
+
+      {!isLoading && hasLoadedFeed && !error && listingCards.length > 0 ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+            {listingCards.map((item) => (
+              <ProductCard key={item.id} item={item} />
+            ))}
+          </div>
+
+          {meta.totalPages > 1 ? (
+            <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <p className="text-xs text-app-soft sm:text-sm">
+                Page {meta.page} of {meta.totalPages}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                  disabled={!meta.hasPreviousPage || isRefreshing}
+                >
+                  Previous
+                </Button>
+                {visiblePages.map((visiblePage) => (
+                  <button
+                    key={visiblePage}
+                    type="button"
+                    onClick={() => setPage(visiblePage)}
+                    disabled={isRefreshing}
+                    className={cn(
+                      'focus-ring min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-10 sm:px-4 sm:text-sm',
+                      visiblePage === meta.page
+                        ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
+                        : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
+                    )}
+                  >
+                    {visiblePage}
+                  </button>
+                ))}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                  disabled={!meta.hasNextPage || isRefreshing}
+                >
+                  Next
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
 }

@@ -1,7 +1,9 @@
 import { Show } from '@clerk/react';
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { Layout } from './components/Layout';
 import { UserProfile } from './components/UserProfile';
+import { ConfirmDialogProvider, ToastProvider } from './components/ui';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { SignUp } from './pages/signup';
@@ -23,58 +25,74 @@ function ProtectedRoute({ children }) {
 
 function App() {
   return (
-    <Router>
-      <UserProfile />
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route
-            path="/create"
-            element={
-              <ProtectedRoute>
-                <CreateListingPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/offers"
-            element={
-              <ProtectedRoute>
-                <OffersPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/messages"
-            element={
-              <ProtectedRoute>
-                <MessagesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/messages/:conversationId"
-            element={
-              <ProtectedRoute>
-                <ChatThreadPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile/:id"
-            element={<ProfilePage />}
-          />
-          <Route
-            path="/items/:id"
-            element={<ItemPage />}
-          />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </Router>
+    <AppErrorBoundary>
+      <ToastProvider>
+        <ConfirmDialogProvider>
+          <Router>
+            <UserProfile />
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<HomePage forceSignedOutView />} />
+                <Route path="/home" element={<Navigate to="/listings" replace />} />
+                <Route path="/login/*" element={<LoginPage />} />
+                <Route path="/signup/*" element={<SignUp />} />
+                <Route
+                  path="/listings"
+                  element={
+                    <ProtectedRoute>
+                      <HomePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/create"
+                  element={
+                    <ProtectedRoute>
+                      <CreateListingPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/offers"
+                  element={
+                    <ProtectedRoute>
+                      <OffersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/messages"
+                  element={
+                    <ProtectedRoute>
+                      <MessagesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/messages/:conversationId"
+                  element={
+                    <ProtectedRoute>
+                      <ChatThreadPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile/me"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage ownerView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/profile/:id" element={<ProfilePage />} />
+                <Route path="/items/:id" element={<ItemPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Route>
+            </Routes>
+          </Router>
+        </ConfirmDialogProvider>
+      </ToastProvider>
+    </AppErrorBoundary>
   );
 }
 

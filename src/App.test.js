@@ -37,6 +37,12 @@ jest.mock(
         return true;
       }
 
+      if (pattern.endsWith("/*")) {
+        const basePattern = pattern.slice(0, -2);
+
+        return path === basePattern || path.startsWith(`${basePattern}/`);
+      }
+
       const patternParts = pattern.split("/").filter(Boolean);
       const pathParts = path.split("/").filter(Boolean);
 
@@ -95,6 +101,7 @@ jest.mock(
 
         return matchedElement;
       },
+      useLocation: () => ({pathname: global.window.location.pathname}),
     };
   },
   {virtual: true}
@@ -145,6 +152,14 @@ beforeEach(() => {
   window.history.pushState({}, "", "/");
 });
 
+test("legacy home route redirects to listings", () => {
+  window.history.pushState({}, "", "/home");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/listings");
+});
+
 test("signed-out users can open item pages without redirect", () => {
   window.history.pushState({}, "", "/items/item-1");
 
@@ -177,6 +192,30 @@ test("signed-out users are redirected away from messages", () => {
   expect(window.location.pathname).toBe("/login");
 });
 
+test("signed-out users are redirected away from offers", () => {
+  window.history.pushState({}, "", "/offers");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/login");
+});
+
+test("signed-out users can continue through nested login routes", () => {
+  window.history.pushState({}, "", "/login/factor-one");
+
+  render(<App />);
+
+  expect(screen.getByText("Login Page")).toBeInTheDocument();
+});
+
+test("signed-out users can continue through nested signup routes", () => {
+  window.history.pushState({}, "", "/signup/continue");
+
+  render(<App />);
+
+  expect(screen.getByText("Sign Up Page")).toBeInTheDocument();
+});
+
 test("signed-in users can access protected routes", () => {
   setClerkState({
     isSignedIn: true,
@@ -189,4 +228,41 @@ test("signed-in users can access protected routes", () => {
   render(<App />);
 
   expect(screen.getByText("Create Listing Page")).toBeInTheDocument();
+});
+
+test("signed-in users can access the offers placeholder route", () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "user-1",
+    },
+  });
+  window.history.pushState({}, "", "/offers");
+
+  render(<App />);
+
+  expect(screen.getByText("Offers Page")).toBeInTheDocument();
+});
+
+test("signed-in users can use the profile shortcut route", () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "user-1",
+    },
+  });
+  window.history.pushState({}, "", "/profile/me");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/profile/me");
+  expect(screen.getByText("Profile Page")).toBeInTheDocument();
+});
+
+test("unknown routes render the not-found page", () => {
+  window.history.pushState({}, "", "/definitely-not-a-real-route");
+
+  render(<App />);
+
+  expect(screen.getByText(/chomp! page not found/i)).toBeInTheDocument();
 });

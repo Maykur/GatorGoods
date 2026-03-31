@@ -1,5 +1,6 @@
-import {render, screen, waitFor} from "@testing-library/react";
+import {fireEvent, render, screen} from "@testing-library/react";
 import {HomePage} from "./HomePage";
+import {clearListingsCache} from "../lib/listingsApi";
 import {resetClerkState, setClerkState} from "../testUtils/mockClerk";
 
 let mockItems = [];
@@ -33,8 +34,8 @@ jest.mock(
   {virtual: true}
 );
 
-jest.mock("../components/HomePage/ProductCard.js", () => ({data}) => (
-  <div>{data.itemName}</div>
+jest.mock("../components/HomePage/ProductCard.js", () => ({item, data}) => (
+  <div>{item?.title || data?.itemName || data?.title}</div>
 ));
 
 function jsonResponse(body, status = 200) {
@@ -45,13 +46,69 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+function buildPaginatedItemsResponse(url, items) {
+  const parsedUrl = new URL(url);
+  const page = Number(parsedUrl.searchParams.get("page") || "1");
+  const limit = Number(parsedUrl.searchParams.get("limit") || "9");
+  const search = (parsedUrl.searchParams.get("search") || "").toLowerCase();
+  const category = parsedUrl.searchParams.get("category") || "All";
+  const sort = parsedUrl.searchParams.get("sort") || "newest";
+
+  let filteredItems = items.filter((item) => {
+    const matchesCategory = category === "All" || item.itemCat === category;
+    const haystack = [
+      item.itemName,
+      item.itemLocation,
+      item.userPublishingName,
+      item.itemCat,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return matchesCategory && (!search || haystack.includes(search));
+  });
+
+  if (sort === "title") {
+    filteredItems = [...filteredItems].sort((first, second) =>
+      first.itemName.localeCompare(second.itemName)
+    );
+  }
+
+  const totalItems = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * limit;
+  const pageItems = filteredItems.slice(startIndex, startIndex + limit);
+
+  return {
+    items: pageItems,
+    meta: {
+      page: safePage,
+      limit,
+      totalItems,
+      totalPages,
+      hasNextPage: safePage < totalPages,
+      hasPreviousPage: safePage > 1,
+    },
+  };
+}
+
 beforeEach(() => {
   resetClerkState();
+  clearListingsCache();
   mockItems = [];
-  global.fetch = jest.fn(() => jsonResponse(mockItems));
+  global.fetch = jest.fn((url) => {
+    if (String(url).includes("/items?")) {
+      return jsonResponse(buildPaginatedItemsResponse(url, mockItems));
+    }
+
+    return jsonResponse(mockItems);
+  });
 });
 
 afterEach(() => {
+  clearListingsCache();
   delete global.fetch;
 });
 
@@ -63,13 +120,23 @@ test("signed-out users see the landing hero and auth CTA", async () => {
   ).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /create account/i})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /log in/i})).toBeInTheDocument();
-
-  await waitFor(() => {
-    expect(global.fetch).toHaveBeenCalledWith("http://localhost:5000/items");
-  });
+  expect(global.fetch).not.toHaveBeenCalled();
 });
 
-test("signed-in users see grouped listing categories", async () => {
+test("landing hero keeps auth CTAs visible while Clerk is still loading", () => {
+  setClerkState({
+    isLoaded: false,
+    isSignedIn: false,
+  });
+
+  render(<HomePage />);
+
+  expect(screen.getByRole("button", {name: /create account/i})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /log in/i})).toBeInTheDocument();
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+test("signed-in users see the listings feed, category chips, and cards", async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -91,13 +158,18 @@ test("signed-in users see grouped listing categories", async () => {
 
   render(<HomePage />);
 
-  expect(await screen.findByText("Electronics & Computers")).toBeInTheDocument();
+  expect(await screen.findByText(/browse campus listings/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: "All"})).toBeInTheDocument();
+  expect(await screen.findByRole("button", {name: "Electronics & Computers"})).toBeInTheDocument();
   expect(screen.getByText("Miscellaneous")).toBeInTheDocument();
   expect(screen.getByText("Desk Lamp")).toBeInTheDocument();
   expect(screen.getByText("Bike Helmet")).toBeInTheDocument();
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/items?page=1&limit=9&sort=newest")
+  );
 });
 
-test('signed-in users see listings with missing categories under "Miscellaneous"', async () => {
+test('signed-in users can filter listings with missing categories under "Miscellaneous"', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -116,4 +188,64 @@ test('signed-in users see listings with missing categories under "Miscellaneous"
 
   expect(await screen.findByText("Miscellaneous")).toBeInTheDocument();
   expect(screen.getByText("Uncategorized Chair")).toBeInTheDocument();
+});
+
+test("signed-in users see the designed empty state when filters remove every listing", async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "buyer-1",
+    },
+  });
+  mockItems = [
+    {
+      _id: "item-1",
+      itemName: "Desk Lamp",
+      itemCat: "Electronics & Computers",
+      itemCost: "20",
+      itemCondition: "Good",
+      itemLocation: "Library West",
+      userPublishingName: "Seller One",
+    },
+  ];
+
+  render(<HomePage />);
+
+  const searchInput = await screen.findByLabelText(/search listings/i);
+  expect(searchInput).toBeInTheDocument();
+
+  fireEvent.change(searchInput, {
+    target: {value: "not-a-match"},
+  });
+
+  expect(await screen.findByText(/no listings match your current filters/i)).toBeInTheDocument();
+});
+
+test("signed-in users can paginate through listings", async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "buyer-1",
+    },
+  });
+
+  mockItems = Array.from({length: 11}, (_, index) => ({
+    _id: `item-${index + 1}`,
+    itemName: `Listing ${index + 1}`,
+    itemCat: index % 2 === 0 ? "Miscellaneous" : "Electronics & Computers",
+    itemCost: String(index + 1),
+    itemCondition: "Good",
+    itemLocation: "Library West",
+    userPublishingName: "Seller One",
+  }));
+
+  render(<HomePage />);
+
+  expect(await screen.findByText("Listing 1")).toBeInTheDocument();
+  expect(screen.queryByText("Listing 10")).not.toBeInTheDocument();
+
+  fireEvent.click(await screen.findByRole("button", {name: /next/i}));
+
+  expect(await screen.findByText("Listing 10")).toBeInTheDocument();
+  expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
 });

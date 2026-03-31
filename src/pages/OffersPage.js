@@ -1,78 +1,48 @@
-// REFERENCES: https://stackoverflow.com/questions/70203488/how-can-i-fetch-data-from-mongodb-and-display-it-on-react-front-end
-
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Button, Card, EmptyState, PageHeader } from "../components/ui";
 
 export function OffersPage() {
-  const [items, setItems] = useState([]);
-  const [error, setError] = useState("");
-  const condColors = {
-    Perfect: "lime",
-    Good: "yellow",
-    Fair: "orange",
-    Poor: "red",
-  };
-  useEffect(() => {
-    const itemFetch = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/items");
-        if (!res.ok){
-          throw new Error("Failed to fetch");
-        }
-        const data = await res.json();
-        setItems(data);
-        setError("");
-      } catch (err){
-        setError(err.message);
-      }
-    };
-    itemFetch();
-  }, []);
-  if (error){
-    return <p style={{color: "red"}}>{error}</p>;
-  }
   return (
-    <main style={{padding: "20px"}}>
-      <h1 style={{marginBottom: "20px"}}>Offerings:</h1>
-      <div style={{display: "flex", flexWrap: "wrap", gap: "20px"}}>
-        {items.map((item) => (
-          <Link key={item._id} to={`/items/${item._id}`} style={{textDecoration: "none"}}>
-            <div key={item._id}
-              style={{
-                flex: "1 1 200px",
-                border: "1px solid #FA4616",
-                borderRadius: "8px",
-                padding: "15px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                maxWidth: "250px",
-                backgroundColor: "#0033A0",
-                boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-              }}
-            >
-              {item.itemPicture && (
-                <img
-                  src={item.itemPicture}
-                  alt={item.itemName}
-                  style={{width: "100%", borderRadius: "5px", marginBottom: "10px"}}
-                />
-              )}
-              <h2 style={{fontSize: "16px", margin: "5px 0"}}>Name: {item.itemName}</h2>
-              <p style={{fontSize: "14px", margin: "3px 0"}}>Price: ${item.itemCost}</p>
-              <p style={{fontSize: "12px", color: condColors[item.itemCondition], margin: "3px 0"}}>
-                Condition: {item.itemCondition}
-              </p>
-              <p>
-                Location: {item.itemLocation}
-              </p>
-              <p style={{fontSize: "12px", color: "#777", marginTop: "5px"}}>
-                Published by: {item.userPublishingName || "Unknown"}
-              </p>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </main>
+    <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
+      <PageHeader
+        eyebrow="Offers"
+        title="Offers inbox is coming soon"
+        description="We’re building a more structured way to send and review offers. For now, direct messages are still the best place to negotiate price and pickup details."
+      />
+      <Card variant="subtle" className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">What to do today</p>
+          <p className="text-sm leading-7 text-app-soft">
+            Reach out from a listing page when you want to ask a question, discuss price, or lock in a campus meetup.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">Why messaging works</p>
+          <p className="text-sm leading-7 text-app-soft">
+            You can keep the full conversation attached to the listing, which makes it easier to compare details and follow up later.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">What’s next</p>
+          <p className="text-sm leading-7 text-app-soft">
+            This space will eventually help buyers and sellers review offers, respond faster, and keep negotiations organized.
+          </p>
+        </div>
+      </Card>
+      <EmptyState
+        title="Structured offers are on the way"
+        description="Until then, use listing pages and direct messages to ask questions, negotiate price, and coordinate pickup with confidence."
+        action={
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link to="/listings" className="no-underline">
+              <Button>Browse listings</Button>
+            </Link>
+            <Link to="/messages" className="no-underline">
+              <Button variant="secondary">Open messages</Button>
+            </Link>
+          </div>
+        }
+      />
+    </section>
   );
 }

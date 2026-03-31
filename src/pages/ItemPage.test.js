@@ -4,6 +4,8 @@ import {resetClerkState, setClerkState} from "../testUtils/mockClerk";
 
 const mockNavigate = jest.fn();
 const mockCreateConversation = jest.fn();
+const mockShowToast = jest.fn();
+const mockConfirm = jest.fn(() => Promise.resolve(true));
 
 jest.mock("@clerk/react", () => {
   const React = require("react");
@@ -18,6 +20,20 @@ jest.mock("@clerk/react", () => {
 jest.mock("../lib/messagesApi", () => ({
   createConversation: (...args) => mockCreateConversation(...args),
 }));
+
+jest.mock("../components/ui", () => {
+  const actual = jest.requireActual("../components/ui");
+
+  return {
+    ...actual,
+    useToast: () => ({
+      showToast: mockShowToast,
+    }),
+    useConfirmDialog: () => ({
+      confirm: mockConfirm,
+    }),
+  };
+});
 
 jest.mock(
   "react-router-dom",
@@ -86,8 +102,9 @@ beforeEach(() => {
   });
   mockNavigate.mockReset();
   mockCreateConversation.mockReset();
-  window.alert = jest.fn();
-  window.confirm = jest.fn(() => true);
+  mockShowToast.mockReset();
+  mockConfirm.mockReset();
+  mockConfirm.mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -97,7 +114,7 @@ afterEach(() => {
 test("signed-out users can view the item and see a login CTA", async () => {
   render(<ItemPage />);
 
-  expect(await screen.findByText("Name: Desk Lamp")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", {name: "Desk Lamp"})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /log in to message seller/i})).toBeInTheDocument();
   expect(screen.queryByRole("button", {name: /favorite/i})).not.toBeInTheDocument();
   expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -135,7 +152,7 @@ test("signed-in non-owners still see the item when favorite lookup fails", async
 
   render(<ItemPage />);
 
-  expect(await screen.findByText("Name: Desk Lamp")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", {name: "Desk Lamp"})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /favorite/i})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /message seller/i})).toBeInTheDocument();
 });
@@ -167,9 +184,15 @@ test("successful delete only navigates after a successful response", async () =>
   fireEvent.click(await screen.findByRole("button", {name: /delete listing/i}));
 
   await waitFor(() => {
-    expect(mockNavigate).toHaveBeenCalledWith("/");
+    expect(mockNavigate).toHaveBeenCalledWith("/listings");
   });
-  expect(window.alert).toHaveBeenCalledWith("Item Deleted");
+  expect(mockConfirm).toHaveBeenCalled();
+  expect(mockShowToast).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: "Listing deleted",
+      variant: "success",
+    })
+  );
 });
 
 test("failed delete stays on the page and shows an error", async () => {
@@ -216,5 +239,5 @@ test("failed delete stays on the page and shows an error", async () => {
 
   expect(await screen.findByText("Error during delete")).toBeInTheDocument();
   expect(mockNavigate).not.toHaveBeenCalled();
-  expect(window.alert).not.toHaveBeenCalled();
+  expect(mockShowToast).not.toHaveBeenCalled();
 });

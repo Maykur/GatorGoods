@@ -1,4 +1,5 @@
 const API_BASE_URL = 'http://localhost:5000';
+const NETWORK_ERROR_MESSAGE = 'Unable to reach the GatorGoods API. Make sure the backend server is running and try again.';
 
 async function readJson(response, fallbackMessage) {
   const data = await response.json().catch(() => null);
@@ -10,49 +11,65 @@ async function readJson(response, fallbackMessage) {
   return data;
 }
 
-export async function getConversations(participantId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/conversations?participantId=${encodeURIComponent(participantId)}`
-  );
+async function fetchFromApi(url, options, fallbackMessage) {
+  let response;
 
-  return readJson(response, 'Failed to load conversations');
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    throw new Error(NETWORK_ERROR_MESSAGE);
+  }
+
+  return readJson(response, fallbackMessage);
+}
+
+export async function getConversations(participantId) {
+  return fetchFromApi(
+    `${API_BASE_URL}/api/conversations?participantId=${encodeURIComponent(participantId)}`,
+    undefined,
+    'Failed to load conversations'
+  );
 }
 
 export async function createConversation({participantIds, activeListingId}) {
-  const response = await fetch(`${API_BASE_URL}/api/conversations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return fetchFromApi(
+    `${API_BASE_URL}/api/conversations`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        participantIds,
+        activeListingId,
+      }),
     },
-    body: JSON.stringify({
-      participantIds,
-      activeListingId,
-    }),
-  });
-
-  return readJson(response, 'Failed to create conversation');
+    'Failed to create conversation'
+  );
 }
 
 export async function getConversationMessages(conversationId, participantId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/conversations/${conversationId}/messages?participantId=${encodeURIComponent(participantId)}`
+  return fetchFromApi(
+    `${API_BASE_URL}/api/conversations/${conversationId}/messages?participantId=${encodeURIComponent(participantId)}`,
+    undefined,
+    'Failed to load messages'
   );
-
-  return readJson(response, 'Failed to load messages');
 }
 
 export async function sendMessage({conversationId, senderClerkUserId, body, attachedListingId}) {
-  const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return fetchFromApi(
+    `${API_BASE_URL}/api/conversations/${conversationId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        senderClerkUserId,
+        body,
+        attachedListingId,
+      }),
     },
-    body: JSON.stringify({
-      senderClerkUserId,
-      body,
-      attachedListingId,
-    }),
-  });
-
-  return readJson(response, 'Failed to send message');
+    'Failed to send message'
+  );
 }
