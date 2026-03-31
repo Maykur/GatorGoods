@@ -316,6 +316,7 @@ export function HomePage({ forceSignedOutView = false }) {
 
       {!isLoading && hasLoadedFeed && !error && listingCards.length === 0 ? (
         <EmptyState
+          icon="search"
           title="No listings match your current filters"
           description="Try a broader search, switch categories, or reset the sort and filters to see more campus listings."
           action={

@@ -169,6 +169,7 @@ export function MessagesPage() {
 
       {!isLoading && !error && conversations.length === 0 ? (
         <EmptyState
+          icon="messages"
           title="No conversations yet"
           description="Start by opening a listing and messaging the seller. Your active threads will show up here."
           action={

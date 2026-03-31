@@ -651,6 +651,7 @@ export function ProfilePage({ ownerView = false }) {
                   />
                 ) : (
                   <EmptyState
+                    icon="createListing"
                     title="No active listings yet"
                     description="Create your first listing to start selling around campus."
                     action={
@@ -668,6 +669,7 @@ export function ProfilePage({ ownerView = false }) {
                 />
               ) : (
                 <EmptyState
+                  icon="favorite"
                   title="No favorites saved yet"
                   description="Save listings you want to revisit and they will show up here."
                   action={

@@ -1,6 +1,6 @@
 import { Show, SignUp as ClerkSignUp } from '@clerk/react';
 import { Navigate } from 'react-router-dom';
-import { Card, PageHeader } from '../components/ui';
+import { AppIcon, Card, PageHeader } from '../components/ui';
 
 export function SignUp() {
   return (
@@ -12,18 +12,29 @@ export function SignUp() {
         >
           <PageHeader
             eyebrow="Join the marketplace"
+            icon="createListing"
             title="Create your GatorGoods account"
             description="Set up your UF marketplace identity, list items faster, and keep every campus trade inside a consistent, student-first experience."
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
-              <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Built for campus trust</p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-gatorOrange/20 bg-gatorOrange/10 text-gatorOrange">
+                  <AppIcon icon="verified" />
+                </div>
+                <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Built for campus trust</p>
+              </div>
               <p className="mt-3 text-base leading-7 text-app-soft">
                 Create a student marketplace profile that makes it easier to share listings, coordinate pickup, and build buyer confidence.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
-              <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">What you unlock</p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-gatorOrange/20 bg-gatorOrange/10 text-gatorOrange">
+                  <AppIcon icon="offers" />
+                </div>
+                <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">What you unlock</p>
+              </div>
               <p className="mt-3 text-base leading-7 text-app-soft">
                 Post items, track conversations, save favorites, and manage your campus selling activity from one account.
               </p>

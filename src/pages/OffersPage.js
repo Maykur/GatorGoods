@@ -271,6 +271,7 @@ export function OffersPage() {
 
       {!isLoading && !error && mode === 'seller' && sellerGroups.length === 0 ? (
         <EmptyState
+          icon="offers"
           title="No incoming offers yet"
           description="When someone sends an offer on one of your listings, you'll see the price, payment method, and pickup plan here."
           action={
@@ -283,6 +284,7 @@ export function OffersPage() {
 
       {!isLoading && !error && mode === 'buyer' && buyerOffers.length === 0 ? (
         <EmptyState
+          icon="offers"
           title="No sent offers yet"
           description="Send an offer from any item page and you'll be able to check it here."
           action={
