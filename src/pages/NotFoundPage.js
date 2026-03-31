@@ -71,7 +71,7 @@ export function NotFoundPage() {
             <Card variant="subtle">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Still stuck?</p>
               <p className="mt-2 text-sm leading-7 text-app-soft">
-                Use the main navigation to re-enter listings, messages, or your profile dashboard.
+                Use the main navigation to get back to listings, messages, or your profile.
               </p>
             </Card>
           </div>

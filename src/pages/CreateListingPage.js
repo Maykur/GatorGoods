@@ -281,7 +281,7 @@ export function CreateListingPage() {
                 <div className="space-y-1">
                   <p className="text-base font-semibold text-white">Click to add a photo</p>
                   <p className="text-sm text-app-soft">
-                    Use a sharp product image under 5 MB so it loads quickly for buyers.
+                    Choose a clear photo under 5 MB.
                   </p>
                 </div>
                 <input
@@ -366,7 +366,7 @@ export function CreateListingPage() {
                 {values.itemLocation || 'Pickup location appears here'}
               </p>
               <p className="text-sm leading-7 text-app-soft">
-                {values.itemDescription || 'A short description helps buyers understand the item quickly.'}
+                {values.itemDescription || 'Add a short description so people know what you are selling.'}
               </p>
             </div>
           </div>

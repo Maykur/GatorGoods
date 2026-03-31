@@ -383,7 +383,7 @@ export function ItemPage() {
       setError('');
       showToast({
         title: 'Offer sent',
-        description: 'The seller can now review your offer and respond from the offers inbox.',
+        description: 'The seller can now review your offer and reply from the offers page.',
         variant: 'success',
       });
     } catch (offerError) {
@@ -438,7 +438,7 @@ export function ItemPage() {
             <PageHeader
               eyebrow={itemView.category}
               title={itemView.title}
-              description="Review seller trust, send a structured offer, and keep meetup details organized before you message."
+              description="See the details, check the seller profile, and send an offer or message if you're interested."
             />
 
             <div className="flex flex-wrap items-center gap-3">
@@ -490,11 +490,11 @@ export function ItemPage() {
                   <Card variant="subtle" className="space-y-5">
                     <div className="space-y-2">
                       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-                        Structured offer
+                        Make an offer
                       </p>
-                      <h2 className="text-2xl font-semibold text-white">Send a campus pickup offer</h2>
+                      <h2 className="text-2xl font-semibold text-white">Share your offer</h2>
                       <p className="text-sm leading-7 text-app-soft">
-                        Include your price, payment method, and meetup details so the seller can compare offers quickly.
+                        Add your price, payment method, and a good time and place to meet.
                       </p>
                     </div>
 
@@ -610,23 +610,23 @@ export function ItemPage() {
               className="flex items-center gap-4 rounded-[1.25rem] border border-white/10 bg-white/5 p-4 no-underline transition-colors hover:border-white/20 hover:bg-white/10"
             >
               <Avatar name={itemView.seller.name} src={itemView.seller.avatarUrl} size="lg" />
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-lg font-semibold text-white">{itemView.seller.name}</p>
-                  <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-lg font-semibold text-white">{itemView.seller.name}</p>
+                    <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
+                  </div>
+                <p className="text-sm text-app-soft">View seller profile and other listings</p>
                 </div>
-                <p className="text-sm text-app-soft">View seller profile, listings, and trust details</p>
-              </div>
-            </Link>
+              </Link>
           </Card>
 
           <Card className="space-y-4">
             <div className="space-y-2">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-                Trust snapshot
+                Seller ratings
               </p>
               <p className="text-sm leading-7 text-app-soft">
-                These quick signals help buyers judge reliability before they commit to a meetup.
+                See how past buyers rated this seller.
               </p>
             </div>
 
@@ -655,7 +655,7 @@ export function ItemPage() {
               </p>
             ) : (
               <p className="text-xs uppercase tracking-[0.16em] text-app-muted">
-                Detailed trust metrics will grow as more exchanges are completed
+                More ratings will show up here after future sales
               </p>
             )}
           </Card>

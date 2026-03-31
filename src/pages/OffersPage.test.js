@@ -239,7 +239,7 @@ test('buyer mode shows sent offers and seller context', async () => {
 
   render(<OffersPage />);
 
-  fireEvent.click(await screen.findByRole('tab', { name: /buyer view/i }));
+  fireEvent.click(await screen.findByRole('tab', { name: /buying/i }));
 
   expect(await screen.findByText('Seller: Seller One • 4.6/5')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /conversation/i })).toHaveAttribute(

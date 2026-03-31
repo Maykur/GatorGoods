@@ -141,8 +141,8 @@ export function HomePage({ forceSignedOutView = false }) {
         <Card padding="lg" className="overflow-hidden">
           <PageHeader
             eyebrow="A UF Marketplace"
-            title="Buy, sell, and trade around campus without the usual chaos."
-            description="Browse the latest listings, make structured offers, and keep transactions centered around the UF community."
+            title="Buy, sell, and trade around campus."
+            description="Browse campus listings, message sellers, and make offers when you're ready."
             actions={
               <div className="flex flex-wrap gap-3">
                 {isLoaded && isSignedIn ? (
@@ -169,9 +169,9 @@ export function HomePage({ forceSignedOutView = false }) {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
               Trusted Network
             </p>
-            <h2 className="text-xl font-semibold text-white">Built for campus meetups</h2>
+            <h2 className="text-xl font-semibold text-white">Made for campus pickup</h2>
             <p className="text-sm leading-7 text-app-soft">
-              Keep buying and selling centered around a UF student community where trust and pickup logistics matter.
+              Buy and sell with other UF students and keep pickup plans easy to sort out.
             </p>
           </Card>
           <Card variant="subtle" className="space-y-3">
@@ -180,16 +180,16 @@ export function HomePage({ forceSignedOutView = false }) {
             </p>
             <h2 className="text-xl font-semibold text-white">Find the right listing faster</h2>
             <p className="text-sm leading-7 text-app-soft">
-              Search, category filters, and a calmer marketplace layout make it easier to spot the listings worth messaging about.
+              Search and category filters help you narrow things down without digging through clutter.
             </p>
           </Card>
           <Card variant="subtle" className="space-y-3">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
               Messaging first
             </p>
-            <h2 className="text-xl font-semibold text-white">Negotiate without switching tools</h2>
+            <h2 className="text-xl font-semibold text-white">Keep everything in one place</h2>
             <p className="text-sm leading-7 text-app-soft">
-              Listings, seller identity, and direct conversation stay in one place instead of getting scattered across campus group chats.
+              Your listing details, seller info, and messages stay together instead of getting lost in group chats.
             </p>
           </Card>
         </div>
@@ -207,7 +207,7 @@ export function HomePage({ forceSignedOutView = false }) {
       <PageHeader
         eyebrow="Marketplace"
         title="Browse campus listings"
-            description="Search current student listings, narrow the grid by category, and jump into a seller conversation once something looks right."
+        description="Search listings, filter by category, and message the seller when something looks right."
         actions={
           canCreateListings ? (
             <Link to="/create" className="no-underline">

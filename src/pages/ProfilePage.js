@@ -186,7 +186,7 @@ export function ProfilePage({ ownerView = false }) {
     if (!profileId) {
       setInfo(null);
       setFavoriteItems([]);
-      setError(ownerView ? 'Sign in to manage your profile dashboard.' : 'Profile not found');
+      setError(ownerView ? 'Sign in to manage your profile.' : 'Profile not found');
       setIsLoading(false);
       return undefined;
     }
@@ -318,7 +318,7 @@ export function ProfilePage({ ownerView = false }) {
         await refreshProfile();
         showToast({
           title: 'Favorite removed',
-          description: `${listingTitle} is no longer saved in your dashboard.`,
+          description: `${listingTitle} is no longer in your saved items.`,
           variant: 'success',
         });
       } catch (favoriteError) {
@@ -436,12 +436,12 @@ export function ProfilePage({ ownerView = false }) {
   return (
     <section className="w-full space-y-8">
       <PageHeader
-        eyebrow={ownerView ? 'Owner Dashboard' : 'Seller Profile'}
-        title={ownerView ? 'Manage your seller presence' : profileHeader?.displayName || 'Seller profile'}
+        eyebrow={ownerView ? 'Your Profile' : 'Seller Profile'}
+        title={ownerView ? 'Manage your profile' : profileHeader?.displayName || 'Seller profile'}
         description={
           ownerView
-            ? 'Tune your public profile, keep trust signals readable, and manage listings and saved items from one dashboard.'
-            : 'Review seller context, public connectors, and trust metrics before deciding whether to meet up.'
+            ? 'Update your photo, bio, links, listings, and saved items in one place.'
+            : 'See this seller\'s bio, links, and ratings before you decide to buy.'
         }
         actions={
           ownerView ? (
@@ -485,14 +485,14 @@ export function ProfilePage({ ownerView = false }) {
                       </h1>
                       <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
                       {profileHeader.ufVerified ? <Badge variant="success">UF verified</Badge> : null}
-                      {ownerView ? <Badge variant="info">Owner dashboard</Badge> : null}
+                      {ownerView ? <Badge variant="info">Your profile</Badge> : null}
                     </div>
 
                     <p className="max-w-2xl text-sm leading-7 text-app-soft">
                       {profileHeader.bio ||
                         (ownerView
-                          ? 'Add a short bio so buyers understand what kind of seller you are.'
-                          : 'This seller has not added a public bio yet. Use the trust snapshot below for quick context.')}
+                          ? 'Add a short bio so people know what you usually sell.'
+                          : 'This seller has not added a bio yet.')}
                     </p>
 
                     <ProfileConnectorLinks profileHeader={profileHeader} />
@@ -529,22 +529,22 @@ export function ProfilePage({ ownerView = false }) {
             <Card variant="subtle" className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Reliability</p>
               <p className="text-2xl font-semibold text-white">{trustMetrics.reliabilityLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">Do they follow through on campus meetup plans?</p>
+              <p className="text-sm leading-7 text-app-soft">Do they usually show up when they say they will?</p>
             </Card>
             <Card variant="subtle" className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Accuracy</p>
               <p className="text-2xl font-semibold text-white">{trustMetrics.accuracyLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">Do listings match the real item people receive?</p>
+              <p className="text-sm leading-7 text-app-soft">Did the item match the listing?</p>
             </Card>
             <Card variant="subtle" className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Responsiveness</p>
               <p className="text-2xl font-semibold text-white">{trustMetrics.responsivenessLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">How clearly and quickly do they respond in-app?</p>
+              <p className="text-sm leading-7 text-app-soft">How quickly did they reply?</p>
             </Card>
             <Card variant="subtle" className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Safety</p>
               <p className="text-2xl font-semibold text-white">{trustMetrics.safetyLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">Did past meetups feel safe and straightforward?</p>
+              <p className="text-sm leading-7 text-app-soft">Did the meetup feel comfortable and straightforward?</p>
             </Card>
           </div>
 
@@ -552,11 +552,11 @@ export function ProfilePage({ ownerView = false }) {
             <Card className="space-y-6">
               <div className="space-y-2">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-                  Public profile editor
+                  Edit your public profile
                 </p>
-                <h2 className="text-2xl font-semibold text-white">Tune what buyers see first</h2>
+                <h2 className="text-2xl font-semibold text-white">Update what people see on your profile</h2>
                 <p className="text-sm leading-7 text-app-soft">
-                  Keep the edit surface light: make the profile recognizable, add a short bio, and share only the public links you want visible.
+                  Add a recognizable photo, a short bio, and any public links you want to share.
                 </p>
               </div>
 
@@ -694,7 +694,7 @@ export function ProfilePage({ ownerView = false }) {
                 </p>
                 <h2 className="text-2xl font-semibold text-white">Rate this seller</h2>
                 <p className="text-sm leading-7 text-app-soft">
-                  Share a quick score after a completed purchase so future buyers have better context.
+                  Share a quick rating after your purchase.
                 </p>
               </div>
 

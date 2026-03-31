@@ -138,8 +138,8 @@ export function MessagesPage() {
     <section className="w-full space-y-8">
       <PageHeader
         eyebrow="Messages"
-        title="Keep every listing conversation in one place"
-        description="Track unread threads, jump back into negotiations quickly, and keep listing context attached to each conversation."
+        title="Your conversations"
+        description="Read new messages, reply quickly, and keep each chat tied to the right listing."
         actions={
           <Link to="/listings" className="text-sm font-semibold text-app-soft no-underline transition hover:text-white">
             Browse listings

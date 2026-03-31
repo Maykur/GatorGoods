@@ -116,7 +116,7 @@ test("signed-out users see the landing hero and auth CTA", async () => {
   render(<HomePage forceSignedOutView />);
 
   expect(
-    screen.getByText(/buy, sell, and trade around campus without the usual chaos/i)
+    screen.getByText(/buy, sell, and trade around campus\./i)
   ).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /create account/i})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /log in/i})).toBeInTheDocument();

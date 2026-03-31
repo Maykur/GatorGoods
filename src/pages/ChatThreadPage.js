@@ -229,7 +229,7 @@ export function ChatThreadPage() {
         <Card variant="subtle" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              Listing context
+              About this listing
             </p>
             <p className="text-lg font-semibold text-white">{listingName}</p>
           </div>
@@ -303,7 +303,7 @@ export function ChatThreadPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-app-soft">
-              Keep pickup details and negotiation notes in the thread so they are easy to revisit.
+              Keep pickup details and notes here so you can find them later.
             </p>
             <Button type="submit" loading={isSending}>
               Send message

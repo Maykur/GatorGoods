@@ -16,8 +16,8 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000';
 const MODE_OPTIONS = [
-  { id: 'seller', label: 'Seller view' },
-  { id: 'buyer', label: 'Buyer view' },
+  { id: 'seller', label: 'Selling' },
+  { id: 'buyer', label: 'Buying' },
 ];
 
 function getStatusBadgeVariant(status) {
@@ -219,8 +219,8 @@ export function OffersPage() {
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
       <PageHeader
         eyebrow="Offers"
-        title="Review structured offers without losing the item context"
-        description="Switch between buyer and seller views, compare price and meetup details quickly, and move accepted offers toward a real exchange."
+        title="Offers for your listings and the ones you've sent"
+        description="Switch between selling and buying to check prices, payment methods, and pickup details."
         actions={
           <Link to="/messages" className="text-sm font-semibold text-app-soft no-underline transition hover:text-white">
             Open messages
@@ -250,7 +250,7 @@ export function OffersPage() {
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-app-soft">
-            {totalOffers} {totalOffers === 1 ? 'offer' : 'offers'} in {mode === 'seller' ? 'seller' : 'buyer'} mode
+            {totalOffers} {totalOffers === 1 ? 'offer' : 'offers'} {mode === 'seller' ? 'received' : 'sent'}
           </p>
           {isRefreshing ? (
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
@@ -272,7 +272,7 @@ export function OffersPage() {
       {!isLoading && !error && mode === 'seller' && sellerGroups.length === 0 ? (
         <EmptyState
           title="No incoming offers yet"
-          description="When buyers send structured offers on your listings, you will be able to compare them here by listing, price, and meetup details."
+          description="When someone sends an offer on one of your listings, you'll see the price, payment method, and pickup plan here."
           action={
             <Link to="/listings" className="no-underline">
               <Button variant="secondary">Browse listings</Button>
@@ -284,7 +284,7 @@ export function OffersPage() {
       {!isLoading && !error && mode === 'buyer' && buyerOffers.length === 0 ? (
         <EmptyState
           title="No sent offers yet"
-          description="Start from an item page and send a structured offer to see its status here."
+          description="Send an offer from any item page and you'll be able to check it here."
           action={
             <Link to="/listings" className="no-underline">
               <Button>Browse listings</Button>
@@ -304,7 +304,7 @@ export function OffersPage() {
                     <Badge variant={getStatusBadgeVariant(group.listingStatus)}>{group.listingStatusLabel}</Badge>
                   </div>
                   <p className="text-sm leading-7 text-app-soft">
-                    Compare buyers by offer amount, payment method, and meetup details before you commit.
+                    See each buyer's price, payment method, and pickup plan in one place.
                   </p>
                 </div>
 

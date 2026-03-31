@@ -13,19 +13,19 @@ export function LoginPage() {
           <PageHeader
             eyebrow="Welcome back"
             title="Sign in and get back to campus deals"
-            description="Browse verified student listings, keep your messages in one place, and post new items without leaving the GatorGoods flow."
+            description="Sign in to browse verified student listings, message people, and post your own items."
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Campus marketplace</p>
               <p className="mt-3 text-base leading-7 text-app-soft">
-                Jump back into active listings, current prices, and nearby pickup opportunities without digging through scattered chats.
+                Jump back into active listings, current prices, and nearby pickup options.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Everything in one place</p>
               <p className="mt-3 text-base leading-7 text-app-soft">
-                Your messages, saved interests, and listing tools stay connected so you can pick up where you left off right away.
+                Your messages, saved items, and listing tools stay together so it is easy to pick up where you left off.
               </p>
             </div>
           </div>
