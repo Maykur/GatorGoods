@@ -1,4 +1,6 @@
+import { Show } from '@clerk/react';
 import { Link } from 'react-router-dom';
+import { Button, Card, PageHeader } from '../components/ui';
 
 // prettier-ignore
 const GATOR_404 =
@@ -28,30 +30,60 @@ const GATOR_404 =
 
 export function NotFoundPage() {
   return (
-    <section className="rounded-3xl border border-slate-800 bg-slate-950/70 px-6 py-8 shadow-lg shadow-black/20 sm:px-8">
-      <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-        Error 404
-      </p>
-      <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-        Chomp! Page not found
-      </h1>
-      <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-        The gators searched the swamp, but this route does not exist.
-      </p>
-      <pre
-        aria-hidden="true"
-        className="mt-6 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/90 p-4 text-[0.65rem] leading-tight text-slate-300"
-      >
-        {GATOR_404}
-      </pre>
-      <p className="mt-6">
-        <Link
-          to="/"
-          className="inline-flex rounded-full bg-gatorOrange px-4 py-2 font-semibold text-white no-underline transition-colors hover:bg-orange-500"
+    <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
+      <PageHeader
+        eyebrow="Error 404"
+        title="Chomp! Page not found"
+        description="The gators searched the swamp, but this route does not exist. Head back to a known part of the marketplace and keep moving."
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Link to="/" className="no-underline">
+              <Button>Go to landing</Button>
+            </Link>
+            <Show when="signed-in" fallback={
+              <Link to="/login" className="no-underline">
+                <Button variant="secondary">Open sign in</Button>
+              </Link>
+            }>
+              <Link to="/listings" className="no-underline">
+                <Button variant="secondary">Browse listings</Button>
+              </Link>
+            </Show>
+          </div>
+        }
+      />
+
+      <Card className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+        <div className="space-y-4">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+            Lost but recoverable
+          </p>
+          <p className="text-sm leading-7 text-app-soft">
+            This usually means the URL is outdated, mistyped, or points to a route that has not been implemented yet in the current product shell.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card variant="subtle">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Try next</p>
+              <p className="mt-2 text-sm leading-7 text-app-soft">
+                Jump back to the landing page or open the marketplace feed.
+              </p>
+            </Card>
+            <Card variant="subtle">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Still stuck?</p>
+              <p className="mt-2 text-sm leading-7 text-app-soft">
+                Use the main navigation to re-enter listings, messages, or your profile dashboard.
+              </p>
+            </Card>
+          </div>
+        </div>
+
+        <pre
+          aria-hidden="true"
+          className="overflow-x-auto rounded-[1.5rem] border border-white/10 bg-slate-950/90 p-4 text-[0.65rem] leading-tight text-slate-300"
         >
-          Go back home
-        </Link>
-      </p>
+          {GATOR_404}
+        </pre>
+      </Card>
     </section>
   );
 }

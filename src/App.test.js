@@ -186,6 +186,14 @@ test("signed-out users are redirected away from messages", () => {
   expect(window.location.pathname).toBe("/login");
 });
 
+test("signed-out users are redirected away from offers", () => {
+  window.history.pushState({}, "", "/offers");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/login");
+});
+
 test("signed-in users can access protected routes", () => {
   setClerkState({
     isSignedIn: true,
@@ -198,6 +206,20 @@ test("signed-in users can access protected routes", () => {
   render(<App />);
 
   expect(screen.getByText("Create Listing Page")).toBeInTheDocument();
+});
+
+test("signed-in users can access the offers placeholder route", () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "user-1",
+    },
+  });
+  window.history.pushState({}, "", "/offers");
+
+  render(<App />);
+
+  expect(screen.getByText("Offers Page")).toBeInTheDocument();
 });
 
 test("signed-in users can use the profile shortcut route", () => {
@@ -213,4 +235,12 @@ test("signed-in users can use the profile shortcut route", () => {
 
   expect(window.location.pathname).toBe("/profile/me");
   expect(screen.getByText("Profile Page")).toBeInTheDocument();
+});
+
+test("unknown routes render the not-found page", () => {
+  window.history.pushState({}, "", "/definitely-not-a-real-route");
+
+  render(<App />);
+
+  expect(screen.getByText(/chomp! page not found/i)).toBeInTheDocument();
 });
