@@ -24,12 +24,14 @@
     "tailwindcss": "^3.4.1"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "npm-run-all --parallel clientStart backendStart",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "frontStart": "npm start",
-    "backStart": "npm --prefix backend run dev",
-    "serverStart": "npm-run-all --parallel frontStart backStart",
+    "clientStart": "react-scripts start",
+    "backendStart": "npm --prefix backend run dev",
+    "frontStart": "npm run clientStart",
+    "backStart": "npm run backendStart",
+    "serverStart": "npm start",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

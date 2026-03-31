@@ -1,4 +1,4 @@
-import { Show, SignInButton, SignUpButton, useUser } from '@clerk/react';
+import { Show, useUser } from '@clerk/react';
 import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/HomePage/ProductCard.js';
@@ -145,12 +145,12 @@ export function HomePage({ forceSignedOutView = false }) {
             actions={
               <div className="flex flex-wrap gap-3">
                 <Show when="signed-out">
-                  <SignUpButton mode="modal">
+                  <Link to="/signup" className="no-underline">
                     <Button>Create account</Button>
-                  </SignUpButton>
-                  <SignInButton mode="modal">
+                  </Link>
+                  <Link to="/login" className="no-underline">
                     <Button variant="secondary">Log in</Button>
-                  </SignInButton>
+                  </Link>
                 </Show>
                 <Show when="signed-in">
                   <Link to="/create" className="no-underline">

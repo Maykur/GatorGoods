@@ -1,5 +1,6 @@
 const API_BASE_URL = 'http://localhost:5000';
 const listingsCache = new Map();
+const NETWORK_ERROR_MESSAGE = 'Unable to reach the GatorGoods API. Make sure the backend server is running and try again.';
 
 export function buildListingsQuery({
   page = 1,
@@ -43,7 +44,14 @@ export async function getListingsPage(params, {preferCache = true} = {}) {
     return listingsCache.get(query);
   }
 
-  const response = await fetch(`${API_BASE_URL}/items?${query}`);
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/items?${query}`);
+  } catch (error) {
+    throw new Error(NETWORK_ERROR_MESSAGE);
+  }
+
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {

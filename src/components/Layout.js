@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Show, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/react';
+import { Show, UserButton, useUser } from '@clerk/react';
 import { Button } from './ui';
 
 const publicNavItems = [{ to: '/', label: 'Landing', end: true }];
@@ -91,23 +91,23 @@ export function Layout() {
               ))}
             </Show>
             <Show when="signed-out">
-              <SignInButton mode="modal">
+              <Link to="/login" className="no-underline">
                 <Button type="button" variant="secondary" size="sm">
                   Log in
                 </Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
+              </Link>
+              <Link to="/signup" className="no-underline">
                 <Button type="button" size="sm">
                   Sign up
                 </Button>
-              </SignUpButton>
+              </Link>
             </Show>
             <Show when="signed-in">
               <Link to="/create" className="no-underline">
                 <Button size="sm">Create listing</Button>
               </Link>
               <div className="rounded-full border border-white/10 bg-white/5 p-1">
-                <UserButton />
+                <UserButton afterSignOutUrl="/" />
               </div>
             </Show>
           </nav>
@@ -148,14 +148,14 @@ export function Layout() {
                   </Link>
                 </Show>
                 <Show when="signed-out">
-                  <SignInButton mode="modal">
+                  <Link to="/login" className="no-underline">
                     <Button variant="secondary" fullWidth>
                       Log in
                     </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
+                  </Link>
+                  <Link to="/signup" className="no-underline">
                     <Button fullWidth>Sign up</Button>
-                  </SignUpButton>
+                  </Link>
                 </Show>
               </nav>
             </div>

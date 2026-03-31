@@ -34,8 +34,8 @@ function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<HomePage forceSignedOutView />} />
                 <Route path="/home" element={<Navigate to="/listings" replace />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignUp />} />
+                <Route path="/login/*" element={<LoginPage />} />
+                <Route path="/signup/*" element={<SignUp />} />
                 <Route
                   path="/listings"
                   element={

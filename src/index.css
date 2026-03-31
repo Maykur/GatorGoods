@@ -103,4 +103,93 @@
   .focus-ring {
     @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg;
   }
+
+  .cl-userButtonTrigger {
+    border: 1px solid rgb(var(--color-border) / 0.65);
+    background: rgb(255 255 255 / 0.04);
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease,
+      transform 200ms ease;
+  }
+
+  .cl-userButtonTrigger:hover {
+    border-color: rgb(255 255 255 / 0.2);
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .cl-userButtonPopoverCard {
+    overflow: hidden;
+    border: 1px solid rgb(var(--color-border) / 0.65);
+    border-radius: 1.75rem;
+    background: rgb(var(--color-panel) / 0.97);
+    box-shadow: 0 20px 60px -32px rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(18px);
+  }
+
+  .cl-userButtonPopoverFooter {
+    border-top: 1px solid rgb(255 255 255 / 0.08);
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.02), rgb(255 255 255 / 0.04));
+  }
+
+  .cl-userPreviewMainIdentifier {
+    color: rgb(var(--color-text));
+  }
+
+  .cl-userPreviewSecondaryIdentifier {
+    color: rgb(var(--color-text-soft));
+  }
+
+  .cl-userButtonPopoverActionButton,
+  .cl-navbarButton,
+  .cl-menuButton,
+  .cl-profileSectionPrimaryButton,
+  .cl-accordionTriggerButton {
+    color: rgb(var(--color-text));
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+
+  .cl-userButtonPopoverActionButton:hover,
+  .cl-navbarButton:hover,
+  .cl-menuButton:hover,
+  .cl-profileSectionPrimaryButton:hover,
+  .cl-accordionTriggerButton:hover {
+    background: rgb(255 255 255 / 0.05);
+    color: rgb(var(--color-text));
+  }
+
+  .cl-userButtonPopoverActionButtonText,
+  .cl-menuButtonLabel,
+  .cl-navbarButtonLabel {
+    color: rgb(var(--color-text));
+  }
+
+  .cl-userButtonPopoverActionButtonIcon,
+  .cl-menuButtonIcon,
+  .cl-navbarButtonIcon {
+    color: rgb(var(--color-text-soft));
+  }
+
+  .cl-modalBackdrop {
+    background: rgb(var(--color-bg) / 0.78);
+    backdrop-filter: blur(14px);
+  }
+
+  .cl-modalContent .cl-card {
+    border: 1px solid rgb(var(--color-border) / 0.65);
+    border-radius: 1.5rem;
+    background: rgb(var(--color-panel) / 0.98);
+    box-shadow: 0 20px 60px -32px rgba(15, 23, 42, 0.85);
+  }
+
+  .cl-modalCloseButton {
+    color: rgb(var(--color-text-soft));
+  }
+
+  .cl-modalCloseButton:hover {
+    color: rgb(var(--color-text));
+    background: rgb(255 255 255 / 0.05);
+  }
 }

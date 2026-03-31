@@ -37,6 +37,12 @@ jest.mock(
         return true;
       }
 
+      if (pattern.endsWith("/*")) {
+        const basePattern = pattern.slice(0, -2);
+
+        return path === basePattern || path.startsWith(`${basePattern}/`);
+      }
+
       const patternParts = pattern.split("/").filter(Boolean);
       const pathParts = path.split("/").filter(Boolean);
 
@@ -192,6 +198,22 @@ test("signed-out users are redirected away from offers", () => {
   render(<App />);
 
   expect(window.location.pathname).toBe("/login");
+});
+
+test("signed-out users can continue through nested login routes", () => {
+  window.history.pushState({}, "", "/login/factor-one");
+
+  render(<App />);
+
+  expect(screen.getByText("Login Page")).toBeInTheDocument();
+});
+
+test("signed-out users can continue through nested signup routes", () => {
+  window.history.pushState({}, "", "/signup/continue");
+
+  render(<App />);
+
+  expect(screen.getByText("Sign Up Page")).toBeInTheDocument();
 });
 
 test("signed-in users can access protected routes", () => {

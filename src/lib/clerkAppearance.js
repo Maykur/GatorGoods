@@ -6,7 +6,7 @@ export const clerkAppearance = {
     colorInputText: 'rgb(248 250 252)',
     colorText: 'rgb(248 250 252)',
     colorTextSecondary: 'rgb(203 213 225)',
-    colorNeutral: 'rgb(51 65 85)',
+    colorNeutral: 'rgb(148 163 184)',
     borderRadius: '1rem',
     fontFamily: 'Manrope, system-ui, sans-serif',
   },
@@ -33,5 +33,18 @@ export const clerkAppearance = {
       'rounded-2xl border border-app-border bg-app-surface/80 text-app-text',
     alert: 'rounded-2xl border border-white/10 bg-app-surface/70',
     alertText: 'text-app-soft',
+    userButtonTrigger:
+      'focus-ring rounded-full border border-white/10 bg-white/5 p-1 transition-colors hover:border-white/20 hover:bg-white/10',
+    userButtonAvatarBox: 'h-11 w-11 rounded-full',
+    userButtonPopoverCard:
+      'overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-panel/95 shadow-card backdrop-blur-xl',
+    userButtonPopoverMain: 'bg-transparent',
+    userButtonPopoverFooter: 'border-t border-white/10 bg-white/[0.03]',
+    userPreviewMainIdentifier: 'text-white',
+    userPreviewSecondaryIdentifier: 'text-app-soft',
+    userButtonPopoverActionButton:
+      'text-app-text transition-colors hover:bg-white/5 hover:text-white',
+    userButtonPopoverActionButtonText: 'text-app-text',
+    userButtonPopoverActionButtonIcon: 'text-app-soft',
   },
 };
