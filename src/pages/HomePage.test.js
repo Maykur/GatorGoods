@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from "@testing-library/react";
+import {fireEvent, render, screen} from "@testing-library/react";
 import {HomePage} from "./HomePage";
 import {resetClerkState, setClerkState} from "../testUtils/mockClerk";
 
@@ -33,8 +33,8 @@ jest.mock(
   {virtual: true}
 );
 
-jest.mock("../components/HomePage/ProductCard.js", () => ({data}) => (
-  <div>{data.itemName}</div>
+jest.mock("../components/HomePage/ProductCard.js", () => ({item, data}) => (
+  <div>{item?.title || data?.itemName || data?.title}</div>
 ));
 
 function jsonResponse(body, status = 200) {
@@ -63,13 +63,10 @@ test("signed-out users see the landing hero and auth CTA", async () => {
   ).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /create account/i})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /log in/i})).toBeInTheDocument();
-
-  await waitFor(() => {
-    expect(global.fetch).toHaveBeenCalledWith("http://localhost:5000/items");
-  });
+  expect(global.fetch).not.toHaveBeenCalled();
 });
 
-test("signed-in users see grouped listing categories", async () => {
+test("signed-in users see the listings feed, category chips, and cards", async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -91,13 +88,15 @@ test("signed-in users see grouped listing categories", async () => {
 
   render(<HomePage />);
 
-  expect(await screen.findByText("Electronics & Computers")).toBeInTheDocument();
+  expect(await screen.findByText(/browse campus listings/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: "All"})).toBeInTheDocument();
+  expect(await screen.findByRole("button", {name: "Electronics & Computers"})).toBeInTheDocument();
   expect(screen.getByText("Miscellaneous")).toBeInTheDocument();
   expect(screen.getByText("Desk Lamp")).toBeInTheDocument();
   expect(screen.getByText("Bike Helmet")).toBeInTheDocument();
 });
 
-test('signed-in users see listings with missing categories under "Miscellaneous"', async () => {
+test('signed-in users can filter listings with missing categories under "Miscellaneous"', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -116,4 +115,35 @@ test('signed-in users see listings with missing categories under "Miscellaneous"
 
   expect(await screen.findByText("Miscellaneous")).toBeInTheDocument();
   expect(screen.getByText("Uncategorized Chair")).toBeInTheDocument();
+});
+
+test("signed-in users see the designed empty state when filters remove every listing", async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "buyer-1",
+    },
+  });
+  mockItems = [
+    {
+      _id: "item-1",
+      itemName: "Desk Lamp",
+      itemCat: "Electronics & Computers",
+      itemCost: "20",
+      itemCondition: "Good",
+      itemLocation: "Library West",
+      userPublishingName: "Seller One",
+    },
+  ];
+
+  render(<HomePage />);
+
+  const searchInput = await screen.findByLabelText(/search listings/i);
+  expect(searchInput).toBeInTheDocument();
+
+  fireEvent.change(searchInput, {
+    target: {value: "not-a-match"},
+  });
+
+  expect(await screen.findByText(/no listings match your current filters/i)).toBeInTheDocument();
 });
