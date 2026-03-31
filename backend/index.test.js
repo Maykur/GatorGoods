@@ -9,7 +9,9 @@ const {
   connectToDatabase,
   disconnectFromDatabase,
   models: {
+    Conversation,
     Item,
+    Offer,
     Profile,
   },
 } = require('./index');
@@ -38,6 +40,21 @@ async function seedProfileAndItem(overrides = {}) {
   });
 
   return {item, profile};
+}
+
+async function createOffer(listingId, overrides = {}) {
+  return request(app)
+    .post(`/api/listings/${listingId}/offers`)
+    .send({
+      buyerClerkUserId: 'buyer_1',
+      buyerDisplayName: 'Buyer One',
+      offeredPrice: 18,
+      meetupLocation: 'Plaza of the Americas',
+      meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+      paymentMethod: 'cash',
+      message: 'Can meet after class.',
+      ...overrides,
+    });
 }
 
 test.before(async () => {
@@ -214,4 +231,130 @@ test('DELETE /item/:item returns 404 when the item does not exist', async () => 
 
   assert.equal(response.status, 404);
   assert.equal(response.body.message, 'Not found');
+});
+
+test('POST /api/listings/:id/offers creates an offer and linked conversation', async () => {
+  const {item, profile} = await seedProfileAndItem();
+
+  const response = await createOffer(item.id);
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.status, 'pending');
+  assert.equal(response.body.sellerClerkUserId, profile.profileID);
+  assert.ok(response.body.conversationId);
+
+  const storedOffer = await Offer.findById(response.body._id);
+  assert.equal(storedOffer.buyerClerkUserId, 'buyer_1');
+  assert.equal(storedOffer.paymentMethod, 'cash');
+
+  const linkedConversation = await Conversation.findById(response.body.conversationId);
+  assert.deepEqual(linkedConversation.participantIds, ['buyer_1', 'user_1']);
+  assert.equal(linkedConversation.activeListingId.toString(), item.id);
+});
+
+test('POST /api/listings/:id/offers rejects self-offers', async () => {
+  const {item, profile} = await seedProfileAndItem();
+
+  const response = await createOffer(item.id, {
+    buyerClerkUserId: profile.profileID,
+    buyerDisplayName: profile.profileName,
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'You cannot submit an offer on your own listing');
+});
+
+test('GET /api/offers returns offers for both seller and buyer views', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  await createOffer(item.id);
+
+  const sellerResponse = await request(app)
+    .get('/api/offers')
+    .query({
+      participantId: profile.profileID,
+      role: 'seller',
+    });
+  const buyerResponse = await request(app)
+    .get('/api/offers')
+    .query({
+      participantId: 'buyer_1',
+      role: 'buyer',
+    });
+
+  assert.equal(sellerResponse.status, 200);
+  assert.equal(sellerResponse.body.length, 1);
+  assert.equal(sellerResponse.body[0].sellerClerkUserId, profile.profileID);
+
+  assert.equal(buyerResponse.status, 200);
+  assert.equal(buyerResponse.body.length, 1);
+  assert.equal(buyerResponse.body[0].buyerClerkUserId, 'buyer_1');
+});
+
+test('PATCH /api/offers/:id only allows the seller to update a pending offer', async () => {
+  const {item} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  const response = await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      status: 'accepted',
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'Only the seller can update this offer');
+});
+
+test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const firstOfferResponse = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_1',
+    buyerDisplayName: 'Buyer One',
+    offeredPrice: 18,
+  });
+  const secondOfferResponse = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_2',
+    buyerDisplayName: 'Buyer Two',
+    offeredPrice: 19,
+    paymentMethod: 'externalApp',
+  });
+
+  const response = await request(app)
+    .patch(`/api/offers/${firstOfferResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, 'accepted');
+
+  const updatedItem = await Item.findById(item.id);
+  assert.equal(updatedItem.status, 'reserved');
+  assert.equal(updatedItem.reservedOfferId.toString(), firstOfferResponse.body._id);
+
+  const firstOffer = await Offer.findById(firstOfferResponse.body._id);
+  const secondOffer = await Offer.findById(secondOfferResponse.body._id);
+  assert.equal(firstOffer.status, 'accepted');
+  assert.equal(secondOffer.status, 'declined');
+});
+
+test('POST /api/listings/:id/offers rejects new offers once a listing is reserved', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+    });
+
+  const response = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_2',
+    buyerDisplayName: 'Buyer Two',
+  });
+
+  assert.equal(response.status, 409);
+  assert.equal(response.body.message, 'This listing is no longer accepting offers');
 });
