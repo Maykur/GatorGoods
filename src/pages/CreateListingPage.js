@@ -18,7 +18,17 @@ export function CreateListingPage() {
   const [itemCat, setItemCat] = useState('');
   const [error, setError] = useState('');
   const userPublishingID = user?.id;
-  const userPublishingName = user?.fullName || user?.firstName || '';
+  const fallbackEmail =
+    user?.primaryEmailAddress?.emailAddress ||
+    user?.emailAddresses?.[0]?.emailAddress ||
+    '';
+  const fallbackName = fallbackEmail ? fallbackEmail.split('@')[0] : '';
+  const userPublishingName =
+    user?.fullName ||
+    user?.firstName ||
+    user?.username ||
+    fallbackName ||
+    'GatorGoods User';
 
   const handleFile = (e) => {
     const file = e.target.files[0];
@@ -74,7 +84,7 @@ export function CreateListingPage() {
       setError('Item Details Required');
       return;
     }
-    if (!userPublishingID || !userPublishingName.trim()) {
+    if (!userPublishingID) {
       setError("Couldn't get user details");
       return;
     }

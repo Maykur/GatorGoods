@@ -65,19 +65,11 @@ function App() {
           />
           <Route
             path="/profile/:id"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
+            element={<ProfilePage />}
           />
           <Route
             path="/items/:id"
-            element={
-              <ProtectedRoute>
-                <ItemPage />
-              </ProtectedRoute>
-            }
+            element={<ItemPage />}
           />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

@@ -11,11 +11,13 @@ import FavCard from "../components/ProfilePage/FavCard";
 
 // Page to display user profiles
 export function ProfilePage() {
-	const { user } = useUser();
+	const { user, isSignedIn } = useUser();
 	const { id } = useParams();
 	const [info, setInfo] = useState(null);
 	const [error, setError] = useState("");
 	const [reviewScore, setScore] = useState("");
+	const isOwner = Boolean(user?.id && info?.profile?.profileID === user.id);
+	const canReview = Boolean(isSignedIn && user?.id && info?.profile?.profileID !== user.id);
 	const handleOnSubmit = async (e) => {
 		e.preventDefault();
 		if (!reviewScore.trim()) {
@@ -77,7 +79,7 @@ export function ProfilePage() {
 			? (
 			<div>
 				<div>
-					<img src={info.profile.profilePicture}/>
+					<img src={info.profile.profilePicture || Profile} alt={info.profile.profileName} />
 					<span class="flex mt-2">
 						<h1 class="text-3xl font-bold mt-0.5">{info.profile.profileName}</h1>
 						<img
@@ -92,7 +94,7 @@ export function ProfilePage() {
 					{/* Listing Stats */}
 					<div class="flex gap-x-4">
 						<p>{info.listings.length} active listing(s) </p>
-						{user.id === info.profile.profileID
+						{isOwner
 						? <p>{info.profile.profileFavorites.length} listing(s) favorited</p>
 						: []}
 					</div>
@@ -112,17 +114,17 @@ export function ProfilePage() {
 								class={`cursor-pointer ${orderState === "past" ? "bg-gatorOrange" : "hover:bg-gatorOrange/80 transition-colors"}`}
 								onClick={() => setOrderState("past")}
 							>
-								{user.id === info.profile.profileID
+								{isOwner
 								? <p class="text-white text-2xl m-5 ml-5 pl-5 pr-5">Favorited Orders</p>
 								: []}
 							</div>
 						</div>
-					</div>
-					<div class="flex-1 overflow-y-auto bg-gatorShade rounded-b-3xl">
-    					{orderState === "active" ? <ItemCard /> : <FavCard />}
+						</div>
+						<div class="flex-1 overflow-y-auto bg-gatorShade rounded-b-3xl">
+	    					{orderState === "active" || !isOwner ? <ItemCard /> : <FavCard />}
 				  	</div>
-				</div>
-				{user.id != info.profile.profileID 
+					</div>
+					{canReview
           		? <form onSubmit={handleOnSubmit} style={{ padding: '15px', display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}>
 				<div>
 					<label class={'mb-2'}>Review Rating: </label>
@@ -145,7 +147,7 @@ export function ProfilePage() {
 						Submit Review Score
 					</button>
 				</form>
-          		: <></>}
+          		: null}
 			</div>)
 			: (!error && <p>Loading profile</p>)}
       		{error && <p style={{ color: 'red' }}>{error}</p>}

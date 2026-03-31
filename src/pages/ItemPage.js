@@ -6,15 +6,23 @@ import { createConversation } from "../lib/messagesApi";
 
 // Page to display whatever item is clicked on by id
 export function ItemPage() {
-    const {user} = useUser();
+    const { user, isSignedIn } = useUser();
     const {id} = useParams();
     const navigate = useNavigate();
     const [item, setItem] = useState(null);
     const [favorite, setFav] = useState(false);
     const [isStartingConversation, setIsStartingConversation] = useState(false);
     const [error, setError] = useState("");
-    const toggleFavorite = async (e, user, id) => {
+    const isOwner = Boolean(user?.id && item?.userPublishingID === user.id);
+
+    const toggleFavorite = async (e) => {
       e.preventDefault();
+
+      if (!user?.id) {
+        navigate("/login");
+        return;
+      }
+
       try{
         const favStatus = favorite ? "DELETE" : "POST";
         const res = await fetch(`http://localhost:5000/user/${user.id}/fav/${id}`, {
@@ -35,9 +43,15 @@ export function ItemPage() {
             return;
         }
         try {
-            await fetch(`http://localhost:5000/item/${id}`, {
+            const response = await fetch(`http://localhost:5000/item/${id}`, {
               method: 'DELETE',
             });
+
+            if (!response.ok) {
+              setError('Error during delete');
+              return;
+            }
+
             alert('Item Deleted');
             navigate('/');
         } catch (e) {
@@ -45,6 +59,11 @@ export function ItemPage() {
         }
     };
     const handleStartConversation = async () => {
+      if (!user?.id) {
+        navigate("/login");
+        return;
+      }
+
       try {
         setIsStartingConversation(true);
         const conversation = await createConversation({
@@ -59,38 +78,62 @@ export function ItemPage() {
       }
     };
     useEffect(() => {
-    const itemFetch = async () => {
-      try {
-        const [itemResp, userResp] = await Promise.all([
-          fetch(`http://localhost:5000/items/${id}`),
-          fetch(`http://localhost:5000/profile/${user.id}`)]);
-        if (!itemResp.ok || !userResp.ok){
-          throw new Error("Failed to fetch");
+      const itemFetch = async () => {
+        try {
+          const itemResp = await fetch(`http://localhost:5000/items/${id}`);
+          if (!itemResp.ok){
+            throw new Error("Failed to fetch");
+          }
+
+          const data = await itemResp.json();
+          setItem(data);
+          setError("");
+        } catch (err){
+          setError(err.message);
         }
-        const data = await itemResp.json();
-        const favData = await userResp.json();
-        setItem(data);
-        setFav(favData.profile.profileFavorites?.includes(id));
-        setError("");
-      } catch (err){
-        setError(err.message);
-      }
-    };
-    itemFetch();
-  }, [user.id, id]);
-  if (error){
-    return <p style={{color: "red"}}>{error}</p>;
-  }
+      };
+
+      itemFetch();
+    }, [id]);
+
+    useEffect(() => {
+      const loadFavoriteState = async () => {
+        if (!isSignedIn || !user?.id) {
+          setFav(false);
+          return;
+        }
+
+        try {
+          const userResp = await fetch(`http://localhost:5000/profile/${user.id}`);
+          if (!userResp.ok) {
+            throw new Error("Failed to fetch");
+          }
+
+          const favData = await userResp.json();
+          setFav(Boolean(favData.profile.profileFavorites?.includes(id)));
+        } catch (err) {
+          setFav(false);
+        }
+      };
+
+      loadFavoriteState();
+    }, [id, isSignedIn, user?.id]);
+
   if (!item) {
+    if (error) {
+      return <p style={{color: "red"}}>{error}</p>;
+    }
+
     return <p>Loading</p>;
   }
   return (
     <main style={{padding: "15px"}}>
-        {user.id !== item.userPublishingID 
-        ?
+        {error ? <p style={{color: "red"}}>{error}</p> : null}
+        {!isOwner && isSignedIn
+        ? (
             <div style={{display: "flex", gap: "10px", marginBottom: "15px"}}>
                 <button
-                    onClick={(e) => toggleFavorite(e, user, id)}
+                    onClick={toggleFavorite}
                     style={{
                         backgroundColor: favorite ? 'gold' : 'grey',
                         color: favorite ? 'black' : 'white',
@@ -119,7 +162,25 @@ export function ItemPage() {
                     {isStartingConversation ? "Opening chat..." : "Message Seller"}
                 </button>
             </div>
-        : []}
+        ) : null}
+        {!isSignedIn && !isOwner ? (
+          <div style={{display: "flex", gap: "10px", marginBottom: "15px"}}>
+            <button
+              onClick={handleStartConversation}
+              style={{
+                backgroundColor: '#1d4ed8',
+                color: 'white',
+                padding: '10px',
+                border: 'none',
+                borderRadius: '5px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Log in to message seller
+            </button>
+          </div>
+        ) : null}
         <p>Name: {item.itemName}</p>
         <p>Price: ${item.itemCost}</p>
         <p>Condition: {item.itemCondition}</p>
@@ -130,8 +191,8 @@ export function ItemPage() {
         <Link to={`/profile/${item.userPublishingID}`}>
             <p>Published by: {item.userPublishingName}</p>
         </Link>
-        {user.id === item.userPublishingID 
-        ?
+        {isOwner
+        ? (
             <button
                 onClick={(e) => handleOnSubmit(e, item._id)}
                 style={{
@@ -145,7 +206,7 @@ export function ItemPage() {
                 >
                 Delete Listing
             </button>
-        : []}
+        ) : null}
     </main>
   );
 }
