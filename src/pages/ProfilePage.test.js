@@ -49,6 +49,43 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+function buildProfileResponse() {
+  return {
+    profile: {
+      profileID: 'seller-1',
+      profileName: 'Seller One',
+      profilePicture: '',
+      profileBanner: 'https://example.com/banner.png',
+      profileBio: 'Selling a few trusted dorm essentials.',
+      instagramUrl: 'https://instagram.com/sellerone',
+      linkedinUrl: 'https://linkedin.com/in/sellerone',
+      profileRating: 4.5,
+      profileTotalRating: 9,
+      ufVerified: true,
+      profileFavorites: ['item-2'],
+      trustMetrics: {
+        reliability: 92,
+        accuracy: 88,
+        responsiveness: 100,
+        safety: 81,
+      },
+    },
+    listings: [
+      {
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        itemCost: '20',
+        itemCondition: 'Good',
+        itemLocation: 'Library West',
+        itemPicture: 'lamp.png',
+        itemCat: 'Electronics & Computers',
+        userPublishingName: 'Seller One',
+        status: 'active',
+      },
+    ],
+  };
+}
+
 beforeEach(() => {
   resetClerkState();
   mockShowToast.mockReset();
@@ -58,27 +95,7 @@ beforeEach(() => {
 
   global.fetch = jest.fn((url, options = {}) => {
     if (url === 'http://localhost:5000/profile/seller-1') {
-      return jsonResponse({
-        profile: {
-          profileID: 'seller-1',
-          profileName: 'Seller One',
-          profilePicture: '',
-          profileRating: 4.5,
-          profileFavorites: ['item-2'],
-        },
-        listings: [
-          {
-            _id: 'item-1',
-            itemName: 'Desk Lamp',
-            itemCost: '20',
-            itemCondition: 'Good',
-            itemLocation: 'Library West',
-            itemPicture: 'lamp.png',
-            itemCat: 'Electronics & Computers',
-            userPublishingName: 'Seller One',
-          },
-        ],
-      });
+      return jsonResponse(buildProfileResponse());
     }
 
     if (url === 'http://localhost:5000/items/item-2') {
@@ -92,16 +109,22 @@ beforeEach(() => {
         itemCat: 'Home & Garden',
         userPublishingID: 'seller-2',
         userPublishingName: 'Seller Two',
+        status: 'active',
       });
     }
 
     if (url === 'http://localhost:5000/update_score/seller-1' && options.method === 'POST') {
       return jsonResponse({
-        profileID: 'seller-1',
-        profileName: 'Seller One',
-        profilePicture: '',
+        ...buildProfileResponse().profile,
         profileRating: 4.7,
-        profileFavorites: ['item-2'],
+      });
+    }
+
+    if (url === 'http://localhost:5000/user/seller-1' && options.method === 'PATCH') {
+      return jsonResponse({
+        ...buildProfileResponse().profile,
+        profileName: 'Updated Seller',
+        profileBio: 'Updated bio',
       });
     }
 
@@ -117,17 +140,25 @@ afterEach(() => {
   delete global.fetch;
 });
 
-test('signed-out users can view a public seller profile', async () => {
+test('signed-out users can view a public seller profile with trust metrics and connectors', async () => {
   render(<ProfilePage />);
 
   expect((await screen.findAllByText('Seller One')).length).toBeGreaterThan(0);
+  expect(screen.getByText('UF verified')).toBeInTheDocument();
+  expect(screen.getByText('92%')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /instagram/i })).toHaveAttribute(
+    'href',
+    'https://instagram.com/sellerone'
+  );
+  expect(screen.getByRole('link', { name: /linkedin/i })).toHaveAttribute(
+    'href',
+    'https://linkedin.com/in/sellerone'
+  );
   expect(screen.getByText('Desk Lamp')).toBeInTheDocument();
-  expect(screen.getAllByText('4.5/5').length).toBeGreaterThan(0);
-  expect(screen.queryByRole('tab', { name: /favorites/i })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /submit review score/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /save profile changes/i })).not.toBeInTheDocument();
 });
 
-test('signed-in owners see their dashboard tabs and saved favorites', async () => {
+test('signed-in owners see their dashboard tabs, edit form, and saved favorites', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -137,12 +168,59 @@ test('signed-in owners see their dashboard tabs and saved favorites', async () =
 
   render(<ProfilePage ownerView />);
 
-  expect(await screen.findByRole('tab', { name: /favorites/i })).toBeInTheDocument();
+  const displayNameInput = await screen.findByLabelText(/display name/i);
+  await waitFor(() => {
+    expect(displayNameInput).toHaveValue('Seller One');
+  });
+  expect(screen.getByLabelText(/short bio/i)).toHaveValue('Selling a few trusted dorm essentials.');
+  expect(screen.getByRole('tab', { name: /favorites/i })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('tab', { name: /favorites/i }));
 
   expect(await screen.findByText('Mini Fridge')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /remove favorite/i })).toBeInTheDocument();
+});
+
+test('signed-in owners can save lightweight public profile edits', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  render(<ProfilePage ownerView />);
+
+  fireEvent.change(await screen.findByLabelText(/display name/i), {
+    target: { value: 'Updated Seller' },
+  });
+  fireEvent.change(screen.getByLabelText(/short bio/i), {
+    target: { value: 'Updated bio' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /save profile changes/i }));
+
+  await waitFor(() => {
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:5000/user/seller-1',
+      expect.objectContaining({
+        method: 'PATCH',
+      })
+    );
+  });
+  const patchCall = global.fetch.mock.calls.find(([url]) => url === 'http://localhost:5000/user/seller-1');
+  expect(JSON.parse(patchCall[1].body)).toEqual(
+    expect.objectContaining({
+      profileName: 'Updated Seller',
+      profileBio: 'Updated bio',
+    })
+  );
+
+  expect(mockShowToast).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: 'Profile updated',
+      variant: 'success',
+    })
+  );
 });
 
 test('signed-in non-owners can submit a seller review', async () => {

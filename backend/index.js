@@ -72,6 +72,27 @@ const profileSchema = new mongoose.Schema({
   },
   profilePicture: {
     type: String,
+    default: '',
+  },
+  profileBanner: {
+    type: String,
+    default: '',
+  },
+  profileBio: {
+    type: String,
+    default: '',
+  },
+  instagramUrl: {
+    type: String,
+    default: '',
+  },
+  linkedinUrl: {
+    type: String,
+    default: '',
+  },
+  ufVerified: {
+    type: Boolean,
+    default: false,
   },
   profileRating: {
     type: Number,
@@ -89,6 +110,24 @@ const profileSchema = new mongoose.Schema({
   profileFavorites: {
     type: [String],
     default: [],
+  },
+  trustMetrics: {
+    reliability: {
+      type: Number,
+      default: null,
+    },
+    accuracy: {
+      type: Number,
+      default: null,
+    },
+    responsiveness: {
+      type: Number,
+      default: null,
+    },
+    safety: {
+      type: Number,
+      default: null,
+    },
   },
   date: {
     type: Date,
@@ -313,6 +352,72 @@ function toObjectId(value) {
   }
 
   return new mongoose.Types.ObjectId(value);
+}
+
+function normalizeOptionalString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildProfileUpdatePayload(payload = {}, {allowEmptyStrings = false} = {}) {
+  const nextProfile = {};
+
+  if (typeof payload.profileName === 'string') {
+    const profileName = payload.profileName.trim();
+    if (profileName) {
+      nextProfile.profileName = profileName;
+    }
+  }
+
+  const stringFields = [
+    'profilePicture',
+    'profileBanner',
+    'profileBio',
+    'instagramUrl',
+    'linkedinUrl',
+  ];
+
+  stringFields.forEach((field) => {
+    if (typeof payload[field] !== 'string') {
+      return;
+    }
+
+    const normalizedValue = payload[field].trim();
+
+    if (normalizedValue || allowEmptyStrings) {
+      nextProfile[field] = normalizedValue;
+    }
+  });
+
+  if (typeof payload.profileRating !== 'undefined' && Number.isFinite(Number(payload.profileRating))) {
+    nextProfile.profileRating = Number(payload.profileRating);
+  }
+
+  if (typeof payload.ufVerified === 'boolean') {
+    nextProfile.ufVerified = payload.ufVerified;
+  }
+
+  if (payload.trustMetrics && typeof payload.trustMetrics === 'object') {
+    const trustMetrics = {};
+
+    ['reliability', 'accuracy', 'responsiveness', 'safety'].forEach((metric) => {
+      const metricValue = payload.trustMetrics[metric];
+
+      if (metricValue === null) {
+        trustMetrics[metric] = null;
+        return;
+      }
+
+      if (Number.isFinite(Number(metricValue))) {
+        trustMetrics[metric] = Number(metricValue);
+      }
+    });
+
+    if (Object.keys(trustMetrics).length > 0) {
+      nextProfile.trustMetrics = trustMetrics;
+    }
+  }
+
+  return nextProfile;
 }
 
 const LOOPBACK_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -896,9 +1001,50 @@ app.get('/profile/:profileID', async (req, resp) => {
 // For updating our DB with user profile information
 app.post('/user', async (req, resp) => {
     try {
-        const {profileName, profilePicture, profileRating, profileID} = req.body;
-        const profile = await Profile.findOneAndUpdate({profileID}, 
-            {profileName, profilePicture, profileRating, profileID}, {upsert: true, setDefaultOnInsert: true});
+        const {profileID} = req.body;
+        const profile = await Profile.findOneAndUpdate(
+            {profileID},
+            {
+              $set: {
+                profileID,
+                ...buildProfileUpdatePayload(req.body),
+              },
+              $setOnInsert: {
+                profileFavorites: [],
+              },
+            },
+            {upsert: true, returnDocument: 'after', setDefaultsOnInsert: true}
+        );
+        resp.json(profile);
+    } catch (e) {
+        resp.status(500).json({error:e.message});
+    }
+});
+
+app.patch('/user/:profileID', async (req, resp) => {
+    try {
+        const profileID = normalizeOptionalString(req.params.profileID);
+
+        if (!profileID) {
+            return resp.status(400).json({message: 'profileID is required'});
+        }
+
+        const nextProfile = buildProfileUpdatePayload(req.body, {allowEmptyStrings: true});
+
+        if (Object.keys(nextProfile).length === 0) {
+            return resp.status(400).json({message: 'No valid profile fields were provided'});
+        }
+
+        const profile = await Profile.findOneAndUpdate(
+            {profileID},
+            {$set: nextProfile},
+            {returnDocument: 'after'}
+        );
+
+        if (!profile) {
+            return resp.status(404).json({message: 'No Profile'});
+        }
+
         resp.json(profile);
     } catch (e) {
         resp.status(500).json({error:e.message});

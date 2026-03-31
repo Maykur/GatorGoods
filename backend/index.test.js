@@ -135,14 +135,76 @@ test('GET /items/:id returns 404 for a missing item', async () => {
 });
 
 test('GET /profile/:profileID returns the profile and its listings', async () => {
-  await seedProfileAndItem();
+  await seedProfileAndItem({
+    profile: {
+      profileBanner: 'https://example.com/banner.png',
+      profileBio: 'UF seller',
+      instagramUrl: 'https://instagram.com/seller',
+      linkedinUrl: 'https://linkedin.com/in/seller',
+      ufVerified: true,
+      trustMetrics: {
+        reliability: 92,
+      },
+    },
+  });
 
   const response = await request(app).get('/profile/user_1');
 
   assert.equal(response.status, 200);
   assert.equal(response.body.profile.profileID, 'user_1');
+  assert.equal(response.body.profile.profileBanner, 'https://example.com/banner.png');
+  assert.equal(response.body.profile.ufVerified, true);
+  assert.equal(response.body.profile.trustMetrics.reliability, 92);
   assert.equal(response.body.listings.length, 1);
   assert.equal(response.body.listings[0].itemName, 'Desk Lamp');
+});
+
+test('POST /user upserts richer profile fields without dropping defaults', async () => {
+  const response = await request(app)
+    .post('/user')
+    .send({
+      profileID: 'user_9',
+      profileName: 'Seller Nine',
+      profilePicture: 'https://example.com/seller-nine.png',
+      profileBanner: 'https://example.com/banner-nine.png',
+      profileBio: 'Selling a few dorm extras.',
+      instagramUrl: 'https://instagram.com/sellernine',
+      linkedinUrl: 'https://linkedin.com/in/sellernine',
+      ufVerified: true,
+      trustMetrics: {
+        reliability: 91,
+        safety: 87,
+      },
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.profileName, 'Seller Nine');
+  assert.equal(response.body.profileBanner, 'https://example.com/banner-nine.png');
+  assert.equal(response.body.profileBio, 'Selling a few dorm extras.');
+  assert.equal(response.body.ufVerified, true);
+  assert.equal(response.body.trustMetrics.reliability, 91);
+
+  const storedProfile = await Profile.findOne({profileID: 'user_9'});
+  assert.deepEqual(storedProfile.profileFavorites, []);
+});
+
+test('PATCH /user/:profileID updates editable profile fields', async () => {
+  await seedProfileAndItem();
+
+  const response = await request(app)
+    .patch('/user/user_1')
+    .send({
+      profileBanner: 'https://example.com/new-banner.png',
+      profileBio: 'Trusted UF marketplace seller.',
+      instagramUrl: 'https://instagram.com/newseller',
+      linkedinUrl: '',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.profileBanner, 'https://example.com/new-banner.png');
+  assert.equal(response.body.profileBio, 'Trusted UF marketplace seller.');
+  assert.equal(response.body.instagramUrl, 'https://instagram.com/newseller');
+  assert.equal(response.body.linkedinUrl, '');
 });
 
 test('POST /create-item persists an explicit category', async () => {

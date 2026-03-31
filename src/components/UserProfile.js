@@ -12,10 +12,16 @@ export function UserProfile() {
         if (!user) { 
             return;
         }
+        const primaryEmail =
+          user.primaryEmailAddress?.emailAddress ||
+          user.emailAddresses?.[0]?.emailAddress ||
+          '';
+        const fallbackName = primaryEmail ? primaryEmail.split('@')[0] : 'GatorGoods User';
         axios.post('http://localhost:5000/user', {
-            profileName: user.fullName,
+            profileName: user.fullName || user.firstName || user.username || fallbackName,
             profilePicture: user.imageUrl,
             profileID: user.id,
+            ufVerified: primaryEmail.endsWith('@ufl.edu'),
         }).catch((e) => {
             console.error('User DB fail: ', e);
         });
