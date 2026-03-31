@@ -29,16 +29,16 @@ function getVisiblePages(currentPage, totalPages) {
 
 function ListingGridSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
       {Array.from({ length: 6 }).map((_, index) => (
         <Card key={index} padding="none" className="overflow-hidden">
-          <Skeleton className="aspect-[4/3] rounded-none" />
-          <div className="space-y-3 p-5">
-            <Skeleton className="h-7 w-24" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-28" />
+          <Skeleton className="aspect-[3/2] rounded-none sm:aspect-[4/3]" />
+          <div className="space-y-2 p-3 sm:space-y-3 sm:p-5">
+            <Skeleton className="h-6 w-20 sm:h-7 sm:w-24" />
+            <Skeleton className="h-4 w-full sm:h-6" />
+            <Skeleton className="h-4 w-24 sm:h-6 sm:w-32" />
+            <Skeleton className="h-3 w-20 sm:h-4 sm:w-24" />
+            <Skeleton className="h-3 w-24 sm:h-4 sm:w-28" />
           </div>
         </Card>
       ))}
@@ -202,20 +202,20 @@ export function HomePage({ forceSignedOutView = false }) {
   const visiblePages = getVisiblePages(meta.page, meta.totalPages);
 
   return (
-    <section className="w-full space-y-8">
+    <section className="w-full space-y-6 sm:space-y-8">
       <PageHeader
         eyebrow="Marketplace"
         title="Browse campus listings"
         description="Search current student listings, narrow the grid by category, and jump into a seller conversation once something looks right."
         actions={
           <Link to="/create" className="no-underline">
-            <Button>Create listing</Button>
+            <Button size="sm">Create listing</Button>
           </Link>
         }
       />
 
-      <Card className="space-y-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_220px]">
+      <Card className="space-y-4 sm:space-y-5">
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.5fr)_220px]">
           <Input
             id="marketplace-search"
             label="Search listings"
@@ -243,7 +243,7 @@ export function HomePage({ forceSignedOutView = false }) {
           </Select>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           {categoryOptions.map((category) => (
             <button
               key={category}
@@ -253,7 +253,7 @@ export function HomePage({ forceSignedOutView = false }) {
                 setPage(1);
               }}
               className={cn(
-                'focus-ring rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                'focus-ring shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:py-2 sm:text-sm',
                 category === selectedCategory
                   ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
                   : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
@@ -265,13 +265,13 @@ export function HomePage({ forceSignedOutView = false }) {
         </div>
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-app-soft">
+          <p className="text-xs text-app-soft sm:text-sm">
             {meta.totalItems} {meta.totalItems === 1 ? 'listing' : 'listings'}
             {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}.
           </p>
           <div className="flex items-center gap-3">
             {isRefreshing ? (
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-app-muted sm:text-xs">
                 Updating results...
               </p>
             ) : null}
@@ -329,15 +329,15 @@ export function HomePage({ forceSignedOutView = false }) {
 
       {!isLoading && hasLoadedFeed && !error && listingCards.length > 0 ? (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
             {listingCards.map((item) => (
               <ProductCard key={item.id} item={item} />
             ))}
           </div>
 
           {meta.totalPages > 1 ? (
-            <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-app-soft">
+            <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <p className="text-xs text-app-soft sm:text-sm">
                 Page {meta.page} of {meta.totalPages}
               </p>
               <div className="flex flex-wrap items-center gap-2">
@@ -356,7 +356,7 @@ export function HomePage({ forceSignedOutView = false }) {
                     onClick={() => setPage(visiblePage)}
                     disabled={isRefreshing}
                     className={cn(
-                      'focus-ring min-h-10 rounded-full border px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      'focus-ring min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-10 sm:px-4 sm:text-sm',
                       visiblePage === meta.page
                         ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
                         : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
