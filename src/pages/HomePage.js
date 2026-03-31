@@ -7,12 +7,16 @@ import { useUser } from "@clerk/react";
 import ProductCard from "../components/HomePage/ProductCard.js";
 import { useState, useEffect } from "react";
 
+const DEFAULT_CATEGORY = "Miscellaneous";
+
+function normalizeCategory(itemCat) {
+	return itemCat?.trim() || DEFAULT_CATEGORY;
+}
+
 export function HomePage() {
-	const { isLoaded, isSignedIn, user } = useUser();
-	const [animationState, setAnimationState] = useState("");
+	const { isSignedIn } = useUser();
 	const [items, setItems] = useState([]);
 	const [currentDataIndex, setCurrentDataIndex] = useState({});
-	const [activeTimeout, setActiveTimeout] = useState(null);
 	const [error, setError] = useState("");
 	const itemsPerPage = 5;
 	useEffect(() => {
@@ -26,7 +30,7 @@ export function HomePage() {
 				setItems(data);
 				setError("");
 				const indexInit = data.reduce((group, item) => {
-					group[item.itemCat] = 0;
+					group[normalizeCategory(item.itemCat)] = 0;
 					return group;
 				}, {});
 				setCurrentDataIndex(indexInit);
@@ -37,85 +41,16 @@ export function HomePage() {
     	itemFetch();
   	}, []);
 	const categories = items.reduce((group, item) => {
-		if (!group[item.itemCat]) {
-			group[item.itemCat] = [];
+		const category = normalizeCategory(item.itemCat);
+		if (!group[category]) {
+			group[category] = [];
 		}
-		group[item.itemCat].push(item);
+		group[category].push({
+			...item,
+			itemCat: category,
+		});
 		return group;
 	}, {});
-  //Object class that maps the names of different animation variables with tailwind names
-  //This is used to dynamically set the animation on the card div element
-	const animationClasses = {
-		"slide-out-left": "animate-slide-out-left",
-		"slide-out-right": "animate-slide-out-right",
-		"slide-in-from-right": "animate-slide-in-from-right",
-		"slide-in-from-left": "animate-slide-in-from-left",
-	};
-
-  //These comments are for both startLeftAnimation and startRightAnimation
-  // The functionality of these functions is as follows:
-  //      1) Slide out the existing cards in the direction of the arrow button clicked
-  //      2) Change the data of the slide cards off-screen
-  //      3) Slide in the new cards from the other side of the screen
-  /*
-	const startLeftAnimation = () => {
-		// Clear any existing timeout
-		if (activeTimeout) clearTimeout(activeTimeout);
-		
-		// Start slide-out animation
-		setAnimationState("slide-out-left");
-		
-		// Schedule data change and slide-in
-    // Outer Timer scheduled to run after the slide-out-left animation ends
-    //    it sets the animation state to slide-in-from right and changes the card data
-
-    // Inner Timer scheduled to run after slide-in-from-right animation finishes
-    // It cleans the timer and setAnimationState for the next use
-		const timer = setTimeout(() => {
-			setCurrentDataIndex((prev) => (prev - 1 + totalPages) % totalPages);
-			setAnimationState("slide-in-from-right");
-			
-			// Schedule reset after slide-in completes
-			const resetTimer = setTimeout(() => {
-				setAnimationState("");
-				setActiveTimeout(null);
-			}, 800);
-			
-			setActiveTimeout(resetTimer);
-		}, 800);
-		
-		setActiveTimeout(timer);
-	};
-
-	const startRightAnimation = () => {
-		// Clear any existing timeout
-		if (activeTimeout) clearTimeout(activeTimeout);
-		
-		// Start slide-out animation
-		setAnimationState("slide-out-right");
-		
-    // Schedule data change and slide-in
-    // Outer Timer scheduled to run after the slide-out-right animation ends
-    //    it sets the animation state to slide-in-from-left and changes the card data
-
-    // Inner Timer scheduled to run after slide-in-from-left animation finishes
-    // It cleans the timer and setAnimationState for the next use
-		const timer = setTimeout(() => {
-			setCurrentDataIndex((prev) => (prev + 1) % totalPages);
-			setAnimationState("slide-in-from-left");
-			
-			// Schedule reset after slide-in completes
-			const resetTimer = setTimeout(() => {
-				setAnimationState("");
-				setActiveTimeout(null);
-			}, 800);
-			
-			setActiveTimeout(resetTimer);
-		}, 800);
-		
-		setActiveTimeout(timer);
-	};
-	*/
 	if (error){
 		return <p style={{color: "red"}}>{error}</p>;
 	}
@@ -131,12 +66,12 @@ export function HomePage() {
       				//Outer div for the product screen
 					<div key={group}>
 						{/* Category 1 */}
-						<h2 class="mb-2">{group}</h2>
+						<h2 className="mb-2">{group}</h2>
 						{/* Outer Div that styles the borders and backgrounds of the card elements */}
-						<div class="flex relative bg-gatorShade rounded-lg mb-2 flex-nonwrap">
+						<div className="flex relative bg-gatorShade rounded-lg mb-2 flex-nonwrap">
 							{/* Left arrow button */}
 							<p
-								class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
+								className="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute mt-[140px] -ml-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
 								onClick={() => setCurrentDataIndex((prev) => ({
 									...prev, [group]: (index - 1 + totalPages) % totalPages,
 								}))}
@@ -144,11 +79,7 @@ export function HomePage() {
 							&lt;
 							</p>
           					{/* Inner Div that contains the cards */}
-							<div
-								class={`flex w-full h-[300px] p-3 justify-start gap-5 overflow-hidden ${
-									animationClasses[animationState] || ""
-								}`}
-							>
+							<div className="flex w-full h-[300px] p-3 justify-start gap-5 overflow-hidden">
 							{currItems.map((item) => (
 								<ProductCard
 									key={item._id}
@@ -158,7 +89,7 @@ export function HomePage() {
 						</div>
           				{/* Right arrow button */}
 						<p
-							class="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
+							className="bg-gatorBlue h-12 w-12 pt-1 rounded-full text-center text-3xl absolute right-0 mt-[140px] -mr-[50px] cursor-pointer hover:bg-gatorOrange/80 transition-colors"
 							onClick={() => setCurrentDataIndex((prev) => ({
 								...prev, [group]: (index + 1) % totalPages,
 							}))}
@@ -167,14 +98,14 @@ export function HomePage() {
 						</p>
 					</div>
 					{/* Dots to show page #s */}
-					<div class="flex justify-center mt-2 gap-2">
+					<div className="flex justify-center mt-2 gap-2">
 							{Array.from({length: totalPages}).map((x, index) => 
 								<div
 									key={index}
 									onClick={() => setCurrentDataIndex((prev) => ({
 										...prev, [group]:index,
 									}))}
-									class={`h-2 w-2 rounded-full cursor-pointer hover:bg-gatorOrange/80 transition-all
+									className={`h-2 w-2 rounded-full cursor-pointer hover:bg-gatorOrange/80 transition-all
 									${index === currentDataIndex[group] ? "bg-gatorOrange scale-125" : "bg-gatorBlue"}`}
 								/>
 							)}

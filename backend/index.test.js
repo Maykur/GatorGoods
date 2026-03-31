@@ -139,6 +139,19 @@ test('POST /create-item falls back to the default category when omitted', async 
   assert.equal(response.body.itemCat, 'Miscellaneous');
 });
 
+test('OPTIONS /create-item allows loopback browser preflight requests', async () => {
+  const response = await request(app)
+    .options('/create-item')
+    .set('Origin', 'http://127.0.0.1:3000')
+    .set('Access-Control-Request-Method', 'POST')
+    .set('Access-Control-Request-Headers', 'content-type');
+
+  assert.equal(response.status, 204);
+  assert.equal(response.headers['access-control-allow-origin'], 'http://127.0.0.1:3000');
+  assert.match(response.headers['access-control-allow-methods'], /POST/);
+  assert.match(response.headers['access-control-allow-headers'], /Content-Type/i);
+});
+
 test('DELETE /item/:item deletes an existing item and removes it from favorites', async () => {
   const {item} = await seedProfileAndItem({
     profile: {

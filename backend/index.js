@@ -205,12 +205,36 @@ function toObjectId(value) {
   return new mongoose.Types.ObjectId(value);
 }
 
-app.use(express.json({ limit: '10mb' }));
-app.use(
-  cors({
-    origin: 'http://localhost:3000',
-  })
-);
+const LOOPBACK_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+function isAllowedDevOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const {hostname} = new URL(origin);
+    return LOOPBACK_DEV_HOSTS.has(hostname);
+  } catch (error) {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedDevOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('Origin not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({limit: '10mb'}));
 
 app.use((err, req, res, next) => {
   if (err.code === 'entity.too.large' || err.type === 'entity.too.large') {
