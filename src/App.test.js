@@ -95,6 +95,7 @@ jest.mock(
 
         return matchedElement;
       },
+      useLocation: () => ({pathname: global.window.location.pathname}),
     };
   },
   {virtual: true}
@@ -145,6 +146,14 @@ beforeEach(() => {
   window.history.pushState({}, "", "/");
 });
 
+test("legacy home route redirects to listings", () => {
+  window.history.pushState({}, "", "/home");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/listings");
+});
+
 test("signed-out users can open item pages without redirect", () => {
   window.history.pushState({}, "", "/items/item-1");
 
@@ -189,4 +198,18 @@ test("signed-in users can access protected routes", () => {
   render(<App />);
 
   expect(screen.getByText("Create Listing Page")).toBeInTheDocument();
+});
+
+test("signed-in users can use the profile shortcut route", () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "user-1",
+    },
+  });
+  window.history.pushState({}, "", "/profile/me");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/profile/user-1");
 });

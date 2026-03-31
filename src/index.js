@@ -7,6 +7,7 @@ import '@fontsource/manrope/600.css';
 import '@fontsource/manrope/700.css';
 import './index.css';
 import App from './App';
+import { clerkAppearance } from './lib/clerkAppearance';
 import reportWebVitals from './reportWebVitals';
 
 const clerkPublishableKey = process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || '';
@@ -40,7 +41,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     {hasClerkPublishableKey ? (
-      <ClerkProvider afterSignOutUrl="/">
+      <ClerkProvider afterSignOutUrl="/" appearance={clerkAppearance}>
         <App />
       </ClerkProvider>
     ) : (

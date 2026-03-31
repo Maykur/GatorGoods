@@ -1,18 +1,32 @@
 import { Show, SignUp as ClerkSignUp } from '@clerk/react';
 import { Navigate } from 'react-router-dom';
+import { Card, PageHeader } from '../components/ui';
 
 export function SignUp() {
   return (
-    <Show when="signed-out" fallback={<Navigate to="/home" replace />}>
-      <section className="flex justify-center">
-        <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/70 p-2 shadow-lg shadow-black/20 sm:p-4">
+    <Show when="signed-out" fallback={<Navigate to="/listings" replace />}>
+      <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+        <Card padding="lg" className="hidden min-h-[32rem] overflow-hidden lg:flex lg:flex-col lg:justify-between">
+          <PageHeader
+            eyebrow="Join the marketplace"
+            title="Create your GatorGoods account"
+            description="Set up your UF marketplace identity, list items faster, and keep every campus trade inside a consistent, student-first experience."
+          />
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+            <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Built for campus trust</p>
+            <p className="mt-3 text-base leading-7 text-app-soft">
+              The shell now treats auth as part of the same product experience instead of a disconnected modal. This wrapper keeps sign-up aligned with the rest of the app.
+            </p>
+          </div>
+        </Card>
+        <Card padding="none" className="w-full overflow-hidden p-2 sm:p-4">
           <ClerkSignUp
             path="/signup"
             routing="path"
             signInUrl="/login"
-            fallbackRedirectUrl="/home"
+            fallbackRedirectUrl="/listings"
           />
-        </div>
+        </Card>
       </section>
     </Show>
   );

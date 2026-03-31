@@ -15,14 +15,19 @@ function normalizeCategory(itemCat) {
 	return itemCat?.trim() || DEFAULT_CATEGORY;
 }
 
-export function HomePage() {
+export function HomePage({ forceSignedOutView = false }) {
 	const { isSignedIn } = useUser();
+	const shouldRenderLanding = forceSignedOutView || !isSignedIn;
 	const [items, setItems] = useState([]);
 	const [currentDataIndex, setCurrentDataIndex] = useState({});
 	const [search, setSearch] = useState("");
 	const [error, setError] = useState("");
 	const itemsPerPage = 5;
 	useEffect(() => {
+		if (forceSignedOutView) {
+			return undefined;
+		}
+
 		const itemFetch = async () => {
 			try {
 				const res = await fetch("http://localhost:5000/items");
@@ -37,7 +42,7 @@ export function HomePage() {
 			}
 		};
     	itemFetch();
-  	}, []);
+  	}, [forceSignedOutView]);
 	const filter = items.filter((item) =>
 		item.itemName.toLowerCase().includes(search.toLowerCase())
 	);
@@ -63,7 +68,7 @@ export function HomePage() {
 		return <p style={{color: "red"}}>{error}</p>;
 	}
   	//If the user is signedIn then display the products else display the place holder homescreen
-	if (isSignedIn){
+	if (!shouldRenderLanding){
 		return (
 			<div>
 				<div>
