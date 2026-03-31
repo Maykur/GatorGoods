@@ -1,7 +1,7 @@
 // REFERENCES: https://stackoverflow.com/questions/70203488/how-can-i-fetch-data-from-mongodb-and-display-it-on-react-front-end
 
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useUser } from "@clerk/react";
 import Profile from "../assets/profile.jpg";
 import VerifiedBadge from "../assets/verified-badge.png";
@@ -80,19 +80,19 @@ export function ProfilePage() {
 			<div>
 				<div>
 					<img src={info.profile.profilePicture || Profile} alt={info.profile.profileName} />
-					<span class="flex mt-2">
-						<h1 class="text-3xl font-bold mt-0.5">{info.profile.profileName}</h1>
+					<span className="flex mt-2">
+						<h1 className="text-3xl font-bold mt-0.5">{info.profile.profileName}</h1>
 						<img
 							src={VerifiedBadge}
 							alt="Verified badge"
-							class="mt-0.5 ml-1 w-10 h-10"
+							className="mt-0.5 ml-1 w-10 h-10"
 						/>
-						<h1 class="text-3xl font-bold mt-0.5 ml-1">{info.profile.profileRating?.toFixed(1)}/5</h1>
-						<img src={Star} alt="Star" class="mt-[6px] ml-1 w-7 h-7" />
+						<h1 className="text-3xl font-bold mt-0.5 ml-1">{info.profile.profileRating?.toFixed(1)}/5</h1>
+						<img src={Star} alt="Star" className="mt-[6px] ml-1 w-7 h-7" />
 					</span>
 
 					{/* Listing Stats */}
-					<div class="flex gap-x-4">
+					<div className="flex gap-x-4">
 						<p>{info.listings.length} active listing(s) </p>
 						{isOwner
 						? <p>{info.profile.profileFavorites.length} listing(s) favorited</p>
@@ -101,37 +101,37 @@ export function ProfilePage() {
 				</div>
 
 				{/* A scren that shows active and favorite orders made by the user */}
-				<div class="flex flex-col mt-4 rounded-3xl bg-gatorBlue">
-					<div class="flex flex-row justify-between">
-						<div class="flex flex-row">
+				<div className="flex flex-col mt-4 rounded-3xl bg-gatorBlue">
+					<div className="flex flex-row justify-between">
+						<div className="flex flex-row">
 							<div
-								class={`cursor-pointer ${orderState === "active" ? "bg-gatorOrange rounded-tl-2xl" : "hover:bg-gatorOrange/80 transition-colors rounded-tl-2xl"}`}
+								className={`cursor-pointer ${orderState === "active" ? "bg-gatorOrange rounded-tl-2xl" : "hover:bg-gatorOrange/80 transition-colors rounded-tl-2xl"}`}
 								onClick={() => setOrderState("active")}
 							>
-								<p class="text-white text-2xl m-5 ml-5">Personal Orders</p>
+								<p className="text-white text-2xl m-5 ml-5">Personal Orders</p>
 							</div>
 							<div
-								class={`cursor-pointer ${orderState === "past" ? "bg-gatorOrange" : "hover:bg-gatorOrange/80 transition-colors"}`}
+								className={`cursor-pointer ${orderState === "past" ? "bg-gatorOrange" : "hover:bg-gatorOrange/80 transition-colors"}`}
 								onClick={() => setOrderState("past")}
 							>
 								{isOwner
-								? <p class="text-white text-2xl m-5 ml-5 pl-5 pr-5">Favorited Orders</p>
+								? <p className="text-white text-2xl m-5 ml-5 pl-5 pr-5">Favorited Orders</p>
 								: []}
 							</div>
 						</div>
 						</div>
-						<div class="flex-1 overflow-y-auto bg-gatorShade rounded-b-3xl">
+						<div className="flex-1 overflow-y-auto bg-gatorShade rounded-b-3xl">
 	    					{orderState === "active" || !isOwner ? <ItemCard /> : <FavCard />}
 				  	</div>
 					</div>
 					{canReview
           		? <form onSubmit={handleOnSubmit} style={{ padding: '15px', display: 'flex', flexDirection: 'Column', gap: '10px', maxWidth: '400px' }}>
 				<div>
-					<label class={'mb-2'}>Review Rating: </label>
+					<label className="mb-2">Review Rating: </label>
 					<select
 						value={reviewScore}
 						onChange={(e) => setScore(e.target.value)}
-						class={'bg-gatorShade rounded-xl py-1 px-2 focus:ring-2 focus:ring-gatorOrange'}>
+						className="bg-gatorShade rounded-xl py-1 px-2 focus:ring-2 focus:ring-gatorOrange">
 						<option value="">Select Review Score</option>
 						<option value="0">0</option>
 						<option value="1">1</option>
@@ -143,7 +143,7 @@ export function ProfilePage() {
 				</div>
 					<button
 						type="submit"
-						class={'bg-gatorBlue hover:bg-gatorOrange/80 rounded-2xl transition-colors py-1.5 px-3'}>
+						className="bg-gatorBlue hover:bg-gatorOrange/80 rounded-2xl transition-colors py-1.5 px-3">
 						Submit Review Score
 					</button>
 				</form>
