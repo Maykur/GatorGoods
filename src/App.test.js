@@ -211,5 +211,6 @@ test("signed-in users can use the profile shortcut route", () => {
 
   render(<App />);
 
-  expect(window.location.pathname).toBe("/profile/user-1");
+  expect(window.location.pathname).toBe("/profile/me");
+  expect(screen.getByText("Profile Page")).toBeInTheDocument();
 });

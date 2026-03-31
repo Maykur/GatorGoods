@@ -1,97 +1,104 @@
-//import Iphone from "../../assets/Iphone.jpg"
-import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { useUser } from "@clerk/react";
+import { Link } from 'react-router-dom';
+import { Badge, Button, Card } from '../ui';
 
-function ItemCard(){
-	const { user } = useUser();
-	const { id } = useParams();
-	const [info, setInfo] = useState(null);
-	const navigate = useNavigate();
-	const [error, setError] = useState("");
-	const isOwner = Boolean(user?.id && user.id === id);
-	const handleNav = async (e, inf) => {
-		e.preventDefault();
-		navigate(`/items/${inf}`);
-	}
-	const itemFetch = async () => {
-		try {
-			const res = await fetch(`http://localhost:5000/profile/${id}`);
-			if (!res.ok) {
-				throw new Error("Failed to fetch");
-			}
-			const data = await res.json();
-			setInfo(data);
-			setError("");
-		} catch (err) {
-			setError(err.message);
-		}
-	};
-	const handleOnSubmit = async (e, inf) => {
-        e.preventDefault();
-        const verif = window.confirm("This action will delete this item. Are you sure?");
-        if (!verif) {
-            return;
-        }
-        try {
-            const res = await fetch(`http://localhost:5000/item/${inf}`, {
-                method: 'DELETE',
-            });
-			if (!res.ok) {
-				throw new Error("Failed to delete");
-			}
-            alert('Item Deleted');
-			itemFetch();
-        } catch (e) {
-            setError('Error during delete');
-        }
-    };
-	useEffect(() => {
-			itemFetch();
-		}, [id]);
-    return(
-		<div class="flex flex-col gap-y-1">
-			{info
-			? (
-				info.listings.length > 0 
-				? (info.listings.map((item) => (
-				<div key={item._id} class="flex flex-row justify-between bg-black/40 h-[187px] rounded-xl">
-					<div class="flex flex-row items-center">
-									<img
-										src={item.itemPicture}
-										class="w-[180px] p-5 h-full object-contain"
-									></img>
-									<p class="text-2xl ml-10 mt-1.5">
-										{item.itemName}
-									</p>
-					</div>
-					{isOwner
-					? ( <div class="flex flex-col gap-y-3 mr-2">
-							<a href="" 
-								class="bg-gatorBlue rounded-full text-center p-1 mt-12 hover:bg-gatorOrange/80 transition-colors"
-								onClick={(e) => handleOnSubmit(e, item._id)}>
-								Delete Listing
-							</a>
-							<a href=""
-								class="bg-gatorBlue rounded-full text-center p-1 mb-2 hover:bg-gatorOrange/80 transition-colors"
-								onClick={(e) => handleNav(e, item._id)}>
-								View Details
-							</a>
-						</div>)
-					: (	<div class="flex flex-col items-center gap-y-2 mr-2">
-							<a href=""
-								class="bg-gatorBlue rounded-full text-center p-1 mt-16 hover:bg-gatorOrange/80 transition-colors"
-								onClick={(e) => handleNav(e, item._id)}>
-								View Details
-							</a>
-						</div>)
-					}
-				</div>
-				)))
-				: (<p>Nothing to see here</p>))
-			: <p>loading...</p>}
-		</div>
-    )
+function ListingMedia({item}) {
+  if (item.imageUrl) {
+    return (
+      <img
+        src={item.imageUrl}
+        alt={item.title}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-white/5 text-sm font-semibold uppercase tracking-[0.18em] text-app-muted">
+      No photo
+    </div>
+  );
+}
+
+function EmptyListings({title, description}) {
+  return (
+    <Card className="space-y-3 text-center">
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+        No listings
+      </p>
+      <h3 className="text-xl font-semibold text-white">{title}</h3>
+      <p className="text-sm leading-7 text-app-soft">{description}</p>
+    </Card>
+  );
+}
+
+function ItemCard({
+  items = [],
+  isOwner = false,
+  deletingListingId = '',
+  onDelete,
+  emptyTitle = 'No active listings yet',
+  emptyDescription = 'Listings added to this account will appear here.',
+}) {
+  if (items.length === 0) {
+    return <EmptyListings title={emptyTitle} description={emptyDescription} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <Card
+          key={item.id}
+          as="article"
+          className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
+        >
+          <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+            <Link
+              to={`/items/${item.id}`}
+              className="block h-32 w-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-app-surface/70 sm:w-40"
+            >
+              <ListingMedia item={item} />
+            </Link>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-2xl font-semibold text-gatorOrange">{item.priceLabel}</p>
+                <Badge condition={item.condition} />
+                <Badge>{item.category}</Badge>
+              </div>
+
+              <Link
+                to={`/items/${item.id}`}
+                className="text-xl font-semibold tracking-tight text-white no-underline transition hover:text-gatorOrange"
+              >
+                {item.title}
+              </Link>
+
+              <div className="flex flex-wrap gap-3 text-sm text-app-soft">
+                <span>{item.location}</span>
+                <span>{item.sellerName}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <Link to={`/items/${item.id}`} className="no-underline">
+              <Button variant="secondary">View details</Button>
+            </Link>
+
+            {isOwner ? (
+              <Button
+                variant="danger"
+                loading={deletingListingId === item.id}
+                onClick={() => onDelete?.(item.id, item.title)}
+              >
+                Delete listing
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 export default ItemCard;

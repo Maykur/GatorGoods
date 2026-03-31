@@ -1,100 +1,103 @@
-//import Iphone from "../../assets/Iphone.jpg"
-import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { Link } from 'react-router-dom';
+import { Badge, Button, Card } from '../ui';
 
-function FavCard(){
-	const { id } = useParams();
-	const [info, setInfo] = useState(null);
-	const navigate = useNavigate();
-	const [error, setError] = useState("");
-	const handleNav = async (e, inf) => {
-		e.preventDefault();
-		navigate(`/items/${inf}`);
-	}
-	const itemFetch = async () => {
-		try {
-			const res = await fetch(`http://localhost:5000/profile/${id}`);
-			if (!res.ok) {
-				throw new Error("Failed to fetch");
-			}
-			const data = await res.json();
-			const favItems = await Promise.all(
-				data.profile.profileFavorites.map(async (itemID) => {
-					const itemResp = await fetch(`http://localhost:5000/items/${itemID}`);
-					if (!itemResp.ok) {
-						throw new Error("Failed to fetch.");
-					}
-					const itemData = await itemResp.json();
-					const profileID = itemData.userPublishingID;
-					return {...itemData, profileID};
-				})
-			)
-			setInfo({...data, favItems});
-			setError("");
-		} catch (err) {
-			setError(err.message);
-		}
-	};
-	const handleOnSubmit = async (e, user, inf) => {
-        e.preventDefault();
-        const verif = window.confirm("This action will remove this item from favorites. Are you sure?");
-        if (!verif) {
-            return;
-        }
-        try {
-			const res = await fetch(`http://localhost:5000/user/${user}/fav/${inf}`, {
-				method: 'DELETE',
-			});
-			if (!res.ok){
-			throw new Error("Couldn't fav");
-			}
-            alert('Item Unfavorited');
-			itemFetch();
-        } catch (e) {
-            setError('Error during delete');
-        }
-    };
-	useEffect(() => {
-			itemFetch();
-		}, [id]);
-    return(
-		<div class="flex flex-col gap-y-1">
-			{info
-			? (
-				info.favItems.length > 0 
-				? (info.favItems.map((item) => (
-				<div key={item._id} class="flex flex-row justify-between bg-black/40 h-[187px] rounded-xl">
-					<div class="flex flex-row items-center">
-									<img
-										src={item.itemPicture}
-										class="w-[180px] p-5 h-full object-contain"
-									></img>
-									<p class="text-2xl ml-10 mt-1.5">
-										{item.itemName}
-									</p>
-					</div>
-					<div class="flex flex-col gap-y-3 mr-2">
-									<a href="" class="bg-gatorBlue rounded-full text-center p-1 mt-8 hover:bg-gatorOrange/80 transition-colors" 
-										onClick={(e) => handleOnSubmit(e, id, item._id)}>
-										Unfavorite
-									</a>
-									<a href={`/profile/${item.profileID}`} class="bg-gatorBlue rounded-full text-center p-1 hover:bg-gatorOrange/80 transition-colors">
-										View Seller Profile
-									</a>
-									<a	
-										href=""
-										class="bg-gatorBlue rounded-full text-center p-1 mb-2 hover:bg-gatorOrange/80 transition-colors"
-										onClick={(e) => handleNav(e, item._id)}
-									>
-										View Details
-									</a>
-					</div>
-				</div>
-				)))
-				: (<p>Nothing to see here</p>))
-			: <p>loading...</p>}
-		</div>
-    )
+function ListingMedia({item}) {
+  if (item.imageUrl) {
+    return (
+      <img
+        src={item.imageUrl}
+        alt={item.title}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-white/5 text-sm font-semibold uppercase tracking-[0.18em] text-app-muted">
+      No photo
+    </div>
+  );
+}
+
+function FavCard({
+  items = [],
+  removingListingId = '',
+  onRemoveFavorite,
+  emptyTitle = 'No favorites saved yet',
+  emptyDescription = 'Favorite listings you want to revisit, and they will show up here.',
+}) {
+  if (items.length === 0) {
+    return (
+      <Card className="space-y-3 text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+          Favorites
+        </p>
+        <h3 className="text-xl font-semibold text-white">{emptyTitle}</h3>
+        <p className="text-sm leading-7 text-app-soft">{emptyDescription}</p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <Card
+          key={item.id}
+          as="article"
+          className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
+        >
+          <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+            <Link
+              to={`/items/${item.id}`}
+              className="block h-32 w-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-app-surface/70 sm:w-40"
+            >
+              <ListingMedia item={item} />
+            </Link>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-2xl font-semibold text-gatorOrange">{item.priceLabel}</p>
+                <Badge condition={item.condition} />
+                <Badge>{item.category}</Badge>
+              </div>
+
+              <Link
+                to={`/items/${item.id}`}
+                className="text-xl font-semibold tracking-tight text-white no-underline transition hover:text-gatorOrange"
+              >
+                {item.title}
+              </Link>
+
+              <div className="flex flex-wrap gap-3 text-sm text-app-soft">
+                <span>{item.location}</span>
+                <span>{item.sellerName}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            {item.sellerId ? (
+              <Link to={`/profile/${item.sellerId}`} className="no-underline">
+                <Button variant="ghost">View seller</Button>
+              </Link>
+            ) : null}
+
+            <Link to={`/items/${item.id}`} className="no-underline">
+              <Button variant="secondary">View details</Button>
+            </Link>
+
+            <Button
+              variant="danger"
+              loading={removingListingId === item.id}
+              onClick={() => onRemoveFavorite?.(item.id, item.title)}
+            >
+              Remove favorite
+            </Button>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 export default FavCard;

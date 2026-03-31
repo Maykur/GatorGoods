@@ -1,4 +1,4 @@
-import { Show, useUser } from '@clerk/react';
+import { Show } from '@clerk/react';
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { Layout } from './components/Layout';
@@ -21,16 +21,6 @@ function ProtectedRoute({ children }) {
       {children}
     </Show>
   );
-}
-
-function MyProfileRedirect() {
-  const { user } = useUser();
-
-  if (!user?.id) {
-    return null;
-  }
-
-  return <Navigate to={`/profile/${user.id}`} replace />;
 }
 
 function App() {
@@ -90,7 +80,7 @@ function App() {
                   path="/profile/me"
                   element={
                     <ProtectedRoute>
-                      <MyProfileRedirect />
+                      <ProfilePage ownerView />
                     </ProtectedRoute>
                   }
                 />
