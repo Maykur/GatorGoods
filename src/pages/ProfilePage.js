@@ -137,7 +137,7 @@ function ProfileConnectorLinks({ profileHeader }) {
 
 function ProfileStatCard({ icon, label, value }) {
   return (
-    <Card variant="subtle" className="min-w-[10.75rem] px-5 py-5">
+    <Card variant="subtle" className="h-full min-w-[10.75rem] px-5 py-5">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
         <AppIcon icon={icon} className="text-sm" />
         <span>{label}</span>
@@ -527,14 +527,14 @@ export function ProfilePage({ ownerView = false }) {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3 lg:items-start lg:gap-0">
-                  <div className="lg:relative lg:z-[1]">
+                <div className="grid items-stretch gap-3 sm:grid-cols-3 lg:gap-0">
+                  <div className="h-full lg:relative lg:z-[1]">
                     <ProfileStatCard icon="listing" label="Active listings" value={profileHeader.listingCount} />
                   </div>
-                  <div className="lg:relative lg:z-[2] lg:-ml-2">
+                  <div className="h-full lg:relative lg:z-[2] lg:-ml-2">
                     <ProfileStatCard icon="rating" label="Overall rating" value={trustMetrics.overallRatingLabel} />
                   </div>
-                  <div className="lg:relative lg:z-[3] lg:-ml-2">
+                  <div className="h-full lg:relative lg:z-[3] lg:-ml-2">
                     <ProfileStatCard
                       icon={ownerView ? 'favorite' : 'verified'}
                       label={ownerView ? 'Favorites' : 'Ratings logged'}
