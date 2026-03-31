@@ -7,28 +7,36 @@ import {
   faBolt,
   faBullseye,
   faCamera,
+  faCarSide,
   faChevronLeft,
   faChevronRight,
   faCircleCheck,
   faCirclePlus,
   faClock,
   faComments,
+  faCouch,
   faEye,
+  faGamepad,
   faHandshake,
   faHeart,
   faHouse,
+  faLaptop,
   faLocationDot,
   faMagnifyingGlass,
   faMessage,
   faMoneyBillWave,
   faRotateLeft,
   faShieldHalved,
+  faShirt,
   faStar,
   faStore,
   faTag,
   faTrash,
   faUpload,
   faUser,
+  faUsers,
+  faBox,
+  faHouseChimneyWindow,
 } from '@fortawesome/free-solid-svg-icons';
 import { faInstagram, faLinkedin } from '@fortawesome/free-brands-svg-icons';
 import { cn } from '../../lib/ui';
@@ -71,6 +79,29 @@ export const APP_ICONS = {
   back: faArrowLeft,
   accuracy: faBullseye,
 };
+
+export function getCategoryIcon(category) {
+  switch (category) {
+    case 'Vehicles':
+      return faCarSide;
+    case 'Property Rentals':
+      return faHouseChimneyWindow;
+    case 'Apparel & Accessories':
+      return faShirt;
+    case 'Electronics & Computers':
+      return faLaptop;
+    case 'Home & Garden':
+      return faCouch;
+    case 'Entertainment & Hobbies':
+      return faGamepad;
+    case 'Family':
+      return faUsers;
+    case 'Miscellaneous':
+      return faBox;
+    default:
+      return faTag;
+  }
+}
 
 export function resolveAppIcon(icon) {
   if (!icon) {

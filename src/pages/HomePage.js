@@ -2,7 +2,8 @@ import { useUser } from '@clerk/react';
 import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/HomePage/ProductCard.js';
-import { Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Select, Skeleton } from '../components/ui';
+import { AppIcon, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Select, Skeleton } from '../components/ui';
+import { getCategoryIcon } from '../components/ui/Icon';
 import { getCachedListings, getListingsPage, hasCachedListings } from '../lib/listingsApi';
 import { LISTING_CATEGORIES, toListingCardViewModel } from '../lib/viewModels';
 import { cn } from '../lib/ui';
@@ -43,6 +44,23 @@ function ListingGridSkeleton() {
         </Card>
       ))}
     </div>
+  );
+}
+
+function FeatureCard({ icon, eyebrow, title, description }) {
+  return (
+    <Card variant="subtle" className="space-y-3">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gatorOrange/20 bg-gatorOrange/10 text-gatorOrange">
+        <AppIcon icon={icon} className="text-lg" />
+      </div>
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+        {eyebrow}
+      </p>
+      <h2 className="text-xl font-semibold text-white">{title}</h2>
+      <p className="text-sm leading-7 text-app-soft">
+        {description}
+      </p>
+    </Card>
   );
 }
 
@@ -141,21 +159,22 @@ export function HomePage({ forceSignedOutView = false }) {
         <Card padding="lg" className="overflow-hidden">
           <PageHeader
             eyebrow="A UF Marketplace"
+            icon="browse"
             title="Buy, sell, and trade around campus."
             description="Browse campus listings, message sellers, and make offers when you're ready."
             actions={
               <div className="flex flex-wrap gap-3">
                 {isLoaded && isSignedIn ? (
                   <Link to="/create" className="no-underline">
-                    <Button>Post a listing</Button>
+                    <Button leadingIcon="createListing">Post a listing</Button>
                   </Link>
                 ) : (
                   <>
                     <Link to="/signup" className="no-underline">
-                      <Button>Create account</Button>
+                      <Button leadingIcon="createListing">Create account</Button>
                     </Link>
                     <Link to="/login" className="no-underline">
-                      <Button variant="secondary">Log in</Button>
+                      <Button variant="secondary" leadingIcon="profile">Log in</Button>
                     </Link>
                   </>
                 )}
@@ -165,33 +184,24 @@ export function HomePage({ forceSignedOutView = false }) {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Card variant="subtle" className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-              Trusted Network
-            </p>
-            <h2 className="text-xl font-semibold text-white">Made for campus pickup</h2>
-            <p className="text-sm leading-7 text-app-soft">
-              Buy and sell with other UF students and keep pickup plans easy to sort out.
-            </p>
-          </Card>
-          <Card variant="subtle" className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-              Cleaner browsing
-            </p>
-            <h2 className="text-xl font-semibold text-white">Find the right listing faster</h2>
-            <p className="text-sm leading-7 text-app-soft">
-              Search and category filters help you narrow things down without digging through clutter.
-            </p>
-          </Card>
-          <Card variant="subtle" className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-              Messaging first
-            </p>
-            <h2 className="text-xl font-semibold text-white">Keep everything in one place</h2>
-            <p className="text-sm leading-7 text-app-soft">
-              Your listing details, seller info, and messages stay together instead of getting lost in group chats.
-            </p>
-          </Card>
+          <FeatureCard
+            icon="verified"
+            eyebrow="Trusted Network"
+            title="Made for campus pickup"
+            description="Buy and sell with other UF students and keep pickup plans easy to sort out."
+          />
+          <FeatureCard
+            icon="search"
+            eyebrow="Cleaner browsing"
+            title="Find the right listing faster"
+            description="Search and category filters help you narrow things down without digging through clutter."
+          />
+          <FeatureCard
+            icon="messages"
+            eyebrow="Messaging first"
+            title="Keep everything in one place"
+            description="Your listing details, seller info, and messages stay together instead of getting lost in group chats."
+          />
         </div>
       </section>
     );
@@ -206,20 +216,21 @@ export function HomePage({ forceSignedOutView = false }) {
     <section className="w-full space-y-6 sm:space-y-8">
       <PageHeader
         eyebrow="Marketplace"
+        icon="browse"
         title="Browse campus listings"
         description="Search listings, filter by category, and message the seller when something looks right."
         actions={
           canCreateListings ? (
             <Link to="/create" className="no-underline">
-              <Button size="sm">Create listing</Button>
+              <Button size="sm" leadingIcon="createListing">Create listing</Button>
             </Link>
           ) : (
             <div className="flex flex-wrap gap-3">
               <Link to="/signup" className="no-underline">
-                <Button size="sm">Create account</Button>
+                <Button size="sm" leadingIcon="createListing">Create account</Button>
               </Link>
               <Link to="/login" className="no-underline">
-                <Button size="sm" variant="secondary">Log in</Button>
+                <Button size="sm" variant="secondary" leadingIcon="profile">Log in</Button>
               </Link>
             </div>
           )
@@ -231,6 +242,7 @@ export function HomePage({ forceSignedOutView = false }) {
           <Input
             id="marketplace-search"
             label="Search listings"
+            leadingIcon="search"
             placeholder="Search by title, seller, location, or category"
             value={search}
             onChange={(event) => {
@@ -241,6 +253,7 @@ export function HomePage({ forceSignedOutView = false }) {
           <Select
             id="marketplace-sort"
             label="Sort by"
+            leadingIcon="sort"
             value={sortBy}
             onChange={(event) => {
               setSortBy(event.target.value);
@@ -265,12 +278,15 @@ export function HomePage({ forceSignedOutView = false }) {
                 setPage(1);
               }}
               className={cn(
-                'focus-ring shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:py-2 sm:text-sm',
+                'focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:py-2 sm:text-sm',
                 category === selectedCategory
                   ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
                   : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
               )}
             >
+              {category !== 'All' ? (
+                <AppIcon icon={getCategoryIcon(category)} className="text-[0.95em]" />
+              ) : null}
               {category}
             </button>
           ))}
@@ -291,6 +307,7 @@ export function HomePage({ forceSignedOutView = false }) {
               <Button
                 variant="ghost"
                 size="sm"
+                leadingIcon="clear"
                 onClick={() => {
                   setSearch('');
                   setSelectedCategory('All');
@@ -323,6 +340,7 @@ export function HomePage({ forceSignedOutView = false }) {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 variant="secondary"
+                leadingIcon="reset"
                 onClick={() => {
                   setSearch('');
                   setSelectedCategory('All');
@@ -334,11 +352,11 @@ export function HomePage({ forceSignedOutView = false }) {
               </Button>
               {canCreateListings ? (
                 <Link to="/create" className="no-underline">
-                  <Button>Create a listing</Button>
+                  <Button leadingIcon="createListing">Create a listing</Button>
                 </Link>
               ) : (
                 <Link to="/signup" className="no-underline">
-                  <Button>Create account to sell</Button>
+                  <Button leadingIcon="createListing">Create account to sell</Button>
                 </Link>
               )}
             </div>
@@ -363,6 +381,7 @@ export function HomePage({ forceSignedOutView = false }) {
                 <Button
                   variant="secondary"
                   size="sm"
+                  leadingIcon="previous"
                   onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
                   disabled={!meta.hasPreviousPage || isRefreshing}
                 >
@@ -387,6 +406,7 @@ export function HomePage({ forceSignedOutView = false }) {
                 <Button
                   variant="secondary"
                   size="sm"
+                  trailingIcon="next"
                   onClick={() => setPage((currentPage) => currentPage + 1)}
                   disabled={!meta.hasNextPage || isRefreshing}
                 >

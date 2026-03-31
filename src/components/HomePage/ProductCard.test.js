@@ -31,5 +31,8 @@ test('renders listing status badges so seeded reserved and sold items are obviou
   );
 
   expect(screen.getByText('Reserved')).toBeInTheDocument();
+  expect(screen.getByText('Home & Garden')).toBeInTheDocument();
+  expect(screen.getByText('Heavener')).toBeInTheDocument();
+  expect(screen.getByText('Scott Knowles')).toBeInTheDocument();
   expect(screen.getByRole('link', {name: /mini fridge/i})).toHaveAttribute('href', '/items/listing-1');
 });

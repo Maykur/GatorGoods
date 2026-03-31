@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Badge, Card } from '../ui';
+import { Badge, Card, AppIcon } from '../ui';
+import { getCategoryIcon } from '../ui/Icon';
 
 function getStatusVariant(status) {
   switch (status) {
@@ -15,6 +16,8 @@ function getStatusVariant(status) {
 }
 
 function ProductCard({ item }) {
+  const categoryIcon = getCategoryIcon(item.category);
+
   return (
     <Link to={`/items/${item.id}`} className="block no-underline">
       <Card
@@ -56,13 +59,20 @@ function ProductCard({ item }) {
             >
               {item.condition || 'Unknown'}
             </Badge>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.65rem] font-medium text-app-soft sm:px-3 sm:text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.65rem] font-medium text-app-soft sm:px-3 sm:text-xs">
+              <AppIcon icon={categoryIcon} className="text-[0.95em]" />
               {item.category}
             </span>
           </div>
           <div className="space-y-1 text-xs leading-5 text-app-soft sm:space-y-2 sm:text-sm">
-            <p className="truncate">{item.location}</p>
-            <p className="truncate">{item.sellerName}</p>
+            <p className="flex items-center gap-2 truncate">
+              <AppIcon icon="location" className="text-[0.9em] text-app-muted" />
+              <span className="truncate">{item.location}</span>
+            </p>
+            <p className="flex items-center gap-2 truncate">
+              <AppIcon icon="seller" className="text-[0.9em] text-app-muted" />
+              <span className="truncate">{item.sellerName}</span>
+            </p>
           </div>
         </div>
       </Card>
