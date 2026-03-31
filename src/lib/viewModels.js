@@ -2,6 +2,18 @@ const DEFAULT_CATEGORY = 'Miscellaneous';
 const DEFAULT_LOCATION = 'Campus pickup';
 const DEFAULT_SELLER_NAME = 'GatorGoods Seller';
 const DEFAULT_LISTING_TITLE = 'Untitled listing';
+const DEFAULT_LISTING_STATUS = 'active';
+const LISTING_STATUS_LABELS = {
+  active: 'Active',
+  reserved: 'Reserved',
+  sold: 'Sold',
+  archived: 'Archived',
+};
+const PAYMENT_METHOD_LABELS = {
+  cash: 'Cash',
+  externalApp: 'External app',
+  gatorgoodsEscrow: 'GatorGoods escrow',
+};
 
 export const LISTING_CATEGORIES = [
   'Vehicles',
@@ -20,6 +32,28 @@ function normalizeText(value, fallback = '') {
 
 export function normalizeCategory(category) {
   return normalizeText(category, DEFAULT_CATEGORY);
+}
+
+export function normalizeListingStatus(status) {
+  return LISTING_STATUS_LABELS[status] ? status : DEFAULT_LISTING_STATUS;
+}
+
+export function formatListingStatusLabel(status) {
+  return LISTING_STATUS_LABELS[normalizeListingStatus(status)];
+}
+
+export function formatPercentLabel(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return 'No data yet';
+  }
+
+  return `${Math.round(numericValue)}%`;
+}
+
+export function formatPaymentMethodLabel(value) {
+  return PAYMENT_METHOD_LABELS[value] || 'Payment details pending';
 }
 
 export function parsePriceValue(value) {
@@ -73,6 +107,8 @@ export function toListingCardViewModel(raw) {
     imageUrl: normalizeText(raw?.itemPicture, ''),
     category: normalizeCategory(raw?.itemCat),
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
+    status: normalizeListingStatus(raw?.status),
+    statusLabel: formatListingStatusLabel(raw?.status),
   };
 }
 
@@ -90,6 +126,8 @@ export function toListingDetailViewModel(raw, viewerId = null) {
     category: cardView.category,
     description: normalizeText(raw?.itemDescription, 'No description provided yet.'),
     details: normalizeText(raw?.itemDetails, 'No additional details provided.'),
+    status: cardView.status,
+    statusLabel: cardView.statusLabel,
     seller: {
       id: sellerId,
       name: cardView.sellerName,
@@ -131,4 +169,77 @@ export function toProfileHeaderViewModel(rawProfile, listings = [], viewerId = n
     favoritesCount,
     isOwner: Boolean(viewerId && profile?.profileID && viewerId === profile.profileID),
   };
+}
+
+export function toTrustMetricsViewModel(rawProfile) {
+  const profile = rawProfile?.profile || rawProfile || {};
+  const trustMetrics = profile?.trustMetrics || {};
+
+  return {
+    overallRatingLabel:
+      Number.isFinite(Number(profile?.profileRating)) && Number(profile.profileRating) > 0
+        ? `${Number(profile.profileRating).toFixed(1)}/5`
+        : 'New seller',
+    totalRatings: Number(profile?.profileTotalRating) || 0,
+    reliabilityLabel: formatPercentLabel(trustMetrics.reliability),
+    accuracyLabel: formatPercentLabel(trustMetrics.accuracy),
+    responsivenessLabel: formatPercentLabel(trustMetrics.responsiveness),
+    safetyLabel: formatPercentLabel(trustMetrics.safety),
+  };
+}
+
+export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerProfile} = {}) {
+  const listingCard = listing ? toListingCardViewModel(listing) : null;
+  const buyerTrust = buyerProfile ? toTrustMetricsViewModel(buyerProfile) : null;
+  const sellerTrust = sellerProfile ? toTrustMetricsViewModel(sellerProfile) : null;
+
+  return {
+    id: rawOffer?._id || rawOffer?.id || '',
+    listingId: rawOffer?.listingId || listingCard?.id || '',
+    listingTitle: listingCard?.title || DEFAULT_LISTING_TITLE,
+    listingStatus: listingCard?.status || DEFAULT_LISTING_STATUS,
+    listingStatusLabel: listingCard?.statusLabel || formatListingStatusLabel(DEFAULT_LISTING_STATUS),
+    buyerId: normalizeText(rawOffer?.buyerClerkUserId, ''),
+    buyerName: normalizeText(
+      buyerProfile?.profile?.profileName || buyerProfile?.profileName || rawOffer?.buyerDisplayName,
+      'Buyer'
+    ),
+    sellerId: normalizeText(rawOffer?.sellerClerkUserId, ''),
+    sellerName: normalizeText(
+      sellerProfile?.profile?.profileName || sellerProfile?.profileName || listing?.userPublishingName,
+      DEFAULT_SELLER_NAME
+    ),
+    offeredPrice: Number(rawOffer?.offeredPrice) || 0,
+    offeredPriceLabel: formatPriceLabel(rawOffer?.offeredPrice),
+    meetupLocation: normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION),
+    meetupWindow: normalizeText(rawOffer?.meetupWindow, 'Meetup details pending'),
+    paymentMethod: rawOffer?.paymentMethod || '',
+    paymentMethodLabel: formatPaymentMethodLabel(rawOffer?.paymentMethod),
+    message: normalizeText(rawOffer?.message, ''),
+    status: normalizeText(rawOffer?.status, 'pending'),
+    conversationId: rawOffer?.conversationId || '',
+    buyerTrust,
+    sellerTrust,
+  };
+}
+
+export function groupOffersByListing(rawOffers, listingsById = {}) {
+  return (Array.isArray(rawOffers) ? rawOffers : []).reduce((groups, offer) => {
+    const listingId = offer?.listingId?.toString?.() || offer?.listingId || '';
+    const listing = listingId ? listingsById[listingId] || null : null;
+    const offerView = toOfferCardViewModel(offer, {listing});
+
+    if (!groups[offerView.listingId]) {
+      groups[offerView.listingId] = {
+        listingId: offerView.listingId,
+        listingTitle: offerView.listingTitle,
+        listingStatus: offerView.listingStatus,
+        listingStatusLabel: offerView.listingStatusLabel,
+        offers: [],
+      };
+    }
+
+    groups[offerView.listingId].offers.push(offerView);
+    return groups;
+  }, {});
 }

@@ -2,18 +2,64 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/react';
 import { createConversation } from '../lib/messagesApi';
-import { toListingDetailViewModel } from '../lib/viewModels';
+import { createOffer } from '../lib/offersApi';
+import { toListingDetailViewModel, toTrustMetricsViewModel } from '../lib/viewModels';
 import {
   Avatar,
   Badge,
   Button,
   Card,
   ErrorBanner,
+  Input,
   PageHeader,
+  Select,
   Skeleton,
+  Textarea,
   useConfirmDialog,
   useToast,
 } from '../components/ui';
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'externalApp', label: 'External app' },
+  { value: 'gatorgoodsEscrow', label: 'GatorGoods escrow' },
+];
+
+function getStatusBadgeVariant(status) {
+  switch (status) {
+    case 'reserved':
+      return 'warning';
+    case 'sold':
+    case 'archived':
+      return 'danger';
+    default:
+      return 'success';
+  }
+}
+
+function validateOfferForm(values) {
+  const errors = {};
+
+  if (!values.offeredPrice.trim()) {
+    errors.offeredPrice = 'Offer amount is required.';
+  } else if (Number(values.offeredPrice) < 0) {
+    errors.offeredPrice = 'Offer amount must be zero or greater.';
+  }
+
+  if (!values.meetupLocation.trim()) {
+    errors.meetupLocation = 'Meetup location is required.';
+  }
+
+  if (!values.meetupWindow.trim()) {
+    errors.meetupWindow = 'Meetup window is required.';
+  }
+
+  if (!values.paymentMethod.trim()) {
+    errors.paymentMethod = 'Payment method is required.';
+  }
+
+  return errors;
+}
 
 function LoadingState() {
   return (
@@ -42,11 +88,23 @@ export function ItemPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirmDialog();
   const [item, setItem] = useState(null);
+  const [sellerProfile, setSellerProfile] = useState(null);
   const [favorite, setFav] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isFavoritePending, setIsFavoritePending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStartingConversation, setIsStartingConversation] = useState(false);
+  const [isOfferComposerOpen, setIsOfferComposerOpen] = useState(false);
+  const [offerValues, setOfferValues] = useState({
+    offeredPrice: '',
+    meetupLocation: '',
+    meetupWindow: '',
+    paymentMethod: 'cash',
+    message: '',
+  });
+  const [offerFieldErrors, setOfferFieldErrors] = useState({});
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [submittedOffer, setSubmittedOffer] = useState(null);
   const [error, setError] = useState('');
 
   const itemView = useMemo(
@@ -54,6 +112,7 @@ export function ItemPage() {
     [item, user?.id]
   );
   const isOwner = Boolean(itemView?.isOwner);
+  const trustMetrics = useMemo(() => toTrustMetricsViewModel(sellerProfile), [sellerProfile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -77,6 +136,10 @@ export function ItemPage() {
         }
 
         setItem(data);
+        setOfferValues((currentValues) => ({
+          ...currentValues,
+          meetupLocation: data.itemLocation || '',
+        }));
         setError('');
       } catch (fetchError) {
         if (isMounted) {
@@ -95,6 +158,43 @@ export function ItemPage() {
       isMounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSellerProfile = async () => {
+      if (!item?.userPublishingID) {
+        if (isMounted) {
+          setSellerProfile(null);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:5000/profile/${item.userPublishingID}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch');
+        }
+
+        const data = await response.json();
+
+        if (isMounted) {
+          setSellerProfile(data);
+        }
+      } catch (profileError) {
+        if (isMounted) {
+          setSellerProfile(null);
+        }
+      }
+    };
+
+    loadSellerProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [item?.userPublishingID]);
 
   useEffect(() => {
     let isMounted = true;
@@ -229,6 +329,70 @@ export function ItemPage() {
     }
   };
 
+  const handleOfferFieldChange = (field) => (event) => {
+    setOfferValues((currentValues) => ({
+      ...currentValues,
+      [field]: event.target.value,
+    }));
+    setOfferFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      [field]: '',
+    }));
+  };
+
+  const handleOfferSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!user?.id) {
+      navigate('/login');
+      return;
+    }
+
+    if (!itemView?.id || !item) {
+      return;
+    }
+
+    const nextErrors = validateOfferForm(offerValues);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setOfferFieldErrors(nextErrors);
+      setError('Please complete the offer details before sending it.');
+      return;
+    }
+
+    try {
+      setIsSubmittingOffer(true);
+      const offer = await createOffer(itemView.id, {
+        buyerClerkUserId: user.id,
+        buyerDisplayName:
+          user.fullName ||
+          user.firstName ||
+          user.username ||
+          user.primaryEmailAddress?.emailAddress?.split('@')[0] ||
+          'Buyer',
+        offeredPrice: Number(offerValues.offeredPrice),
+        meetupLocation: offerValues.meetupLocation,
+        meetupWindow: offerValues.meetupWindow,
+        paymentMethod: offerValues.paymentMethod,
+        message: offerValues.message,
+      });
+
+      setSubmittedOffer(offer);
+      setIsOfferComposerOpen(false);
+      setOfferFieldErrors({});
+      setError('');
+      showToast({
+        title: 'Offer sent',
+        description: 'The seller can now review your offer and respond from the offers inbox.',
+        variant: 'success',
+      });
+    } catch (offerError) {
+      setError(offerError.message || 'Unable to send offer right now.');
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
   if (isLoading) {
     return <LoadingState />;
   }
@@ -274,7 +438,7 @@ export function ItemPage() {
             <PageHeader
               eyebrow={itemView.category}
               title={itemView.title}
-              description="Message the seller, save the listing, or review the item details before you meet up on campus."
+              description="Review seller trust, send a structured offer, and keep meetup details organized before you message."
             />
 
             <div className="flex flex-wrap items-center gap-3">
@@ -282,28 +446,152 @@ export function ItemPage() {
                 {itemView.priceLabel}
               </p>
               <Badge condition={itemView.condition}>{itemView.condition}</Badge>
+              <Badge variant={getStatusBadgeVariant(itemView.status)}>{itemView.statusLabel}</Badge>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-app-soft">
                 {itemView.location}
               </span>
             </div>
 
+            {itemView.status !== 'active' ? (
+              <Card variant="subtle" className="space-y-2">
+                <p className="text-sm font-semibold text-white">
+                  {itemView.status === 'reserved'
+                    ? 'This listing already has an accepted offer.'
+                    : 'This listing is no longer available for new offers.'}
+                </p>
+                <p className="text-sm leading-7 text-app-soft">
+                  You can still review the details and seller profile, but new offers are currently disabled.
+                </p>
+              </Card>
+            ) : null}
+
             {!isOwner && isSignedIn ? (
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Button
-                  variant={favorite ? 'secondary' : 'ghost'}
-                  onClick={toggleFavorite}
-                  loading={isFavoritePending}
-                >
-                  {favorite ? 'Favorited' : 'Favorite'}
-                </Button>
-                <Button onClick={handleStartConversation} loading={isStartingConversation}>
-                  {isStartingConversation ? 'Opening chat...' : 'Message seller'}
-                </Button>
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    onClick={() => setIsOfferComposerOpen((isOpen) => !isOpen)}
+                    disabled={itemView.status !== 'active'}
+                  >
+                    {isOfferComposerOpen ? 'Hide offer form' : 'Make offer'}
+                  </Button>
+                  <Button variant="secondary" onClick={handleStartConversation} loading={isStartingConversation}>
+                    {isStartingConversation ? 'Opening chat...' : 'Message seller'}
+                  </Button>
+                  <Button
+                    variant={favorite ? 'secondary' : 'ghost'}
+                    onClick={toggleFavorite}
+                    loading={isFavoritePending}
+                  >
+                    {favorite ? 'Favorited' : 'Favorite'}
+                  </Button>
+                </div>
+
+                {isOfferComposerOpen ? (
+                  <Card variant="subtle" className="space-y-5">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                        Structured offer
+                      </p>
+                      <h2 className="text-2xl font-semibold text-white">Send a campus pickup offer</h2>
+                      <p className="text-sm leading-7 text-app-soft">
+                        Include your price, payment method, and meetup details so the seller can compare offers quickly.
+                      </p>
+                    </div>
+
+                    <form className="space-y-4" onSubmit={handleOfferSubmit}>
+                      <Input
+                        id="offer-price"
+                        label="Your offer"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={offerValues.offeredPrice}
+                        onChange={handleOfferFieldChange('offeredPrice')}
+                        error={offerFieldErrors.offeredPrice}
+                        placeholder="18"
+                        required
+                      />
+                      <Input
+                        id="offer-meetup-location"
+                        label="Meetup location"
+                        value={offerValues.meetupLocation}
+                        onChange={handleOfferFieldChange('meetupLocation')}
+                        error={offerFieldErrors.meetupLocation}
+                        placeholder="Plaza of the Americas"
+                        required
+                      />
+                      <Input
+                        id="offer-meetup-window"
+                        label="Meetup window"
+                        value={offerValues.meetupWindow}
+                        onChange={handleOfferFieldChange('meetupWindow')}
+                        error={offerFieldErrors.meetupWindow}
+                        placeholder="Tue 1:00 PM - 2:00 PM"
+                        required
+                      />
+                      <Select
+                        id="offer-payment-method"
+                        label="Payment method"
+                        value={offerValues.paymentMethod}
+                        onChange={handleOfferFieldChange('paymentMethod')}
+                        error={offerFieldErrors.paymentMethod}
+                        required
+                      >
+                        {PAYMENT_METHOD_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Select>
+                      <Textarea
+                        id="offer-message"
+                        label="Optional note"
+                        value={offerValues.message}
+                        onChange={handleOfferFieldChange('message')}
+                        placeholder="Can meet right after my lecture if that helps."
+                        rows={4}
+                      />
+
+                      <Button type="submit" loading={isSubmittingOffer}>
+                        Send offer
+                      </Button>
+                    </form>
+                  </Card>
+                ) : null}
               </div>
             ) : null}
 
             {!isSignedIn && !isOwner ? (
-              <Button onClick={handleStartConversation}>Log in to message seller</Button>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button onClick={() => navigate('/login')}>Log in to make offer</Button>
+                <Button variant="secondary" onClick={handleStartConversation}>
+                  Message seller
+                </Button>
+              </div>
+            ) : null}
+
+            {submittedOffer ? (
+              <Card variant="subtle" className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                    Offer pending
+                  </p>
+                  <h2 className="text-xl font-semibold text-white">Your offer is waiting for the seller</h2>
+                  <p className="text-sm leading-7 text-app-soft">
+                    You can check its status in your offers inbox or continue the conversation with this seller.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Link to="/offers" className="no-underline">
+                    <Button variant="secondary">Open offers inbox</Button>
+                  </Link>
+                  {submittedOffer.conversationId ? (
+                    <Link to={`/messages/${submittedOffer.conversationId}`} className="no-underline">
+                      <Button>Open conversation</Button>
+                    </Link>
+                  ) : null}
+                </div>
+              </Card>
             ) : null}
 
             {isOwner ? (
@@ -323,10 +611,53 @@ export function ItemPage() {
             >
               <Avatar name={itemView.seller.name} src={itemView.seller.avatarUrl} size="lg" />
               <div className="space-y-1">
-                <p className="text-lg font-semibold text-white">{itemView.seller.name}</p>
-                <p className="text-sm text-app-soft">View seller profile and active listings</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-lg font-semibold text-white">{itemView.seller.name}</p>
+                  <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
+                </div>
+                <p className="text-sm text-app-soft">View seller profile, listings, and trust details</p>
               </div>
             </Link>
+          </Card>
+
+          <Card className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+                Trust snapshot
+              </p>
+              <p className="text-sm leading-7 text-app-soft">
+                These quick signals help buyers judge reliability before they commit to a meetup.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card variant="subtle" className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Reliability</p>
+                <p className="text-lg font-semibold text-white">{trustMetrics.reliabilityLabel}</p>
+              </Card>
+              <Card variant="subtle" className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Accuracy</p>
+                <p className="text-lg font-semibold text-white">{trustMetrics.accuracyLabel}</p>
+              </Card>
+              <Card variant="subtle" className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Responsiveness</p>
+                <p className="text-lg font-semibold text-white">{trustMetrics.responsivenessLabel}</p>
+              </Card>
+              <Card variant="subtle" className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Safety</p>
+                <p className="text-lg font-semibold text-white">{trustMetrics.safetyLabel}</p>
+              </Card>
+            </div>
+
+            {trustMetrics.totalRatings > 0 ? (
+              <p className="text-xs uppercase tracking-[0.16em] text-app-muted">
+                Based on {trustMetrics.totalRatings} completed rating{trustMetrics.totalRatings === 1 ? '' : 's'}
+              </p>
+            ) : (
+              <p className="text-xs uppercase tracking-[0.16em] text-app-muted">
+                Detailed trust metrics will grow as more exchanges are completed
+              </p>
+            )}
           </Card>
         </div>
       </div>

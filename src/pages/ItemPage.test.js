@@ -1,28 +1,33 @@
-import {fireEvent, render, screen, waitFor} from "@testing-library/react";
-import {ItemPage} from "./ItemPage";
-import {resetClerkState, setClerkState} from "../testUtils/mockClerk";
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { ItemPage } from './ItemPage';
+import { resetClerkState, setClerkState } from '../testUtils/mockClerk';
 
 const mockNavigate = jest.fn();
 const mockCreateConversation = jest.fn();
+const mockCreateOffer = jest.fn();
 const mockShowToast = jest.fn();
 const mockConfirm = jest.fn(() => Promise.resolve(true));
 
-jest.mock("@clerk/react", () => {
-  const React = require("react");
-  const {getClerkState} = require("../testUtils/mockClerk");
+jest.mock('@clerk/react', () => {
+  const React = require('react');
+  const { getClerkState } = require('../testUtils/mockClerk');
 
   return {
-    SignInButton: ({children}) => React.createElement(React.Fragment, null, children),
+    SignInButton: ({ children }) => React.createElement(React.Fragment, null, children),
     useUser: () => getClerkState(),
   };
 });
 
-jest.mock("../lib/messagesApi", () => ({
+jest.mock('../lib/messagesApi', () => ({
   createConversation: (...args) => mockCreateConversation(...args),
 }));
 
-jest.mock("../components/ui", () => {
-  const actual = jest.requireActual("../components/ui");
+jest.mock('../lib/offersApi', () => ({
+  createOffer: (...args) => mockCreateOffer(...args),
+}));
+
+jest.mock('../components/ui', () => {
+  const actual = jest.requireActual('../components/ui');
 
   return {
     ...actual,
@@ -36,16 +41,16 @@ jest.mock("../components/ui", () => {
 });
 
 jest.mock(
-  "react-router-dom",
+  'react-router-dom',
   () => {
-  const React = require("react");
-  return {
-    Link: ({children, to, ...props}) => React.createElement("a", {href: to, ...props}, children),
-    useParams: () => ({id: "item-1"}),
-    useNavigate: () => mockNavigate,
-  };
-},
-  {virtual: true}
+    const React = require('react');
+    return {
+      Link: ({ children, to, ...props }) => React.createElement('a', { href: to, ...props }, children),
+      useParams: () => ({ id: 'item-1' }),
+      useNavigate: () => mockNavigate,
+    };
+  },
+  { virtual: true }
 );
 
 function jsonResponse(body, status = 200) {
@@ -56,52 +61,67 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+function buildItemPayload(overrides = {}) {
+  return {
+    _id: 'item-1',
+    itemName: 'Desk Lamp',
+    itemCost: '20',
+    itemCondition: 'Good',
+    itemLocation: 'Library West',
+    itemPicture: 'lamp.png',
+    itemDescription: 'Lamp for studying',
+    itemDetails: 'Warm bulb included',
+    userPublishingID: 'seller-1',
+    userPublishingName: 'Seller One',
+    status: 'active',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   resetClerkState();
   global.fetch = jest.fn((url, options = {}) => {
-    if (url === "http://localhost:5000/items/item-1") {
-      return jsonResponse({
-        _id: "item-1",
-        itemName: "Desk Lamp",
-        itemCost: "20",
-        itemCondition: "Good",
-        itemLocation: "Library West",
-        itemPicture: "lamp.png",
-        itemDescription: "Lamp for studying",
-        itemDetails: "Warm bulb included",
-        userPublishingID: "seller-1",
-        userPublishingName: "Seller One",
-      });
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse(buildItemPayload());
     }
 
-    if (url === "http://localhost:5000/profile/buyer-1") {
+    if (url === 'http://localhost:5000/profile/buyer-1') {
       return jsonResponse({
         profile: {
-          profileFavorites: ["item-1"],
+          profileFavorites: ['item-1'],
         },
       });
     }
 
-    if (url === "http://localhost:5000/profile/seller-1") {
+    if (url === 'http://localhost:5000/profile/seller-1') {
       return jsonResponse({
         profile: {
           profileFavorites: [],
+          profileRating: 4.3,
+          profileTotalRating: 9,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
         },
       });
     }
 
-    if (url === "http://localhost:5000/item/item-1" && options.method === "DELETE") {
-      return jsonResponse({message: "Listing deleted"});
+    if (url === 'http://localhost:5000/item/item-1' && options.method === 'DELETE') {
+      return jsonResponse({ message: 'Listing deleted' });
     }
 
-    if (url === "http://localhost:5000/user/buyer-1/fav/item-1") {
-      return jsonResponse({profileFavorites: []});
+    if (url === 'http://localhost:5000/user/buyer-1/fav/item-1') {
+      return jsonResponse({ profileFavorites: [] });
     }
 
     throw new Error(`Unhandled fetch request: ${url}`);
   });
   mockNavigate.mockReset();
   mockCreateConversation.mockReset();
+  mockCreateOffer.mockReset();
   mockShowToast.mockReset();
   mockConfirm.mockReset();
   mockConfirm.mockResolvedValue(true);
@@ -111,114 +131,138 @@ afterEach(() => {
   delete global.fetch;
 });
 
-test("signed-out users can view the item and see a login CTA", async () => {
+test('signed-out users can view the item and see an offer-first login CTA', async () => {
   render(<ItemPage />);
 
-  expect(await screen.findByRole("heading", {name: "Desk Lamp"})).toBeInTheDocument();
-  expect(screen.getByRole("button", {name: /log in to message seller/i})).toBeInTheDocument();
-  expect(screen.queryByRole("button", {name: /favorite/i})).not.toBeInTheDocument();
-  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(await screen.findByRole('heading', { name: 'Desk Lamp' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /log in to make offer/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /favorite/i })).not.toBeInTheDocument();
+  expect(await screen.findByText('4.3/5')).toBeInTheDocument();
 });
 
-test("signed-in non-owners still see the item when favorite lookup fails", async () => {
+test('signed-in non-owners can open and submit the structured offer form', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
-      id: "buyer-1",
+      id: 'buyer-1',
+      fullName: 'Buyer One',
     },
   });
-  global.fetch.mockImplementation((url, options = {}) => {
-    if (url === "http://localhost:5000/items/item-1") {
-      return jsonResponse({
-        _id: "item-1",
-        itemName: "Desk Lamp",
-        itemCost: "20",
-        itemCondition: "Good",
-        itemLocation: "Library West",
-        itemPicture: "lamp.png",
-        itemDescription: "Lamp for studying",
-        itemDetails: "Warm bulb included",
-        userPublishingID: "seller-1",
-        userPublishingName: "Seller One",
-      });
-    }
-
-    if (url === "http://localhost:5000/profile/buyer-1") {
-      return jsonResponse({message: "No profile"}, 404);
-    }
-
-    throw new Error(`Unhandled fetch request: ${url}`);
+  mockCreateOffer.mockResolvedValue({
+    _id: 'offer-1',
+    conversationId: 'conversation-1',
   });
 
   render(<ItemPage />);
 
-  expect(await screen.findByRole("heading", {name: "Desk Lamp"})).toBeInTheDocument();
-  expect(screen.getByRole("button", {name: /favorite/i})).toBeInTheDocument();
-  expect(screen.getByRole("button", {name: /message seller/i})).toBeInTheDocument();
-});
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
 
-test("signed-in owners see the delete control", async () => {
-  setClerkState({
-    isSignedIn: true,
-    user: {
-      id: "seller-1",
-    },
+  fireEvent.change(screen.getByLabelText(/your offer/i), {
+    target: { value: '18' },
+  });
+  fireEvent.change(screen.getByLabelText(/meetup window/i), {
+    target: { value: 'Tue 1:00 PM - 2:00 PM' },
+  });
+  fireEvent.change(screen.getByLabelText(/optional note/i), {
+    target: { value: 'Can meet after class.' },
   });
 
-  render(<ItemPage />);
-
-  expect(await screen.findByRole("button", {name: /delete listing/i})).toBeInTheDocument();
-  expect(screen.queryByRole("button", {name: /favorite/i})).not.toBeInTheDocument();
-});
-
-test("successful delete only navigates after a successful response", async () => {
-  setClerkState({
-    isSignedIn: true,
-    user: {
-      id: "seller-1",
-    },
-  });
-
-  render(<ItemPage />);
-
-  fireEvent.click(await screen.findByRole("button", {name: /delete listing/i}));
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
 
   await waitFor(() => {
-    expect(mockNavigate).toHaveBeenCalledWith("/listings");
+    expect(mockCreateOffer).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({
+        buyerClerkUserId: 'buyer-1',
+        buyerDisplayName: 'Buyer One',
+        offeredPrice: 18,
+        meetupLocation: 'Library West',
+        meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+        paymentMethod: 'cash',
+        message: 'Can meet after class.',
+      })
+    );
   });
-  expect(mockConfirm).toHaveBeenCalled();
+
+  expect(await screen.findByText(/your offer is waiting for the seller/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /open offers inbox/i })).toHaveAttribute('href', '/offers');
+  expect(screen.getByRole('link', { name: /open conversation/i })).toHaveAttribute(
+    'href',
+    '/messages/conversation-1'
+  );
   expect(mockShowToast).toHaveBeenCalledWith(
     expect.objectContaining({
-      title: "Listing deleted",
-      variant: "success",
+      title: 'Offer sent',
+      variant: 'success',
     })
   );
 });
 
-test("failed delete stays on the page and shows an error", async () => {
+test('offer submission validates the structured fields before sending', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
-      id: "seller-1",
+      id: 'buyer-1',
     },
   });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+  fireEvent.change(screen.getByLabelText(/payment method/i), {
+    target: { value: '' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
+
+  expect(await screen.findByText(/please complete the offer details before sending it/i)).toBeInTheDocument();
+  expect(mockCreateOffer).not.toHaveBeenCalled();
+});
+
+test('signed-in owners still see the delete control', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  render(<ItemPage />);
+
+  expect(await screen.findByRole('button', { name: /delete listing/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /make offer/i })).not.toBeInTheDocument();
+});
+
+test('successful delete only navigates after a successful response', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /delete listing/i }));
+
+  await waitFor(() => {
+    expect(mockNavigate).toHaveBeenCalledWith('/listings');
+  });
+  expect(mockConfirm).toHaveBeenCalled();
+  expect(mockShowToast).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: 'Listing deleted',
+      variant: 'success',
+    })
+  );
+});
+
+test('reserved listings disable the offer action and explain why', async () => {
   global.fetch.mockImplementation((url, options = {}) => {
-    if (url === "http://localhost:5000/items/item-1") {
-      return jsonResponse({
-        _id: "item-1",
-        itemName: "Desk Lamp",
-        itemCost: "20",
-        itemCondition: "Good",
-        itemLocation: "Library West",
-        itemPicture: "lamp.png",
-        itemDescription: "Lamp for studying",
-        itemDetails: "Warm bulb included",
-        userPublishingID: "seller-1",
-        userPublishingName: "Seller One",
-      });
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse(buildItemPayload({ status: 'reserved' }));
     }
 
-    if (url === "http://localhost:5000/profile/seller-1") {
+    if (url === 'http://localhost:5000/profile/buyer-1') {
       return jsonResponse({
         profile: {
           profileFavorites: [],
@@ -226,18 +270,32 @@ test("failed delete stays on the page and shows an error", async () => {
       });
     }
 
-    if (url === "http://localhost:5000/item/item-1" && options.method === "DELETE") {
-      return jsonResponse({message: "Failed"}, 500);
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileRating: 4.3,
+          profileTotalRating: 9,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
+        },
+      });
     }
 
     throw new Error(`Unhandled fetch request: ${url}`);
   });
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+    },
+  });
 
   render(<ItemPage />);
 
-  fireEvent.click(await screen.findByRole("button", {name: /delete listing/i}));
-
-  expect(await screen.findByText("Error during delete")).toBeInTheDocument();
-  expect(mockNavigate).not.toHaveBeenCalled();
-  expect(mockShowToast).not.toHaveBeenCalled();
+  expect(await screen.findByText(/this listing already has an accepted offer/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /make offer/i })).toBeDisabled();
 });
