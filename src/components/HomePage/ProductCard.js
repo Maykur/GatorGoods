@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Card } from '../ui';
-import ConditionIndicator from './ConditionIndicator';
+import { Badge, Card } from '../ui';
 
 function ProductCard({ item }) {
   return (
@@ -33,7 +32,7 @@ function ProductCard({ item }) {
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <ConditionIndicator data={item.condition} />
+            <Badge condition={item.condition}>{item.condition || 'Unknown'}</Badge>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-app-soft">
               {item.category}
             </span>

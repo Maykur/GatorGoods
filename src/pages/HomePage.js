@@ -1,4 +1,4 @@
-import { Show, useUser } from '@clerk/react';
+import { useUser } from '@clerk/react';
 import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/HomePage/ProductCard.js';
@@ -47,7 +47,7 @@ function ListingGridSkeleton() {
 }
 
 export function HomePage({ forceSignedOutView = false }) {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const shouldRenderLanding = forceSignedOutView || !isSignedIn;
   const initialRequestParams = {
     page: 1,
@@ -144,19 +144,20 @@ export function HomePage({ forceSignedOutView = false }) {
             description="Browse the latest listings, make structured offers, and keep transactions centered around the UF community."
             actions={
               <div className="flex flex-wrap gap-3">
-                <Show when="signed-out">
-                  <Link to="/signup" className="no-underline">
-                    <Button>Create account</Button>
-                  </Link>
-                  <Link to="/login" className="no-underline">
-                    <Button variant="secondary">Log in</Button>
-                  </Link>
-                </Show>
-                <Show when="signed-in">
+                {isLoaded && isSignedIn ? (
                   <Link to="/create" className="no-underline">
                     <Button>Post a listing</Button>
                   </Link>
-                </Show>
+                ) : (
+                  <>
+                    <Link to="/signup" className="no-underline">
+                      <Button>Create account</Button>
+                    </Link>
+                    <Link to="/login" className="no-underline">
+                      <Button variant="secondary">Log in</Button>
+                    </Link>
+                  </>
+                )}
               </div>
             }
           />

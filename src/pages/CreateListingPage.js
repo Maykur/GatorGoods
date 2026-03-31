@@ -193,7 +193,7 @@ export function CreateListingPage() {
       <PageHeader
         eyebrow="Item for sale"
         title="Create a new listing"
-        description="Add the basics, upload a clear photo, and publish your item into the campus marketplace without changing the current backend contract."
+        description="Add the basics, upload a clear photo, and publish your item to the campus marketplace in just a few minutes."
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
@@ -281,7 +281,7 @@ export function CreateListingPage() {
                 <div className="space-y-1">
                   <p className="text-base font-semibold text-white">Click to add a photo</p>
                   <p className="text-sm text-app-soft">
-                    Use a sharp product image under 5 MB. Base64 upload stays unchanged for this phase.
+                    Use a sharp product image under 5 MB so it loads quickly for buyers.
                   </p>
                 </div>
                 <input

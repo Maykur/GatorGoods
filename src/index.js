@@ -41,7 +41,11 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     {hasClerkPublishableKey ? (
-      <ClerkProvider afterSignOutUrl="/" appearance={clerkAppearance}>
+      <ClerkProvider
+        publishableKey={clerkPublishableKey}
+        afterSignOutUrl="/"
+        appearance={clerkAppearance}
+      >
         <App />
       </ClerkProvider>
     ) : (

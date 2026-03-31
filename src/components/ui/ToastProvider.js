@@ -77,7 +77,7 @@ export function ToastProvider({children}) {
               <button
                 type="button"
                 onClick={() => dismissToast(toast.id)}
-                className="focus-ring rounded-full p-1 text-current/75 transition hover:text-current"
+                className="focus-ring rounded-full p-1 text-current opacity-75 transition hover:opacity-100"
                 aria-label="Dismiss notification"
               >
                 <span aria-hidden="true">&times;</span>

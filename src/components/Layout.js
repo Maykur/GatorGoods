@@ -162,7 +162,7 @@ export function Layout() {
           </div>
         ) : null}
       </header>
-      <main className="mx-auto flex w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <Outlet />
       </main>
       <footer className="border-t border-white/10 bg-slate-950/70 backdrop-blur-sm">

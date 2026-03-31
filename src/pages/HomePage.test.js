@@ -123,6 +123,19 @@ test("signed-out users see the landing hero and auth CTA", async () => {
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
+test("landing hero keeps auth CTAs visible while Clerk is still loading", () => {
+  setClerkState({
+    isLoaded: false,
+    isSignedIn: false,
+  });
+
+  render(<HomePage />);
+
+  expect(screen.getByRole("button", {name: /create account/i})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /log in/i})).toBeInTheDocument();
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
 test("signed-in users see the listings feed, category chips, and cards", async () => {
   setClerkState({
     isSignedIn: true,

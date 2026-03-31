@@ -19,13 +19,13 @@ export function SignUp() {
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Built for campus trust</p>
               <p className="mt-3 text-base leading-7 text-app-soft">
-                The shell now treats auth as part of the same product experience instead of a disconnected modal. This wrapper keeps sign-up aligned with the rest of the app.
+                Create a student marketplace profile that makes it easier to share listings, coordinate pickup, and build buyer confidence.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">What you unlock</p>
               <p className="mt-3 text-base leading-7 text-app-soft">
-                Create listings faster, keep negotiation threads organized, and manage favorites and seller identity from one dashboard.
+                Post items, track conversations, save favorites, and manage your campus selling activity from one account.
               </p>
             </div>
           </div>

@@ -59,7 +59,7 @@ export function NotFoundPage() {
             Lost but recoverable
           </p>
           <p className="text-sm leading-7 text-app-soft">
-            This usually means the URL is outdated, mistyped, or points to a route that has not been implemented yet in the current product shell.
+            This usually means the URL is outdated, mistyped, or points to a page that is no longer available.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Card variant="subtle">

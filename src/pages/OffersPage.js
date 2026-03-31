@@ -7,31 +7,31 @@ export function OffersPage() {
       <PageHeader
         eyebrow="Offers"
         title="Offers inbox is coming soon"
-        description="We’re keeping this route live in the new shell, but real offer workflow data is not ready yet. For now, messaging and listings remain the active buying flow."
+        description="We’re building a more structured way to send and review offers. For now, direct messages are still the best place to negotiate price and pickup details."
       />
       <Card variant="subtle" className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">Why it exists</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">What to do today</p>
           <p className="text-sm leading-7 text-app-soft">
-            This route stays visible so the shell matches the intended product map, even before offer data is wired up.
+            Reach out from a listing page when you want to ask a question, discuss price, or lock in a campus meetup.
           </p>
         </div>
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">Current flow</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">Why messaging works</p>
           <p className="text-sm leading-7 text-app-soft">
-            Buyers and sellers should use listing pages plus direct messages for negotiation until structured offers are backed by real backend state.
+            You can keep the full conversation attached to the listing, which makes it easier to compare details and follow up later.
           </p>
         </div>
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">Next milestone</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">What’s next</p>
           <p className="text-sm leading-7 text-app-soft">
-            Once the offer model is ready, this screen becomes the inbox for offer review, response, and status tracking.
+            This space will eventually help buyers and sellers review offers, respond faster, and keep negotiations organized.
           </p>
         </div>
       </Card>
       <EmptyState
-        title="This surface is reserved for structured offers"
-        description="When the backend offer model is ready, this page will become the place to review negotiations, respond to buyers, and track offer status without leaving the app."
+        title="Structured offers are on the way"
+        description="Until then, use listing pages and direct messages to ask questions, negotiate price, and coordinate pickup with confidence."
         action={
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link to="/listings" className="no-underline">

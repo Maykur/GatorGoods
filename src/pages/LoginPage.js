@@ -17,15 +17,15 @@ export function LoginPage() {
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
-              <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Why this route matters</p>
+              <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Campus marketplace</p>
               <p className="mt-3 text-base leading-7 text-app-soft">
-                We now treat the landing page as a product intro and `/listings` as the real signed-in marketplace. After sign in, you land where the action is.
+                Jump back into active listings, current prices, and nearby pickup opportunities without digging through scattered chats.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
-              <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Inside the shell</p>
+              <p className="text-sm uppercase tracking-[0.2em] text-gatorOrange">Everything in one place</p>
               <p className="mt-3 text-base leading-7 text-app-soft">
-                Messages, profile management, and listing creation now share the same visual system, so auth no longer feels like a disconnected detour.
+                Your messages, saved interests, and listing tools stay connected so you can pick up where you left off right away.
               </p>
             </div>
           </div>
