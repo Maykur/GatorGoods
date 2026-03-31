@@ -2,73 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom css animations to animate the movement of the cards */
-@layer utilities {
-  .animate-slide-out-left > *{
-    animation: slide-out-left 0.8s ease-out;
+@layer base {
+  :root {
+    color-scheme: dark;
+    --color-brand-blue: 0 51 160;
+    --color-brand-blue-deep: 0 34 106;
+    --color-brand-orange: 250 70 22;
+    --color-bg: 2 6 23;
+    --color-surface: 15 23 42;
+    --color-panel: 17 24 39;
+    --color-elevated: 30 41 59;
+    --color-border: 51 65 85;
+    --color-text: 248 250 252;
+    --color-text-muted: 148 163 184;
+    --color-text-soft: 203 213 225;
+    --color-success: 34 197 94;
+    --color-warning: 251 191 36;
+    --color-danger: 248 113 113;
+    --color-ring: 250 70 22;
+    --gradient-hero:
+      radial-gradient(circle at top left, rgba(250, 70, 22, 0.18), transparent 32%),
+      radial-gradient(circle at top right, rgba(0, 51, 160, 0.28), transparent 35%),
+      linear-gradient(180deg, rgba(2, 6, 23, 1), rgba(8, 15, 32, 1) 45%, rgba(2, 6, 23, 1));
   }
 
-  .animate-slide-out-right > *{
-    animation: slide-out-right 0.8s ease-out;
+  html {
+    scroll-behavior: smooth;
   }
 
-  .animate-slide-in-from-right > * {
-    animation: slide-in-from-right 0.8s ease-out;
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Manrope, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%),
+      var(--gradient-hero);
+    color: rgb(var(--color-text));
   }
 
-  .animate-slide-in-from-left > * {
-    animation: slide-in-from-left 0.8s ease-out;
+  #root {
+    min-height: 100vh;
+  }
+
+  * {
+    border-color: rgb(var(--color-border) / 0.65);
+  }
+
+  ::selection {
+    background: rgb(var(--color-brand-orange) / 0.28);
+    color: rgb(var(--color-text));
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    letter-spacing: -0.03em;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-@keyframes slide-out-left {
-  0% {
-    translate: 0%
+@layer components {
+  .surface-card {
+    @apply rounded-[1.5rem] border border-app-border/70 bg-app-panel/80 shadow-card backdrop-blur-sm;
   }
-  100% {
-    translate: -600%
-  }
-}
 
-@keyframes slide-out-right {
-  0% {
-    translate: 0%
+  .surface-card-interactive {
+    @apply surface-card transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-app-surface/90;
   }
-  100% {
-    translate: 600%
-  }
-}
 
-@keyframes slide-in-from-right {
-  0% {
-    translate: 600%
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg;
   }
-  100% {
-    translate: 0%
-  }
-}
-
-@keyframes slide-in-from-left {
-  0% {
-    translate: -600%
-  }
-  100% {
-    translate: 0%
-  }
-}
-
-/* Add overflow hidden to containers with sliding cards */
-.overflow-hidden {
-  overflow: hidden;
-}
-
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
-    'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #020617;
-  color: #f9fafb;
 }
