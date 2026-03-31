@@ -36,14 +36,7 @@ function App() {
                 <Route path="/home" element={<Navigate to="/listings" replace />} />
                 <Route path="/login/*" element={<LoginPage />} />
                 <Route path="/signup/*" element={<SignUp />} />
-                <Route
-                  path="/listings"
-                  element={
-                    <ProtectedRoute>
-                      <HomePage />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/listings" element={<HomePage />} />
                 <Route
                   path="/create"
                   element={

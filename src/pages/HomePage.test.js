@@ -113,7 +113,7 @@ afterEach(() => {
 });
 
 test("signed-out users see the landing hero and auth CTA", async () => {
-  render(<HomePage />);
+  render(<HomePage forceSignedOutView />);
 
   expect(
     screen.getByText(/buy, sell, and trade around campus without the usual chaos/i)
@@ -129,20 +129,14 @@ test("landing hero keeps auth CTAs visible while Clerk is still loading", () => 
     isSignedIn: false,
   });
 
-  render(<HomePage />);
+  render(<HomePage forceSignedOutView />);
 
   expect(screen.getByRole("button", {name: /create account/i})).toBeInTheDocument();
   expect(screen.getByRole("button", {name: /log in/i})).toBeInTheDocument();
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
-test("signed-in users see the listings feed, category chips, and cards", async () => {
-  setClerkState({
-    isSignedIn: true,
-    user: {
-      id: "buyer-1",
-    },
-  });
+test("signed-out users can browse the listings feed, category chips, and cards", async () => {
   mockItems = [
     {
       _id: "item-1",
@@ -167,6 +161,27 @@ test("signed-in users see the listings feed, category chips, and cards", async (
   expect(global.fetch).toHaveBeenCalledWith(
     expect.stringContaining("/items?page=1&limit=9&sort=newest")
   );
+});
+
+test("signed-in users still see the create listing action in the feed header", async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "buyer-1",
+    },
+  });
+  mockItems = [
+    {
+      _id: "item-1",
+      itemName: "Desk Lamp",
+      itemCat: "Electronics & Computers",
+    },
+  ];
+
+  render(<HomePage />);
+
+  expect(await screen.findByText(/browse campus listings/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /create listing/i})).toBeInTheDocument();
 });
 
 test('signed-in users can filter listings with missing categories under "Miscellaneous"', async () => {

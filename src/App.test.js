@@ -176,6 +176,15 @@ test("signed-out users can open profile pages without redirect", () => {
   expect(screen.getByText("Profile Page")).toBeInTheDocument();
 });
 
+test("signed-out users can open the public listings feed without redirect", () => {
+  window.history.pushState({}, "", "/listings");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/listings");
+  expect(screen.getByText("Home Page")).toBeInTheDocument();
+});
+
 test("signed-out users are redirected away from create", () => {
   window.history.pushState({}, "", "/create");
 

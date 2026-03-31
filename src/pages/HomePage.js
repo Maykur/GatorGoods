@@ -48,7 +48,8 @@ function ListingGridSkeleton() {
 
 export function HomePage({ forceSignedOutView = false }) {
   const { isLoaded, isSignedIn } = useUser();
-  const shouldRenderLanding = forceSignedOutView || !isSignedIn;
+  const shouldRenderLanding = forceSignedOutView;
+  const canCreateListings = isLoaded && isSignedIn;
   const initialRequestParams = {
     page: 1,
     limit: PAGE_SIZE,
@@ -206,11 +207,22 @@ export function HomePage({ forceSignedOutView = false }) {
       <PageHeader
         eyebrow="Marketplace"
         title="Browse campus listings"
-        description="Search current student listings, narrow the grid by category, and jump into a seller conversation once something looks right."
+            description="Search current student listings, narrow the grid by category, and jump into a seller conversation once something looks right."
         actions={
-          <Link to="/create" className="no-underline">
-            <Button size="sm">Create listing</Button>
-          </Link>
+          canCreateListings ? (
+            <Link to="/create" className="no-underline">
+              <Button size="sm">Create listing</Button>
+            </Link>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              <Link to="/signup" className="no-underline">
+                <Button size="sm">Create account</Button>
+              </Link>
+              <Link to="/login" className="no-underline">
+                <Button size="sm" variant="secondary">Log in</Button>
+              </Link>
+            </div>
+          )
         }
       />
 
@@ -319,9 +331,15 @@ export function HomePage({ forceSignedOutView = false }) {
               >
                 Reset filters
               </Button>
-              <Link to="/create" className="no-underline">
-                <Button>Create a listing</Button>
-              </Link>
+              {canCreateListings ? (
+                <Link to="/create" className="no-underline">
+                  <Button>Create a listing</Button>
+                </Link>
+              ) : (
+                <Link to="/signup" className="no-underline">
+                  <Button>Create account to sell</Button>
+                </Link>
+              )}
             </div>
           }
         />
