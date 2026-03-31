@@ -63,6 +63,10 @@ const ItemSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  seedTag: {
+    type: String,
+    default: null,
+  },
 });
 
 const profileSchema = new mongoose.Schema({
@@ -133,6 +137,10 @@ const profileSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  seedTag: {
+    type: String,
+    default: null,
+  },
 });
 
 const conversationSchema = new mongoose.Schema(
@@ -168,6 +176,10 @@ const conversationSchema = new mongoose.Schema(
       of: Date,
       default: {},
     },
+    seedTag: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -196,6 +208,10 @@ const messageSchema = new mongoose.Schema(
     attachedListingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'items',
+      default: null,
+    },
+    seedTag: {
+      type: String,
       default: null,
     },
   },
@@ -264,6 +280,10 @@ const offerSchema = new mongoose.Schema(
       enum: ['pending', 'accepted', 'declined', 'cancelled', 'countered', 'convertedToTransaction'],
       default: 'pending',
       index: true,
+    },
+    seedTag: {
+      type: String,
+      default: null,
     },
   },
   {

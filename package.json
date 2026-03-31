@@ -29,6 +29,7 @@
     "test": "react-scripts test",
     "clientStart": "react-scripts start",
     "backendStart": "npm --prefix backend run dev",
+    "seed:demo": "npm --prefix backend run seed:demo",
     "frontStart": "npm run clientStart",
     "backStart": "npm run backendStart",
     "serverStart": "npm start",

@@ -20,7 +20,8 @@ Measure whether GatorGoods improves trust formation and transaction coordination
 - Offer-first negotiation
 - Seller trust metrics visible early
 - Item-context messaging
-- Optional simulated escrow and dual PIN release
+- Public browsing with trust visible before sign-in
+- Trust-heavy profiles with linked social connectors
 
 ## Core Tasks
 
@@ -28,7 +29,7 @@ Measure whether GatorGoods improves trust formation and transaction coordination
 2. Decide whether the seller appears trustworthy
 3. Send or respond to a structured offer
 4. Coordinate the exchange inside the app
-5. Complete the transaction flow and leave structured feedback
+5. Explain whether the trust context changed your willingness to transact
 
 ## Primary Metrics
 
@@ -42,7 +43,7 @@ Measure whether GatorGoods improves trust formation and transaction coordination
 
 - Whether participants understood the trust metrics
 - Whether item-context messaging reduced confusion
-- Whether escrow/PIN steps felt helpful or too heavy
+- Whether the offer inbox made buyer comparison faster and clearer
 
 ## Participants
 
@@ -71,3 +72,7 @@ Minimum roles needed before running the final study:
 - If the baseline and enhanced conditions diverge too much, the comparison becomes muddy
 - If demo data is stale, study participants may waste time on setup rather than evaluating the product
 - If trust metrics are not understandable at a glance, the proposed HCI contribution weakens
+
+## Scope Note For Final Submission
+
+The live implementation for final evaluation centers on public browsing, offer-first negotiation, people-first messaging, and visible trust context. Transaction detail screens, escrow/PIN release, and post-meetup structured review flows can still appear in presentation storyboards, but they should not be treated as required live demo steps unless they are implemented and locally stable.
