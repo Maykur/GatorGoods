@@ -67,6 +67,37 @@ test('GET /items returns seeded items', async () => {
   assert.equal(response.body[0]._id, item.id);
 });
 
+test('GET /items supports paginated query mode', async () => {
+  await seedProfileAndItem();
+  await seedProfileAndItem({
+    profile: {
+      profileID: 'user_2',
+      profileName: 'Seller Two',
+    },
+    item: {
+      itemName: 'Bike Helmet',
+      itemCost: '15',
+      itemCat: 'Miscellaneous',
+    },
+  });
+
+  const response = await request(app)
+    .get('/items')
+    .query({
+      page: 1,
+      limit: 1,
+      search: 'Bike',
+      sort: 'title',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.items.length, 1);
+  assert.equal(response.body.items[0].itemName, 'Bike Helmet');
+  assert.equal(response.body.meta.totalItems, 1);
+  assert.equal(response.body.meta.page, 1);
+  assert.equal(response.body.meta.totalPages, 1);
+});
+
 test('GET /items/:id returns an item', async () => {
   const {item} = await seedProfileAndItem();
 

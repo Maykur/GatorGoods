@@ -87,6 +87,7 @@ export function toListingDetailViewModel(raw, viewerId = null) {
     condition: cardView.condition,
     location: cardView.location,
     imageUrl: cardView.imageUrl,
+    category: cardView.category,
     description: normalizeText(raw?.itemDescription, 'No description provided yet.'),
     details: normalizeText(raw?.itemDetails, 'No additional details provided.'),
     seller: {

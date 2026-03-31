@@ -3,6 +3,7 @@ import {CreateListingPage} from "./CreateListingPage";
 import {resetClerkState, setClerkState} from "../testUtils/mockClerk";
 
 const mockNavigate = jest.fn();
+const mockShowToast = jest.fn();
 
 jest.mock("@clerk/react", () => {
   const {getClerkState} = require("../testUtils/mockClerk");
@@ -19,6 +20,17 @@ jest.mock(
   }),
   {virtual: true}
 );
+
+jest.mock("../components/ui", () => {
+  const actual = jest.requireActual("../components/ui");
+
+  return {
+    ...actual,
+    useToast: () => ({
+      showToast: mockShowToast,
+    }),
+  };
+});
 
 function jsonResponse(body, status = 200) {
   return Promise.resolve({
@@ -40,7 +52,7 @@ beforeEach(() => {
 
   global.fetch = jest.fn(() => jsonResponse({_id: "item-1"}, 201));
   mockNavigate.mockReset();
-  window.alert = jest.fn();
+  mockShowToast.mockReset();
 
   global.FileReader = class MockFileReader {
     readAsDataURL() {
@@ -59,18 +71,17 @@ afterEach(() => {
 
 test("successful submit posts the listing and navigates home", async () => {
   const {container} = render(<CreateListingPage />);
-  const selects = screen.getAllByRole("combobox");
 
-  fireEvent.change(screen.getByPlaceholderText("Item Name"), {
+  fireEvent.change(screen.getByLabelText(/item name/i), {
     target: {value: "Desk Lamp"},
   });
-  fireEvent.change(screen.getByPlaceholderText("Item Price (USD)"), {
+  fireEvent.change(screen.getByLabelText(/^price/i), {
     target: {value: "20"},
   });
-  fireEvent.change(selects[0], {
+  fireEvent.change(screen.getByLabelText(/condition/i), {
     target: {value: "Good"},
   });
-  fireEvent.change(screen.getByPlaceholderText("Item Location"), {
+  fireEvent.change(screen.getByLabelText(/pickup location/i), {
     target: {value: "Library West"},
   });
   fireEvent.change(container.querySelector('input[type="file"]'), {
@@ -79,13 +90,13 @@ test("successful submit posts the listing and navigates home", async () => {
     },
   });
   expect(await screen.findByAltText("preview")).toBeInTheDocument();
-  fireEvent.change(screen.getByPlaceholderText("Item Description"), {
+  fireEvent.change(screen.getByLabelText(/description/i), {
     target: {value: "Lamp for studying"},
   });
-  fireEvent.change(screen.getByPlaceholderText("Item Details"), {
+  fireEvent.change(screen.getByLabelText(/details/i), {
     target: {value: "Warm bulb included"},
   });
-  fireEvent.change(selects[1], {
+  fireEvent.change(screen.getByLabelText(/category/i), {
     target: {value: "Miscellaneous"},
   });
 
@@ -121,7 +132,12 @@ test("successful submit posts the listing and navigates home", async () => {
   );
 
   await waitFor(() => {
-    expect(window.alert).toHaveBeenCalledWith("Item Created");
-    expect(mockNavigate).toHaveBeenCalledWith("/");
+    expect(mockShowToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Listing created",
+        variant: "success",
+      })
+    );
+    expect(mockNavigate).toHaveBeenCalledWith("/listings");
   });
 });

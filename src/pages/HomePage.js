@@ -3,9 +3,11 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/HomePage/ProductCard.js';
 import { Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Select, Skeleton } from '../components/ui';
-import { LISTING_CATEGORIES, normalizeCategory, parsePriceValue, toListingCardViewModel } from '../lib/viewModels';
+import { getCachedListings, getListingsPage, hasCachedListings } from '../lib/listingsApi';
+import { LISTING_CATEGORIES, toListingCardViewModel } from '../lib/viewModels';
 import { cn } from '../lib/ui';
 
+const PAGE_SIZE = 9;
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'price-low', label: 'Price: low to high' },
@@ -13,34 +15,16 @@ const SORT_OPTIONS = [
   { value: 'title', label: 'Title: A to Z' },
 ];
 
-function sortItems(items, sortBy) {
-  const sortedItems = [...items];
-
-  switch (sortBy) {
-    case 'price-low':
-      sortedItems.sort((first, second) => parsePriceValue(first.priceLabel) - parsePriceValue(second.priceLabel));
-      break;
-    case 'price-high':
-      sortedItems.sort((first, second) => parsePriceValue(second.priceLabel) - parsePriceValue(first.priceLabel));
-      break;
-    case 'title':
-      sortedItems.sort((first, second) => first.title.localeCompare(second.title));
-      break;
-    default:
-      break;
+function getVisiblePages(currentPage, totalPages) {
+  if (totalPages <= 1) {
+    return [];
   }
 
-  return sortedItems;
-}
+  const startPage = Math.max(1, currentPage - 1);
+  const endPage = Math.min(totalPages, startPage + 2);
+  const adjustedStart = Math.max(1, endPage - 2);
 
-function buildCategoryOptions(items) {
-  const presentCategories = new Set(items.map((item) => item.category));
-  const orderedCategories = LISTING_CATEGORIES.filter((category) => presentCategories.has(category));
-  const extraCategories = [...presentCategories]
-    .filter((category) => !LISTING_CATEGORIES.includes(category))
-    .sort((first, second) => first.localeCompare(second));
-
-  return ['All', ...orderedCategories, ...extraCategories];
+  return Array.from({length: endPage - adjustedStart + 1}, (_, index) => adjustedStart + index);
 }
 
 function ListingGridSkeleton() {
@@ -65,13 +49,35 @@ function ListingGridSkeleton() {
 export function HomePage({ forceSignedOutView = false }) {
   const { isSignedIn } = useUser();
   const shouldRenderLanding = forceSignedOutView || !isSignedIn;
-  const [items, setItems] = useState([]);
+  const initialRequestParams = {
+    page: 1,
+    limit: PAGE_SIZE,
+    search: '',
+    category: 'All',
+    sort: 'newest',
+  };
+  const initialCachedResponse = !shouldRenderLanding ? getCachedListings(initialRequestParams) : null;
+  const [items, setItems] = useState(() => initialCachedResponse?.items || []);
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState(
+    () =>
+      initialCachedResponse?.meta || {
+        page: 1,
+        limit: PAGE_SIZE,
+        totalItems: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      }
+  );
   const [error, setError] = useState('');
+  const [hasLoadedFeed, setHasLoadedFeed] = useState(Boolean(initialCachedResponse));
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (shouldRenderLanding) {
@@ -79,34 +85,44 @@ export function HomePage({ forceSignedOutView = false }) {
     }
 
     let isMounted = true;
+    const requestParams = {
+      page,
+      limit: PAGE_SIZE,
+      search: deferredSearch,
+      category: selectedCategory,
+      sort: sortBy,
+    };
+    const shouldUseInitialLoading = !hasLoadedFeed && !hasCachedListings(requestParams);
 
     const itemFetch = async () => {
       try {
         if (isMounted) {
-          setIsLoading(true);
+          if (shouldUseInitialLoading) {
+            setIsLoading(true);
+          } else {
+            setIsRefreshing(true);
+          }
         }
 
-        const response = await fetch('http://localhost:5000/items');
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch listings');
-        }
-
-        const data = await response.json();
+        const data = await getListingsPage(requestParams);
 
         if (!isMounted) {
           return;
         }
 
-        setItems(Array.isArray(data) ? data : []);
+        setItems(Array.isArray(data.items) ? data.items : []);
+        setMeta(data.meta);
         setError('');
+        setHasLoadedFeed(true);
       } catch (fetchError) {
         if (isMounted) {
           setError(fetchError.message || 'Failed to fetch listings');
+          setHasLoadedFeed(true);
         }
       } finally {
         if (isMounted) {
           setIsLoading(false);
+          setIsRefreshing(false);
         }
       }
     };
@@ -116,7 +132,7 @@ export function HomePage({ forceSignedOutView = false }) {
     return () => {
       isMounted = false;
     };
-  }, [shouldRenderLanding]);
+  }, [deferredSearch, hasLoadedFeed, page, selectedCategory, shouldRenderLanding, sortBy]);
 
   if (shouldRenderLanding) {
     return (
@@ -180,23 +196,9 @@ export function HomePage({ forceSignedOutView = false }) {
   }
 
   const listingCards = items.map(toListingCardViewModel);
-  const categoryOptions = buildCategoryOptions(listingCards);
-  const normalizedSearch = deferredSearch.trim().toLowerCase();
-  const filteredItems = sortItems(
-    listingCards.filter((item) => {
-      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
-      const matchesSearch =
-        !normalizedSearch ||
-        item.title.toLowerCase().includes(normalizedSearch) ||
-        item.location.toLowerCase().includes(normalizedSearch) ||
-        item.sellerName.toLowerCase().includes(normalizedSearch) ||
-        normalizeCategory(item.category).toLowerCase().includes(normalizedSearch);
-
-      return matchesCategory && matchesSearch;
-    }),
-    sortBy
-  );
-  const hasFilters = normalizedSearch.length > 0 || selectedCategory !== 'All' || sortBy !== 'newest';
+  const categoryOptions = ['All', ...LISTING_CATEGORIES];
+  const hasFilters = deferredSearch.trim().length > 0 || selectedCategory !== 'All' || sortBy !== 'newest';
+  const visiblePages = getVisiblePages(meta.page, meta.totalPages);
 
   return (
     <section className="w-full space-y-8">
@@ -218,13 +220,19 @@ export function HomePage({ forceSignedOutView = false }) {
             label="Search listings"
             placeholder="Search by title, seller, location, or category"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
           />
           <Select
             id="marketplace-sort"
             label="Sort by"
             value={sortBy}
-            onChange={(event) => setSortBy(event.target.value)}
+            onChange={(event) => {
+              setSortBy(event.target.value);
+              setPage(1);
+            }}
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -239,7 +247,10 @@ export function HomePage({ forceSignedOutView = false }) {
             <button
               key={category}
               type="button"
-              onClick={() => setSelectedCategory(category)}
+              onClick={() => {
+                setSelectedCategory(category);
+                setPage(1);
+              }}
               className={cn(
                 'focus-ring rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
                 category === selectedCategory
@@ -254,22 +265,30 @@ export function HomePage({ forceSignedOutView = false }) {
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-app-soft">
-            {filteredItems.length} {filteredItems.length === 1 ? 'listing' : 'listings'}
+            {meta.totalItems} {meta.totalItems === 1 ? 'listing' : 'listings'}
             {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}.
           </p>
-          {hasFilters ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearch('');
-                setSelectedCategory('All');
-                setSortBy('newest');
-              }}
-            >
-              Clear filters
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {isRefreshing ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                Updating results...
+              </p>
+            ) : null}
+            {hasFilters ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch('');
+                  setSelectedCategory('All');
+                  setSortBy('newest');
+                  setPage(1);
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
         </div>
       </Card>
 
@@ -280,9 +299,9 @@ export function HomePage({ forceSignedOutView = false }) {
         />
       ) : null}
 
-      {isLoading ? <ListingGridSkeleton /> : null}
+      {isLoading || !hasLoadedFeed ? <ListingGridSkeleton /> : null}
 
-      {!isLoading && !error && filteredItems.length === 0 ? (
+      {!isLoading && hasLoadedFeed && !error && listingCards.length === 0 ? (
         <EmptyState
           title="No listings match your current filters"
           description="Try a broader search, switch categories, or reset the sort and filters to see more campus listings."
@@ -294,6 +313,7 @@ export function HomePage({ forceSignedOutView = false }) {
                   setSearch('');
                   setSelectedCategory('All');
                   setSortBy('newest');
+                  setPage(1);
                 }}
               >
                 Reset filters
@@ -306,12 +326,56 @@ export function HomePage({ forceSignedOutView = false }) {
         />
       ) : null}
 
-      {!isLoading && !error && filteredItems.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredItems.map((item) => (
-            <ProductCard key={item.id} item={item} />
-          ))}
-        </div>
+      {!isLoading && hasLoadedFeed && !error && listingCards.length > 0 ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {listingCards.map((item) => (
+              <ProductCard key={item.id} item={item} />
+            ))}
+          </div>
+
+          {meta.totalPages > 1 ? (
+            <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-app-soft">
+                Page {meta.page} of {meta.totalPages}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+                  disabled={!meta.hasPreviousPage || isRefreshing}
+                >
+                  Previous
+                </Button>
+                {visiblePages.map((visiblePage) => (
+                  <button
+                    key={visiblePage}
+                    type="button"
+                    onClick={() => setPage(visiblePage)}
+                    disabled={isRefreshing}
+                    className={cn(
+                      'focus-ring min-h-10 rounded-full border px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      visiblePage === meta.page
+                        ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
+                        : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
+                    )}
+                  >
+                    {visiblePage}
+                  </button>
+                ))}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                  disabled={!meta.hasNextPage || isRefreshing}
+                >
+                  Next
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+        </>
       ) : null}
     </section>
   );

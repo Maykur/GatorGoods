@@ -162,6 +162,37 @@ const Profile = mongoose.models.profiles || mongoose.model('profiles', profileSc
 const Conversation = mongoose.models.conversations || mongoose.model('conversations', conversationSchema);
 const Message = mongoose.models.messages || mongoose.model('messages', messageSchema);
 
+function clampPositiveInteger(value, fallback, max = null) {
+  const parsedValue = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 1) {
+    return fallback;
+  }
+
+  if (max && parsedValue > max) {
+    return max;
+  }
+
+  return parsedValue;
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getItemsSort(sort) {
+  switch (sort) {
+    case 'title':
+      return {itemName: 1, _id: -1};
+    case 'price-low':
+      return {itemCostNumeric: 1, _id: -1};
+    case 'price-high':
+      return {itemCostNumeric: -1, _id: -1};
+    default:
+      return {date: -1, _id: -1};
+  }
+}
+
 async function connectToDatabase(uri = process.env.mongo_url) {
   if (!uri) {
     throw new Error('mongo_url is required');
@@ -444,8 +475,78 @@ app.post('/create-item', async (req, resp) => {
 // Get entire listing
 app.get('/items', async (req, resp) => {
   try {
-    const items = await Item.find();
-    resp.json(items);
+    const hasQueryMode = ['page', 'limit', 'search', 'category', 'sort'].some(
+      (key) => typeof req.query[key] !== 'undefined'
+    );
+
+    if (!hasQueryMode) {
+      const items = await Item.find();
+      resp.json(items);
+      return;
+    }
+
+    const page = clampPositiveInteger(req.query.page, 1);
+    const limit = clampPositiveInteger(req.query.limit, 9, 24);
+    const search = req.query.search?.trim() || '';
+    const category = req.query.category?.trim() || '';
+    const sort = req.query.sort?.trim() || 'newest';
+    const filter = {};
+
+    if (category && category !== 'All') {
+      filter.itemCat = category;
+    }
+
+    if (search) {
+      const escapedSearch = escapeRegex(search);
+      filter.$or = [
+        {itemName: {$regex: escapedSearch, $options: 'i'}},
+        {itemLocation: {$regex: escapedSearch, $options: 'i'}},
+        {userPublishingName: {$regex: escapedSearch, $options: 'i'}},
+        {itemCat: {$regex: escapedSearch, $options: 'i'}},
+      ];
+    }
+
+    const totalItems = await Item.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+    const safePage = Math.min(page, totalPages);
+    const safeSkip = (safePage - 1) * limit;
+    const sortStage = getItemsSort(sort);
+
+    const items = await Item.aggregate([
+      {$match: filter},
+      {
+        $addFields: {
+          itemCostNumeric: {
+            $convert: {
+              input: '$itemCost',
+              to: 'double',
+              onError: 0,
+              onNull: 0,
+            },
+          },
+        },
+      },
+      {$sort: sortStage},
+      {$skip: safeSkip},
+      {$limit: limit},
+      {
+        $project: {
+          itemCostNumeric: 0,
+        },
+      },
+    ]);
+
+    resp.json({
+      items,
+      meta: {
+        page: safePage,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1,
+      },
+    });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch', error: e.message});
   }
