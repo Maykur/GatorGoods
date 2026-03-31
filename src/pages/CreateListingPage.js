@@ -18,7 +18,17 @@ export function CreateListingPage() {
   const [itemCat, setItemCat] = useState('');
   const [error, setError] = useState('');
   const userPublishingID = user?.id;
-  const userPublishingName = user?.fullName || user?.firstName || '';
+  const fallbackEmail =
+    user?.primaryEmailAddress?.emailAddress ||
+    user?.emailAddresses?.[0]?.emailAddress ||
+    '';
+  const fallbackName = fallbackEmail ? fallbackEmail.split('@')[0] : '';
+  const userPublishingName =
+    user?.fullName ||
+    user?.firstName ||
+    user?.username ||
+    fallbackName ||
+    'GatorGoods User';
 
   const handleFile = (e) => {
     const file = e.target.files[0];
@@ -74,7 +84,7 @@ export function CreateListingPage() {
       setError('Item Details Required');
       return;
     }
-    if (!userPublishingID || !userPublishingName.trim()) {
+    if (!userPublishingID) {
       setError("Couldn't get user details");
       return;
     }
@@ -144,7 +154,7 @@ export function CreateListingPage() {
             placeholder="Item Name"
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           />
         </div>
@@ -155,7 +165,7 @@ export function CreateListingPage() {
             placeholder="Item Price (USD)"
             value={itemCost}
             onChange={(e) => setItemCost(e.target.value)}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           />
         </div>
@@ -164,7 +174,7 @@ export function CreateListingPage() {
           <select
             value={itemCondition}
             onChange={(e) => setItemCondition(e.target.value)}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           >
             <option value="">Select Item Condition</option>
@@ -181,7 +191,7 @@ export function CreateListingPage() {
             placeholder="Item Location"
             value={itemLocation}
             onChange={(e) => setItemLocation(e.target.value)}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           />
         </div>
@@ -192,7 +202,7 @@ export function CreateListingPage() {
             accept="image/*"
             placeholder="Image URL"
             onChange={handleFile}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           />
         </div>
@@ -203,7 +213,7 @@ export function CreateListingPage() {
             placeholder="Item Description"
             value={itemDescription}
             onChange={(e) => setItemDescription(e.target.value)}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           />
         </div>
@@ -214,16 +224,16 @@ export function CreateListingPage() {
             placeholder="Item Details"
             value={itemDetails}
             onChange={(e) => setItemDetails(e.target.value)}
-            class="bg-gatorShade rounded-3xl px-2 py-1"
+            className="bg-gatorShade rounded-3xl px-2 py-1"
             style={{color: 'white'}}
           />
         </div>
         <div className="rounded-3xl border border-slate-800 bg-gatorShade/60 px-6 py-1 shadow-lg shadow-black/20 ">
-					<label class={'mb-2'}>Category: </label>
+					<label className="mb-2">Category: </label>
 					<select
 						value={itemCat}
 						onChange={(e) => setItemCat(e.target.value)}
-						class={'bg-gatorShade rounded-xl py-1 px-2 focus:ring-2 focus:ring-gatorOrange'}
+						className="bg-gatorShade rounded-xl py-1 px-2 focus:ring-2 focus:ring-gatorOrange"
             style={{color:'white'}}>
 						<option value="">Select Category</option>
 						<option value="Vehicles">Vehicles</option>
@@ -238,7 +248,7 @@ export function CreateListingPage() {
 				</div>
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <button
-          class="bg-gatorBlue hover:bg-gatorOrange/80 transition-color"
+          className="bg-gatorBlue hover:bg-gatorOrange/80 transition-color"
           type="submit"
           style={{
             color: 'white',

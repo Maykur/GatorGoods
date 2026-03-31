@@ -9,6 +9,7 @@ function ItemCard(){
 	const [info, setInfo] = useState(null);
 	const navigate = useNavigate();
 	const [error, setError] = useState("");
+	const isOwner = Boolean(user?.id && user.id === id);
 	const handleNav = async (e, inf) => {
 		e.preventDefault();
 		navigate(`/items/${inf}`);
@@ -36,6 +37,9 @@ function ItemCard(){
             const res = await fetch(`http://localhost:5000/item/${inf}`, {
                 method: 'DELETE',
             });
+			if (!res.ok) {
+				throw new Error("Failed to delete");
+			}
             alert('Item Deleted');
 			itemFetch();
         } catch (e) {
@@ -61,7 +65,7 @@ function ItemCard(){
 										{item.itemName}
 									</p>
 					</div>
-					{user.id === id
+					{isOwner
 					? ( <div class="flex flex-col gap-y-3 mr-2">
 							<a href="" 
 								class="bg-gatorBlue rounded-full text-center p-1 mt-12 hover:bg-gatorOrange/80 transition-colors"

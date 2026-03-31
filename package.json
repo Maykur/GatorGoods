@@ -26,8 +26,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "frontStart": "npm start",
-    "backStart": "cd backend && nodemon index.js",
-    "serverStart": "npm-run-all frontStart backStart",
+    "backStart": "npm --prefix backend run dev",
+    "serverStart": "npm-run-all --parallel frontStart backStart",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
