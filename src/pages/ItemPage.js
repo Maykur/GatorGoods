@@ -5,11 +5,13 @@ import { createConversation } from '../lib/messagesApi';
 import { createOffer } from '../lib/offersApi';
 import { toListingDetailViewModel, toTrustMetricsViewModel } from '../lib/viewModels';
 import {
+  AppIcon,
   Avatar,
   Badge,
   Button,
   Card,
   ErrorBanner,
+  getCategoryIcon,
   Input,
   PageHeader,
   Select,
@@ -81,6 +83,18 @@ function LoadingState() {
   );
 }
 
+function TrustMetricCard({ icon, label, value }) {
+  return (
+    <Card variant="subtle" className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">
+        <AppIcon icon={icon} className="text-sm" />
+        <span>{label}</span>
+      </div>
+      <p className="text-lg font-semibold text-white">{value}</p>
+    </Card>
+  );
+}
+
 export function ItemPage() {
   const { user, isSignedIn } = useUser();
   const { id } = useParams();
@@ -113,6 +127,7 @@ export function ItemPage() {
   );
   const isOwner = Boolean(itemView?.isOwner);
   const trustMetrics = useMemo(() => toTrustMetricsViewModel(sellerProfile), [sellerProfile]);
+  const categoryIcon = itemView ? getCategoryIcon(itemView.category) : null;
 
   useEffect(() => {
     let isMounted = true;
@@ -400,8 +415,9 @@ export function ItemPage() {
   if (!itemView) {
     return (
       <section className="w-full space-y-4">
-        <Link to="/listings" className="text-sm font-semibold text-app-soft no-underline hover:text-white">
-          Back to listings
+        <Link to="/listings" className="inline-flex items-center gap-2 text-sm font-semibold text-app-soft no-underline hover:text-white">
+          <AppIcon icon="back" className="text-[0.95em]" />
+          <span>Back to listings</span>
         </Link>
         <ErrorBanner title="We couldn't open this listing" message={error || 'The requested item could not be loaded.'} />
       </section>
@@ -410,8 +426,9 @@ export function ItemPage() {
 
   return (
     <section className="w-full space-y-6">
-      <Link to="/listings" className="inline-flex text-sm font-semibold text-app-soft no-underline transition-colors hover:text-white">
-        Back to listings
+      <Link to="/listings" className="inline-flex items-center gap-2 text-sm font-semibold text-app-soft no-underline transition-colors hover:text-white">
+        <AppIcon icon="back" className="text-[0.95em]" />
+        <span>Back to listings</span>
       </Link>
 
       {error ? <ErrorBanner title="Listing issue" message={error} /> : null}
@@ -437,6 +454,7 @@ export function ItemPage() {
           <Card className="space-y-6">
             <PageHeader
               eyebrow={itemView.category}
+              icon={categoryIcon}
               title={itemView.title}
               description="See the details, check the seller profile, and send an offer or message if you're interested."
             />
@@ -447,8 +465,9 @@ export function ItemPage() {
               </p>
               <Badge condition={itemView.condition}>{itemView.condition}</Badge>
               <Badge variant={getStatusBadgeVariant(itemView.status)}>{itemView.statusLabel}</Badge>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-app-soft">
-                {itemView.location}
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-app-soft">
+                <AppIcon icon="location" className="text-[0.95em]" />
+                <span>{itemView.location}</span>
               </span>
             </div>
 
@@ -469,16 +488,18 @@ export function ItemPage() {
               <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
+                    leadingIcon="offers"
                     onClick={() => setIsOfferComposerOpen((isOpen) => !isOpen)}
                     disabled={itemView.status !== 'active'}
                   >
                     {isOfferComposerOpen ? 'Hide offer form' : 'Make offer'}
                   </Button>
-                  <Button variant="secondary" onClick={handleStartConversation} loading={isStartingConversation}>
+                  <Button variant="secondary" leadingIcon="message" onClick={handleStartConversation} loading={isStartingConversation}>
                     {isStartingConversation ? 'Opening chat...' : 'Message seller'}
                   </Button>
                   <Button
                     variant={favorite ? 'secondary' : 'ghost'}
+                    leadingIcon="favorite"
                     onClick={toggleFavorite}
                     loading={isFavoritePending}
                   >
@@ -502,6 +523,7 @@ export function ItemPage() {
                       <Input
                         id="offer-price"
                         label="Your offer"
+                        leadingIcon="payment"
                         type="number"
                         min="0"
                         step="0.01"
@@ -514,6 +536,7 @@ export function ItemPage() {
                       <Input
                         id="offer-meetup-location"
                         label="Meetup location"
+                        leadingIcon="location"
                         value={offerValues.meetupLocation}
                         onChange={handleOfferFieldChange('meetupLocation')}
                         error={offerFieldErrors.meetupLocation}
@@ -523,6 +546,7 @@ export function ItemPage() {
                       <Input
                         id="offer-meetup-window"
                         label="Meetup window"
+                        leadingIcon="time"
                         value={offerValues.meetupWindow}
                         onChange={handleOfferFieldChange('meetupWindow')}
                         error={offerFieldErrors.meetupWindow}
@@ -532,6 +556,7 @@ export function ItemPage() {
                       <Select
                         id="offer-payment-method"
                         label="Payment method"
+                        leadingIcon="payment"
                         value={offerValues.paymentMethod}
                         onChange={handleOfferFieldChange('paymentMethod')}
                         error={offerFieldErrors.paymentMethod}
@@ -546,13 +571,14 @@ export function ItemPage() {
                       <Textarea
                         id="offer-message"
                         label="Optional note"
+                        leadingIcon="message"
                         value={offerValues.message}
                         onChange={handleOfferFieldChange('message')}
                         placeholder="Can meet right after my lecture if that helps."
                         rows={4}
                       />
 
-                      <Button type="submit" loading={isSubmittingOffer}>
+                      <Button type="submit" leadingIcon="send" loading={isSubmittingOffer}>
                         Send offer
                       </Button>
                     </form>
@@ -563,8 +589,8 @@ export function ItemPage() {
 
             {!isSignedIn && !isOwner ? (
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Button onClick={() => navigate('/login')}>Log in to make offer</Button>
-                <Button variant="secondary" onClick={handleStartConversation}>
+                <Button leadingIcon="profile" onClick={() => navigate('/login')}>Log in to make offer</Button>
+                <Button variant="secondary" leadingIcon="message" onClick={handleStartConversation}>
                   Message seller
                 </Button>
               </div>
@@ -583,11 +609,11 @@ export function ItemPage() {
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Link to="/offers" className="no-underline">
-                    <Button variant="secondary">Open offers inbox</Button>
+                    <Button variant="secondary" leadingIcon="offers">Open offers inbox</Button>
                   </Link>
                   {submittedOffer.conversationId ? (
                     <Link to={`/messages/${submittedOffer.conversationId}`} className="no-underline">
-                      <Button>Open conversation</Button>
+                      <Button leadingIcon="messages">Open conversation</Button>
                     </Link>
                   ) : null}
                 </div>
@@ -595,58 +621,48 @@ export function ItemPage() {
             ) : null}
 
             {isOwner ? (
-              <Button variant="danger" onClick={handleDelete} loading={isDeleting}>
+              <Button variant="danger" leadingIcon="delete" onClick={handleDelete} loading={isDeleting}>
                 Delete listing
               </Button>
             ) : null}
           </Card>
 
           <Card className="space-y-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-              Seller
-            </p>
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+              <AppIcon icon="seller" className="text-sm" />
+              <span>Seller</span>
+            </div>
             <Link
               to={`/profile/${itemView.seller.id}`}
               className="flex items-center gap-4 rounded-[1.25rem] border border-white/10 bg-white/5 p-4 no-underline transition-colors hover:border-white/20 hover:bg-white/10"
             >
               <Avatar name={itemView.seller.name} src={itemView.seller.avatarUrl} size="lg" />
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-semibold text-white">{itemView.seller.name}</p>
-                    <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
-                  </div>
-                <p className="text-sm text-app-soft">View seller profile and other listings</p>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-lg font-semibold text-white">{itemView.seller.name}</p>
+                  <Badge variant="orange" icon="rating">{trustMetrics.overallRatingLabel}</Badge>
                 </div>
-              </Link>
+                <p className="text-sm text-app-soft">View seller profile and other listings</p>
+              </div>
+            </Link>
           </Card>
 
           <Card className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-                Seller ratings
-              </p>
+              <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+                <AppIcon icon="rating" className="text-sm" />
+                <span>Seller ratings</span>
+              </div>
               <p className="text-sm leading-7 text-app-soft">
                 See how past buyers rated this seller.
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card variant="subtle" className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Reliability</p>
-                <p className="text-lg font-semibold text-white">{trustMetrics.reliabilityLabel}</p>
-              </Card>
-              <Card variant="subtle" className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Accuracy</p>
-                <p className="text-lg font-semibold text-white">{trustMetrics.accuracyLabel}</p>
-              </Card>
-              <Card variant="subtle" className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Responsiveness</p>
-                <p className="text-lg font-semibold text-white">{trustMetrics.responsivenessLabel}</p>
-              </Card>
-              <Card variant="subtle" className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Safety</p>
-                <p className="text-lg font-semibold text-white">{trustMetrics.safetyLabel}</p>
-              </Card>
+              <TrustMetricCard icon="reliability" label="Reliability" value={trustMetrics.reliabilityLabel} />
+              <TrustMetricCard icon="accuracy" label="Accuracy" value={trustMetrics.accuracyLabel} />
+              <TrustMetricCard icon="responsiveness" label="Responsiveness" value={trustMetrics.responsivenessLabel} />
+              <TrustMetricCard icon="safety" label="Safety" value={trustMetrics.safetyLabel} />
             </div>
 
             {trustMetrics.totalRatings > 0 ? (
@@ -664,15 +680,17 @@ export function ItemPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-            Description
-          </p>
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+            <AppIcon icon="description" className="text-sm" />
+            <span>Description</span>
+          </div>
           <p className="text-base leading-8 text-app-soft">{itemView.description}</p>
         </Card>
         <Card className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-            Details
-          </p>
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+            <AppIcon icon="category" className="text-sm" />
+            <span>Details</span>
+          </div>
           <p className="text-base leading-8 text-app-soft">{itemView.details}</p>
         </Card>
       </div>

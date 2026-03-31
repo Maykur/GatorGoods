@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useUser } from '@clerk/react';
 import { useNavigate } from 'react-router-dom';
 import {
+  AppIcon,
   Button,
   Card,
   ErrorBanner,
+  getCategoryIcon,
   Input,
   PageHeader,
   Select,
@@ -78,6 +80,7 @@ export function CreateListingPage() {
     user?.username ||
     fallbackName ||
     'GatorGoods User';
+  const previewCategoryIcon = getCategoryIcon(values.itemCat || 'Miscellaneous');
 
   const handleChange = (field) => (event) => {
     setValues((currentValues) => ({
@@ -192,6 +195,7 @@ export function CreateListingPage() {
     <section className="w-full space-y-8">
       <PageHeader
         eyebrow="Item for sale"
+        icon="createListing"
         title="Create a new listing"
         description="Add the basics, upload a clear photo, and publish your item to the campus marketplace in just a few minutes."
       />
@@ -207,6 +211,7 @@ export function CreateListingPage() {
               <Input
                 id="item-name"
                 label="Item name"
+                leadingIcon="listing"
                 placeholder="Desk Lamp"
                 value={values.itemName}
                 onChange={handleChange('itemName')}
@@ -216,6 +221,7 @@ export function CreateListingPage() {
               <Input
                 id="item-price"
                 label="Price"
+                leadingIcon="payment"
                 type="number"
                 min="0"
                 step="0.01"
@@ -228,6 +234,7 @@ export function CreateListingPage() {
               <Select
                 id="item-condition"
                 label="Condition"
+                leadingIcon="verified"
                 value={values.itemCondition}
                 onChange={handleChange('itemCondition')}
                 error={fieldErrors.itemCondition}
@@ -243,6 +250,7 @@ export function CreateListingPage() {
               <Select
                 id="item-category"
                 label="Category"
+                leadingIcon="category"
                 value={values.itemCat}
                 onChange={handleChange('itemCat')}
                 error={fieldErrors.itemCat}
@@ -260,6 +268,7 @@ export function CreateListingPage() {
             <Input
               id="item-location"
               label="Pickup location"
+              leadingIcon="location"
               placeholder="Library West"
               value={values.itemLocation}
               onChange={handleChange('itemLocation')}
@@ -275,6 +284,9 @@ export function CreateListingPage() {
                 htmlFor="item-picture"
                 className="focus-ring flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.5rem] border border-dashed border-white/15 bg-white/5 px-5 py-10 text-center transition-colors hover:border-gatorOrange/35 hover:bg-white/10"
               >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gatorOrange/20 bg-gatorOrange/10 text-gatorOrange">
+                  <AppIcon icon="uploadPhoto" className="text-lg" />
+                </div>
                 <span className="rounded-full border border-gatorOrange/20 bg-gatorOrange/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gatorOrange">
                   Upload image
                 </span>
@@ -300,6 +312,7 @@ export function CreateListingPage() {
             <Textarea
               id="item-description"
               label="Description"
+              leadingIcon="description"
               placeholder="Lamp for studying"
               value={values.itemDescription}
               onChange={handleChange('itemDescription')}
@@ -311,6 +324,7 @@ export function CreateListingPage() {
             <Textarea
               id="item-details"
               label="Details"
+              leadingIcon="category"
               placeholder="Warm bulb included"
               value={values.itemDetails}
               onChange={handleChange('itemDetails')}
@@ -320,7 +334,7 @@ export function CreateListingPage() {
             />
 
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <Button type="submit" loading={isSubmitting}>
+              <Button type="submit" leadingIcon="createListing" loading={isSubmitting}>
                 {isSubmitting ? 'Publishing...' : 'Create listing'}
               </Button>
             </div>
@@ -328,9 +342,10 @@ export function CreateListingPage() {
         </Card>
 
         <Card className="space-y-4 xl:sticky xl:top-28">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
-            Live preview
-          </p>
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-gatorOrange">
+            <AppIcon icon="open" className="text-sm" />
+            <span>Live preview</span>
+          </div>
           <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
             <div className="flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-brand-blue/15 via-app-surface/85 to-gatorOrange/12">
               {values.itemPicture ? (
@@ -355,15 +370,18 @@ export function CreateListingPage() {
                 </h2>
               </div>
               <div className="flex flex-wrap gap-2 text-sm text-app-soft">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  <AppIcon icon="verified" className="text-[0.95em]" />
                   {values.itemCondition || 'Condition'}
                 </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  <AppIcon icon={previewCategoryIcon} className="text-[0.95em]" />
                   {values.itemCat || 'Category'}
                 </span>
               </div>
-              <p className="text-sm text-app-soft">
-                {values.itemLocation || 'Pickup location appears here'}
+              <p className="flex items-center gap-2 text-sm text-app-soft">
+                <AppIcon icon="location" className="text-[0.95em]" />
+                <span>{values.itemLocation || 'Pickup location appears here'}</span>
               </p>
               <p className="text-sm leading-7 text-app-soft">
                 {values.itemDescription || 'Add a short description so people know what you are selling.'}
