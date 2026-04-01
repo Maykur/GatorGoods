@@ -145,6 +145,7 @@ export function toConversationPreviewViewModel(raw, profile, listing, viewerId) 
   return {
     id: raw?._id || '',
     participantName: normalizeText(profile?.profile?.profileName, raw?.otherParticipantId || 'Conversation'),
+    participantAvatarUrl: normalizeText(profile?.profile?.profilePicture, ''),
     listingName: normalizeText(listing?.itemName, 'General conversation'),
     lastMessageText: normalizeText(raw?.lastMessageText, 'No messages yet'),
     lastMessageAtLabel: formatDateLabel(raw?.lastMessageAt),

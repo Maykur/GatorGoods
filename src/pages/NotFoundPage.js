@@ -1,6 +1,6 @@
 import { Show } from '@clerk/react';
 import { Link } from 'react-router-dom';
-import { Button, Card, PageHeader } from '../components/ui';
+import { AppIcon, Button, Card, PageHeader } from '../components/ui';
 
 // prettier-ignore
 const GATOR_404 =
@@ -33,20 +33,21 @@ export function NotFoundPage() {
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
       <PageHeader
         eyebrow="Error 404"
+        icon="search"
         title="Chomp! Page not found"
         description="The gators searched the swamp, but this route does not exist. Head back to a known part of the marketplace and keep moving."
         actions={
           <div className="flex flex-wrap gap-3">
             <Link to="/" className="no-underline">
-              <Button>Go to landing</Button>
+              <Button leadingIcon="home">Go to landing</Button>
             </Link>
             <Show when="signed-in" fallback={
               <Link to="/login" className="no-underline">
-                <Button variant="secondary">Open sign in</Button>
+                <Button variant="secondary" leadingIcon="profile">Open sign in</Button>
               </Link>
             }>
               <Link to="/listings" className="no-underline">
-                <Button variant="secondary">Browse listings</Button>
+                <Button variant="secondary" leadingIcon="browse">Browse listings</Button>
               </Link>
             </Show>
           </div>
@@ -63,13 +64,19 @@ export function NotFoundPage() {
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Card variant="subtle">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Try next</p>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                <AppIcon icon="home" className="text-sm" />
+                <span>Try next</span>
+              </div>
               <p className="mt-2 text-sm leading-7 text-app-soft">
                 Jump back to the landing page or open the marketplace feed.
               </p>
             </Card>
             <Card variant="subtle">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Still stuck?</p>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                <AppIcon icon="menu" className="text-sm" />
+                <span>Still stuck?</span>
+              </div>
               <p className="mt-2 text-sm leading-7 text-app-soft">
                 Use the main navigation to get back to listings, messages, or your profile.
               </p>

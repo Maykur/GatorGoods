@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { Button, Card, EmptyState, ErrorBanner, PageHeader, Skeleton } from '../components/ui';
+import { AppIcon, Avatar, Button, Card, EmptyState, ErrorBanner, PageHeader, Skeleton } from '../components/ui';
 import { getConversations } from '../lib/messagesApi';
 import { toConversationPreviewViewModel } from '../lib/viewModels';
 
@@ -138,11 +138,14 @@ export function MessagesPage() {
     <section className="w-full space-y-8">
       <PageHeader
         eyebrow="Messages"
+        icon="messages"
         title="Your conversations"
         description="Read new messages, reply quickly, and keep each chat tied to the right listing."
         actions={
-          <Link to="/listings" className="text-sm font-semibold text-app-soft no-underline transition hover:text-white">
-            Browse listings
+          <Link to="/listings" className="no-underline">
+            <Button variant="ghost" size="sm" leadingIcon="browse">
+              Browse listings
+            </Button>
           </Link>
         }
       />
@@ -169,6 +172,7 @@ export function MessagesPage() {
 
       {!isLoading && !error && conversations.length === 0 ? (
         <EmptyState
+          icon="messages"
           title="No conversations yet"
           description="Start by opening a listing and messaging the seller. Your active threads will show up here."
           action={
@@ -190,21 +194,39 @@ export function MessagesPage() {
               className="block space-y-4 no-underline"
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-xl font-semibold text-white">{conversation.participantName}</h2>
-                    {conversation.isUnread ? (
-                      <span className="inline-flex h-3 w-3 rounded-full bg-gatorOrange" aria-label="Unread conversation" />
-                    ) : null}
+                <div className="flex items-start gap-3">
+                  <Avatar
+                    src={conversation.participantAvatarUrl}
+                    name={conversation.participantName}
+                    alt={conversation.participantName}
+                    size="sm"
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-xl font-semibold text-white">{conversation.participantName}</h2>
+                      {conversation.isUnread ? (
+                        <span className="inline-flex h-3 w-3 rounded-full bg-gatorOrange" aria-label="Unread conversation" />
+                      ) : null}
+                    </div>
+                    <p className="flex items-center gap-2 text-sm text-app-soft">
+                      <AppIcon
+                        icon={conversation.listingName !== 'General conversation' ? 'listing' : 'messages'}
+                        className="text-[0.9em] text-app-muted"
+                      />
+                      <span>
+                        {conversation.listingName !== 'General conversation'
+                          ? `About ${conversation.listingName}`
+                          : conversation.listingName}
+                      </span>
+                    </p>
                   </div>
-                  <p className="text-sm text-app-soft">
-                    {conversation.listingName !== 'General conversation'
-                      ? `About ${conversation.listingName}`
-                      : conversation.listingName}
-                  </p>
                 </div>
 
-                <p className="text-sm text-app-muted">{conversation.lastMessageAtLabel}</p>
+                <p className="inline-flex items-center gap-2 text-sm text-app-muted">
+                  <AppIcon icon="time" className="text-[0.9em]" />
+                  <span>{conversation.lastMessageAtLabel}</span>
+                </p>
               </div>
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -213,13 +235,9 @@ export function MessagesPage() {
                 </p>
 
                 <div className="flex flex-wrap gap-2">
-                  {conversation.participantId ? (
-                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-app-soft">
-                      Seller profile available
-                    </span>
-                  ) : null}
                   {conversation.isUnread ? (
-                    <span className="rounded-full border border-gatorOrange/30 bg-gatorOrange/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-orange-100">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-gatorOrange/30 bg-gatorOrange/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-orange-100">
+                      <AppIcon icon="messages" className="text-[0.95em]" />
                       Unread
                     </span>
                   ) : null}

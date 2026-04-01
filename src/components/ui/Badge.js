@@ -1,4 +1,5 @@
 import { cn } from '../../lib/ui';
+import { AppIcon } from './Icon';
 
 const VARIANT_CLASSES = {
   default: 'border-white/10 bg-white/5 text-app-soft',
@@ -19,6 +20,7 @@ const CONDITION_VARIANTS = {
 export function Badge({
   variant = 'default',
   condition,
+  icon,
   className,
   children,
 }) {
@@ -32,6 +34,7 @@ export function Badge({
         className
       )}
     >
+      {icon ? <AppIcon icon={icon} className="mr-1.5 text-[0.9em]" /> : null}
       {children || condition}
     </span>
   );

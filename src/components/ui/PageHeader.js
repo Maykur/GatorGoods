@@ -1,7 +1,9 @@
 import { cn } from '../../lib/ui';
+import { AppIcon } from './Icon';
 
 export function PageHeader({
   eyebrow,
+  icon,
   title,
   description,
   actions,
@@ -18,8 +20,11 @@ export function PageHeader({
     >
       <div className="space-y-3">
         {eyebrow ? (
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-gatorOrange">
-            {eyebrow}
+          <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-gatorOrange">
+            {icon ? (
+              <AppIcon icon={icon} className="text-xs" />
+            ) : null}
+            <span>{eyebrow}</span>
           </p>
         ) : null}
         <div className="space-y-2">

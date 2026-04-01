@@ -4,6 +4,7 @@ import { useUser } from '@clerk/react';
 import { getOffers, updateOfferStatus } from '../lib/offersApi';
 import { toOfferCardViewModel } from '../lib/viewModels';
 import {
+  AppIcon,
   Badge,
   Button,
   Card,
@@ -16,8 +17,8 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000';
 const MODE_OPTIONS = [
-  { id: 'seller', label: 'Selling' },
-  { id: 'buyer', label: 'Buying' },
+  { id: 'seller', label: 'Selling', icon: 'offers' },
+  { id: 'buyer', label: 'Buying', icon: 'payment' },
 ];
 
 function getStatusBadgeVariant(status) {
@@ -86,6 +87,20 @@ function groupOfferViewsByListing(offerViews) {
     groups[offer.listingId].offers.push(offer);
     return groups;
   }, {});
+}
+
+function OfferMetaCard({ icon, label, value, emphasis = false }) {
+  return (
+    <Card variant="subtle" className="space-y-1">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">
+        <AppIcon icon={icon} className="text-[0.95em]" />
+        <span>{label}</span>
+      </div>
+      <p className={emphasis ? 'text-lg font-semibold text-white' : 'text-sm font-semibold text-white'}>
+        {value}
+      </p>
+    </Card>
+  );
 }
 
 export function OffersPage() {
@@ -219,11 +234,14 @@ export function OffersPage() {
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
       <PageHeader
         eyebrow="Offers"
+        icon="offers"
         title="Offers for your listings and the ones you've sent"
         description="Switch between selling and buying to check prices, payment methods, and pickup details."
         actions={
-          <Link to="/messages" className="text-sm font-semibold text-app-soft no-underline transition hover:text-white">
-            Open messages
+          <Link to="/messages" className="no-underline">
+            <Button variant="ghost" size="sm" leadingIcon="messages">
+              Open messages
+            </Button>
           </Link>
         }
       />
@@ -243,7 +261,10 @@ export function OffersPage() {
                   : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
               }`}
             >
-              {option.label}
+              <span className="inline-flex items-center gap-2">
+                <AppIcon icon={option.icon} className="text-[0.95em]" />
+                <span>{option.label}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -271,11 +292,12 @@ export function OffersPage() {
 
       {!isLoading && !error && mode === 'seller' && sellerGroups.length === 0 ? (
         <EmptyState
+          icon="offers"
           title="No incoming offers yet"
           description="When someone sends an offer on one of your listings, you'll see the price, payment method, and pickup plan here."
           action={
             <Link to="/listings" className="no-underline">
-              <Button variant="secondary">Browse listings</Button>
+              <Button variant="secondary" leadingIcon="browse">Browse listings</Button>
             </Link>
           }
         />
@@ -283,11 +305,12 @@ export function OffersPage() {
 
       {!isLoading && !error && mode === 'buyer' && buyerOffers.length === 0 ? (
         <EmptyState
+          icon="offers"
           title="No sent offers yet"
           description="Send an offer from any item page and you'll be able to check it here."
           action={
             <Link to="/listings" className="no-underline">
-              <Button>Browse listings</Button>
+              <Button leadingIcon="browse">Browse listings</Button>
             </Link>
           }
         />
@@ -308,8 +331,9 @@ export function OffersPage() {
                   </p>
                 </div>
 
-                <Link to={`/items/${group.listingId}`} className="text-sm font-semibold text-app-soft no-underline transition hover:text-white">
-                  Open listing
+                <Link to={`/items/${group.listingId}`} className="inline-flex items-center gap-2 text-sm font-semibold text-app-soft no-underline transition hover:text-white">
+                  <AppIcon icon="open" className="text-[0.95em]" />
+                  <span>Open listing</span>
                 </Link>
               </div>
 
@@ -322,7 +346,7 @@ export function OffersPage() {
                           <h3 className="text-xl font-semibold text-white">{offer.buyerName}</h3>
                           <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
                           {offer.buyerTrust ? (
-                            <Badge variant="orange">{offer.buyerTrust.overallRatingLabel}</Badge>
+                            <Badge variant="orange" icon="rating">{offer.buyerTrust.overallRatingLabel}</Badge>
                           ) : null}
                         </div>
                         <p className="text-sm text-app-soft">
@@ -332,58 +356,35 @@ export function OffersPage() {
 
                       <div className="flex flex-wrap gap-2">
                         <Link to={`/profile/${offer.buyerId}`} className="no-underline">
-                          <Button variant="ghost" size="sm">Buyer profile</Button>
+                          <Button variant="ghost" size="sm" leadingIcon="seller">Buyer profile</Button>
                         </Link>
                         {offer.conversationId ? (
                           <Link to={`/messages/${offer.conversationId}`} className="no-underline">
-                            <Button variant="ghost" size="sm">Conversation</Button>
+                            <Button variant="ghost" size="sm" leadingIcon="messages">Conversation</Button>
                           </Link>
                         ) : null}
                       </div>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <Card variant="subtle" className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Offer</p>
-                        <p className="text-lg font-semibold text-white">{offer.offeredPriceLabel}</p>
-                      </Card>
-                      <Card variant="subtle" className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Payment</p>
-                        <p className="text-sm font-semibold text-white">{offer.paymentMethodLabel}</p>
-                      </Card>
-                      <Card variant="subtle" className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Meetup window</p>
-                        <p className="text-sm font-semibold text-white">{offer.meetupWindow}</p>
-                      </Card>
-                      <Card variant="subtle" className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Meetup location</p>
-                        <p className="text-sm font-semibold text-white">{offer.meetupLocation}</p>
-                      </Card>
+                      <OfferMetaCard icon="payment" label="Offer" value={offer.offeredPriceLabel} emphasis />
+                      <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
+                      <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                      <OfferMetaCard icon="location" label="Meetup location" value={offer.meetupLocation} />
                     </div>
 
                     {offer.buyerTrust ? (
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <Card variant="subtle" className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Reliability</p>
-                          <p className="text-sm font-semibold text-white">{offer.buyerTrust.reliabilityLabel}</p>
-                        </Card>
-                        <Card variant="subtle" className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Accuracy</p>
-                          <p className="text-sm font-semibold text-white">{offer.buyerTrust.accuracyLabel}</p>
-                        </Card>
-                        <Card variant="subtle" className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Responsiveness</p>
-                          <p className="text-sm font-semibold text-white">{offer.buyerTrust.responsivenessLabel}</p>
-                        </Card>
-                        <Card variant="subtle" className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Safety</p>
-                          <p className="text-sm font-semibold text-white">{offer.buyerTrust.safetyLabel}</p>
-                        </Card>
+                        <OfferMetaCard icon="reliability" label="Reliability" value={offer.buyerTrust.reliabilityLabel} />
+                        <OfferMetaCard icon="accuracy" label="Accuracy" value={offer.buyerTrust.accuracyLabel} />
+                        <OfferMetaCard icon="responsiveness" label="Responsiveness" value={offer.buyerTrust.responsivenessLabel} />
+                        <OfferMetaCard icon="safety" label="Safety" value={offer.buyerTrust.safetyLabel} />
                       </div>
                     ) : null}
 
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <Button
+                        leadingIcon="verified"
                         onClick={() => handleOfferAction(offer.id, 'accepted')}
                         loading={activeActionId === `accepted-${offer.id}`}
                         disabled={offer.status !== 'pending'}
@@ -392,6 +393,7 @@ export function OffersPage() {
                       </Button>
                       <Button
                         variant="secondary"
+                        leadingIcon="delete"
                         onClick={() => handleOfferAction(offer.id, 'declined')}
                         loading={activeActionId === `declined-${offer.id}`}
                         disabled={offer.status !== 'pending'}
@@ -426,36 +428,24 @@ export function OffersPage() {
 
                 <div className="flex flex-wrap gap-2">
                   <Link to={`/items/${offer.listingId}`} className="no-underline">
-                    <Button variant="ghost" size="sm">Listing</Button>
+                    <Button variant="ghost" size="sm" leadingIcon="listing">Listing</Button>
                   </Link>
                   <Link to={`/profile/${offer.sellerId}`} className="no-underline">
-                    <Button variant="ghost" size="sm">Seller profile</Button>
+                    <Button variant="ghost" size="sm" leadingIcon="seller">Seller profile</Button>
                   </Link>
                   {offer.conversationId ? (
                     <Link to={`/messages/${offer.conversationId}`} className="no-underline">
-                      <Button variant="ghost" size="sm">Conversation</Button>
+                      <Button variant="ghost" size="sm" leadingIcon="messages">Conversation</Button>
                     </Link>
                   ) : null}
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Card variant="subtle" className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Your offer</p>
-                  <p className="text-lg font-semibold text-white">{offer.offeredPriceLabel}</p>
-                </Card>
-                <Card variant="subtle" className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Payment</p>
-                  <p className="text-sm font-semibold text-white">{offer.paymentMethodLabel}</p>
-                </Card>
-                <Card variant="subtle" className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Meetup window</p>
-                  <p className="text-sm font-semibold text-white">{offer.meetupWindow}</p>
-                </Card>
-                <Card variant="subtle" className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Meetup location</p>
-                  <p className="text-sm font-semibold text-white">{offer.meetupLocation}</p>
-                </Card>
+                <OfferMetaCard icon="payment" label="Your offer" value={offer.offeredPriceLabel} emphasis />
+                <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
+                <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                <OfferMetaCard icon="location" label="Meetup location" value={offer.meetupLocation} />
               </div>
 
               <p className="text-sm leading-7 text-app-soft">

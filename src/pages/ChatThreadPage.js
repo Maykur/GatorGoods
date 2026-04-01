@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { Button, Card, ErrorBanner, Skeleton, Textarea } from '../components/ui';
+import { AppIcon, Avatar, Button, Card, ErrorBanner, Skeleton, Textarea } from '../components/ui';
 import { getConversationMessages, sendMessage } from '../lib/messagesApi';
 
 const API_BASE_URL = 'http://localhost:5000';
@@ -58,6 +58,7 @@ export function ChatThreadPage() {
   const [messages, setMessages] = useState([]);
   const [otherParticipantId, setOtherParticipantId] = useState('');
   const [otherParticipantName, setOtherParticipantName] = useState('Conversation');
+  const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
   const [listingId, setListingId] = useState('');
   const [listingName, setListingName] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
@@ -66,6 +67,9 @@ export function ChatThreadPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const conversationListings = listingName && listingId
+    ? [{ id: listingId, name: listingName }]
+    : [];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -108,6 +112,7 @@ export function ChatThreadPage() {
         setMessages(threadData.messages);
         setOtherParticipantId(otherId || '');
         setOtherParticipantName(profileData?.profile?.profileName || otherId || 'Conversation');
+        setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
         setListingName(listingData?.itemName || '');
         setListingId(listingData?._id || threadData.conversation.activeListingId?.toString?.() || '');
         setPageError('');
@@ -186,33 +191,48 @@ export function ChatThreadPage() {
         to="/messages"
         className="inline-flex items-center gap-2 text-sm font-semibold text-app-soft no-underline transition hover:text-white"
       >
-        <span aria-hidden="true">&larr;</span>
-        Back to messages
+        <AppIcon icon="back" className="text-[0.95em]" />
+        <span>Back to messages</span>
       </Link>
 
       <div className="space-y-3">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-          Conversation
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          {otherParticipantName}
-        </h1>
+        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+          <AppIcon icon="messages" className="text-sm" />
+          <span>Conversation</span>
+        </div>
+        {otherParticipantId ? (
+          <Link
+            to={`/profile/${otherParticipantId}`}
+            className="inline-flex items-center gap-4 no-underline transition hover:text-white"
+          >
+            <Avatar
+              src={otherParticipantAvatarUrl}
+              name={otherParticipantName}
+              alt={otherParticipantName}
+              size="lg"
+            />
+            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              {otherParticipantName}
+            </h1>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-4">
+            <Avatar
+              src={otherParticipantAvatarUrl}
+              name={otherParticipantName}
+              alt={otherParticipantName}
+              size="lg"
+            />
+            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              {otherParticipantName}
+            </h1>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3 text-sm text-app-soft">
-          {otherParticipantId ? (
-            <Link to={`/profile/${otherParticipantId}`} className="no-underline transition hover:text-white">
-              View seller profile
-            </Link>
-          ) : null}
-          {listingName && listingId ? (
-            <Link to={`/items/${listingId}`} className="no-underline transition hover:text-white">
-              About {listingName}
-            </Link>
-          ) : (
-            <span>General conversation</span>
-          )}
           {isRefreshing ? (
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              Refreshing thread...
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+              <AppIcon icon="time" className="text-[0.95em]" />
+              <span>Refreshing thread...</span>
             </span>
           ) : null}
         </div>
@@ -225,20 +245,26 @@ export function ChatThreadPage() {
         />
       ) : null}
 
-      {listingName && listingId ? (
-        <Card variant="subtle" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              About this listing
-            </p>
-            <p className="text-lg font-semibold text-white">{listingName}</p>
+      {conversationListings.length > 0 ? (
+        <Card variant="subtle" className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+              <AppIcon icon="listing" className="text-[0.95em]" />
+              <span>Listings in this conversation</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {conversationListings.map((listing) => (
+                <Link
+                  key={listing.id}
+                  to={`/items/${listing.id}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-app-soft no-underline transition hover:border-white/20 hover:text-white"
+                >
+                  <AppIcon icon="listing" className="text-[0.95em]" />
+                  <span>{listing.name}</span>
+                </Link>
+              ))}
+            </div>
           </div>
-          <Link
-            to={`/items/${listingId}`}
-            className="text-sm font-semibold text-app-soft no-underline transition hover:text-white"
-          >
-            Open listing
-          </Link>
         </Card>
       ) : null}
 
@@ -260,21 +286,31 @@ export function ChatThreadPage() {
                   key={message._id}
                   className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div
-                    className={`max-w-[85%] rounded-[1.5rem] px-4 py-3 shadow-card sm:max-w-[75%] ${
-                      isOwnMessage
-                        ? 'bg-brand-blue text-white'
-                        : 'border border-white/10 bg-app-elevated text-app-text'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap text-sm leading-7">{message.body}</p>
-                    <p
-                      className={`mt-2 text-xs ${
-                        isOwnMessage ? 'text-blue-100/80' : 'text-app-muted'
+                  <div className={`flex max-w-[85%] items-end gap-3 sm:max-w-[75%] ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                    {!isOwnMessage ? (
+                      <Avatar
+                        src={otherParticipantAvatarUrl}
+                        name={otherParticipantName}
+                        alt={otherParticipantName}
+                        size="sm"
+                      />
+                    ) : null}
+                    <div
+                      className={`rounded-[1.5rem] px-4 py-3 shadow-card ${
+                        isOwnMessage
+                          ? 'bg-brand-blue text-white'
+                          : 'border border-white/10 bg-app-elevated text-app-text'
                       }`}
                     >
-                      {isOwnMessage ? 'You' : otherParticipantName} · {formatMessageTime(message.createdAt)}
-                    </p>
+                      <p className="whitespace-pre-wrap text-sm leading-7">{message.body}</p>
+                      <p
+                        className={`mt-2 text-xs ${
+                          isOwnMessage ? 'text-blue-100/80' : 'text-app-muted'
+                        }`}
+                      >
+                        {isOwnMessage ? 'You' : otherParticipantName} · {formatMessageTime(message.createdAt)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
@@ -289,6 +325,7 @@ export function ChatThreadPage() {
           <Textarea
             id="thread-message"
             label="Message"
+            leadingIcon="message"
             rows={4}
             value={draftMessage}
             onChange={(event) => {
@@ -302,10 +339,11 @@ export function ChatThreadPage() {
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-app-soft">
-              Keep pickup details and notes here so you can find them later.
+            <p className="inline-flex items-center gap-2 text-sm text-app-soft">
+              <AppIcon icon="location" className="text-[0.95em]" />
+              <span>Keep pickup details and notes here so you can find them later.</span>
             </p>
-            <Button type="submit" loading={isSending}>
+            <Button type="submit" leadingIcon="send" loading={isSending}>
               Send message
             </Button>
           </div>

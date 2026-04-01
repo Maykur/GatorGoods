@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Badge, Button, Card } from '../ui';
+import { AppIcon, Badge, Button, Card, getCategoryIcon } from '../ui';
 
 function ListingMedia({item}) {
   if (item.imageUrl) {
@@ -45,7 +45,10 @@ function ItemCard({
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      {items.map((item) => {
+        const categoryIcon = getCategoryIcon(item.category);
+
+        return (
         <Card
           key={item.id}
           as="article"
@@ -63,7 +66,7 @@ function ItemCard({
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-2xl font-semibold text-gatorOrange">{item.priceLabel}</p>
                 <Badge condition={item.condition} />
-                <Badge>{item.category}</Badge>
+                <Badge icon={categoryIcon}>{item.category}</Badge>
               </div>
 
               <Link
@@ -74,20 +77,27 @@ function ItemCard({
               </Link>
 
               <div className="flex flex-wrap gap-3 text-sm text-app-soft">
-                <span>{item.location}</span>
-                <span>{item.sellerName}</span>
+                <span className="inline-flex items-center gap-2">
+                  <AppIcon icon="location" className="text-[0.95em]" />
+                  <span>{item.location}</span>
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <AppIcon icon="seller" className="text-[0.95em]" />
+                  <span>{item.sellerName}</span>
+                </span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3 lg:justify-end">
             <Link to={`/items/${item.id}`} className="no-underline">
-              <Button variant="secondary">View details</Button>
+              <Button variant="secondary" leadingIcon="open">View details</Button>
             </Link>
 
             {isOwner ? (
               <Button
                 variant="danger"
+                leadingIcon="delete"
                 loading={deletingListingId === item.id}
                 onClick={() => onDelete?.(item.id, item.title)}
               >
@@ -96,7 +106,8 @@ function ItemCard({
             ) : null}
           </div>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }

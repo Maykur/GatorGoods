@@ -5,6 +5,8 @@ export { Card } from './Card';
 export { ConfirmDialog, ConfirmDialogProvider, useConfirmDialog } from './ConfirmDialog';
 export { EmptyState } from './EmptyState';
 export { ErrorBanner } from './ErrorBanner';
+export { AppIcon, APP_ICONS } from './Icon';
+export { getCategoryIcon } from './Icon';
 export { Input } from './Input';
 export { PageHeader } from './PageHeader';
 export { Select } from './Select';

@@ -1,4 +1,5 @@
 import { cn } from '../../lib/ui';
+import { AppIcon } from './Icon';
 
 const VARIANT_CLASSES = {
   primary:
@@ -33,6 +34,8 @@ export function Button({
   loading = false,
   disabled = false,
   fullWidth = false,
+  leadingIcon,
+  trailingIcon,
   className,
   children,
   ...props
@@ -54,7 +57,9 @@ export function Button({
       {...props}
     >
       {loading ? <Spinner /> : null}
+      {!loading && leadingIcon ? <AppIcon icon={leadingIcon} className="text-[0.95em]" /> : null}
       <span>{children}</span>
+      {!loading && trailingIcon ? <AppIcon icon={trailingIcon} className="text-[0.95em]" /> : null}
     </button>
   );
 }

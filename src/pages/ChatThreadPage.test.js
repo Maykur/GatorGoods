@@ -107,7 +107,9 @@ test('thread view renders participant and listing context', async () => {
   render(<ChatThreadPage />);
 
   expect(await screen.findByRole('heading', { name: 'Seller One' })).toBeInTheDocument();
-  expect(screen.getByText(/about desk lamp/i)).toBeInTheDocument();
+  expect(screen.getByText(/listings in this conversation/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /desk lamp/i })).toHaveAttribute('href', '/items/item-1');
+  expect(screen.getByRole('link', { name: /seller one/i })).toHaveAttribute('href', '/profile/seller-1');
   expect(screen.getByText('Hi there')).toBeInTheDocument();
 });
 

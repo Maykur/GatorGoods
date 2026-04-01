@@ -4,6 +4,7 @@ import { useUser } from '@clerk/react';
 import ItemCard from '../components/ProfilePage/ItemCard';
 import FavCard from '../components/ProfilePage/FavCard';
 import {
+  AppIcon,
   Avatar,
   Badge,
   Button,
@@ -26,8 +27,8 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000';
 const OWNER_TABS = [
-  { id: 'listings', label: 'Active listings' },
-  { id: 'favorites', label: 'Favorites' },
+  { id: 'listings', label: 'Active listings', icon: 'listing' },
+  { id: 'favorites', label: 'Favorites', icon: 'favorite' },
 ];
 const REVIEW_OPTIONS = ['0', '1', '2', '3', '4', '5'];
 
@@ -105,10 +106,10 @@ async function fetchOptionalItem(itemId) {
 function ProfileConnectorLinks({ profileHeader }) {
   const connectors = [
     profileHeader?.instagramUrl
-      ? { id: 'instagram', label: 'Instagram', href: profileHeader.instagramUrl }
+      ? { id: 'instagram', label: 'Instagram', href: profileHeader.instagramUrl, icon: 'instagram' }
       : null,
     profileHeader?.linkedinUrl
-      ? { id: 'linkedin', label: 'LinkedIn', href: profileHeader.linkedinUrl }
+      ? { id: 'linkedin', label: 'LinkedIn', href: profileHeader.linkedinUrl, icon: 'linkedin' }
       : null,
   ].filter(Boolean);
 
@@ -124,12 +125,38 @@ function ProfileConnectorLinks({ profileHeader }) {
           href={connector.href}
           target="_blank"
           rel="noreferrer"
-          className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-app-soft no-underline transition hover:border-white/20 hover:text-white"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-app-soft no-underline transition hover:border-white/20 hover:text-white"
         >
+          <AppIcon icon={connector.icon} className="text-[0.95em]" />
           {connector.label}
         </a>
       ))}
     </div>
+  );
+}
+
+function ProfileStatCard({ icon, label, value }) {
+  return (
+    <Card variant="subtle" className="h-full min-w-[10.75rem] px-5 py-5">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+        <AppIcon icon={icon} className="text-sm" />
+        <span>{label}</span>
+      </div>
+      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+    </Card>
+  );
+}
+
+function TrustMetricSurface({ icon, label, value, description }) {
+  return (
+    <Card variant="subtle" className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+        <AppIcon icon={icon} className="text-sm" />
+        <span>{label}</span>
+      </div>
+      <p className="text-2xl font-semibold text-white">{value}</p>
+      <p className="text-sm leading-7 text-app-soft">{description}</p>
+    </Card>
   );
 }
 
@@ -437,6 +464,7 @@ export function ProfilePage({ ownerView = false }) {
     <section className="w-full space-y-8">
       <PageHeader
         eyebrow={ownerView ? 'Your Profile' : 'Seller Profile'}
+        icon={ownerView ? 'profile' : 'seller'}
         title={ownerView ? 'Manage your profile' : profileHeader?.displayName || 'Seller profile'}
         description={
           ownerView
@@ -446,7 +474,7 @@ export function ProfilePage({ ownerView = false }) {
         actions={
           ownerView ? (
             <Link to="/create" className="no-underline">
-              <Button>Create listing</Button>
+              <Button leadingIcon="createListing">Create listing</Button>
             </Link>
           ) : null
         }
@@ -483,9 +511,9 @@ export function ProfilePage({ ownerView = false }) {
                       <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                         {profileHeader.displayName}
                       </h1>
-                      <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
-                      {profileHeader.ufVerified ? <Badge variant="success">UF verified</Badge> : null}
-                      {ownerView ? <Badge variant="info">Your profile</Badge> : null}
+                      <Badge variant="orange" icon="rating">{trustMetrics.overallRatingLabel}</Badge>
+                      {profileHeader.ufVerified ? <Badge variant="success" icon="verified">UF verified</Badge> : null}
+                      {ownerView ? <Badge variant="info" icon="profile">Your profile</Badge> : null}
                     </div>
 
                     <p className="max-w-2xl text-sm leading-7 text-app-soft">
@@ -499,61 +527,39 @@ export function ProfilePage({ ownerView = false }) {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Card variant="subtle" className="min-w-[10rem]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                      Active listings
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{profileHeader.listingCount}</p>
-                  </Card>
-                  <Card variant="subtle" className="min-w-[10rem]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                      Overall rating
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{trustMetrics.overallRatingLabel}</p>
-                  </Card>
-                  <Card variant="subtle" className="min-w-[10rem]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                      {ownerView ? 'Favorites' : 'Ratings logged'}
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-white">
-                      {ownerView ? profileHeader.favoritesCount : trustMetrics.totalRatings}
-                    </p>
-                  </Card>
+                <div className="grid items-stretch gap-3 sm:grid-cols-3 lg:gap-0">
+                  <div className="h-full lg:relative lg:z-[1]">
+                    <ProfileStatCard icon="listing" label="Active listings" value={profileHeader.listingCount} />
+                  </div>
+                  <div className="h-full lg:relative lg:z-[2] lg:-ml-2">
+                    <ProfileStatCard icon="rating" label="Overall rating" value={trustMetrics.overallRatingLabel} />
+                  </div>
+                  <div className="h-full lg:relative lg:z-[3] lg:-ml-2">
+                    <ProfileStatCard
+                      icon={ownerView ? 'favorite' : 'verified'}
+                      label={ownerView ? 'Favorites' : 'Ratings logged'}
+                      value={ownerView ? profileHeader.favoritesCount : trustMetrics.totalRatings}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Card variant="subtle" className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Reliability</p>
-              <p className="text-2xl font-semibold text-white">{trustMetrics.reliabilityLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">Do they usually show up when they say they will?</p>
-            </Card>
-            <Card variant="subtle" className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Accuracy</p>
-              <p className="text-2xl font-semibold text-white">{trustMetrics.accuracyLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">Did the item match the listing?</p>
-            </Card>
-            <Card variant="subtle" className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Responsiveness</p>
-              <p className="text-2xl font-semibold text-white">{trustMetrics.responsivenessLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">How quickly did they reply?</p>
-            </Card>
-            <Card variant="subtle" className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Safety</p>
-              <p className="text-2xl font-semibold text-white">{trustMetrics.safetyLabel}</p>
-              <p className="text-sm leading-7 text-app-soft">Did the meetup feel comfortable and straightforward?</p>
-            </Card>
+            <TrustMetricSurface icon="reliability" label="Reliability" value={trustMetrics.reliabilityLabel} description="Do they usually show up when they say they will?" />
+            <TrustMetricSurface icon="accuracy" label="Accuracy" value={trustMetrics.accuracyLabel} description="Did the item match the listing?" />
+            <TrustMetricSurface icon="responsiveness" label="Responsiveness" value={trustMetrics.responsivenessLabel} description="How quickly did they reply?" />
+            <TrustMetricSurface icon="safety" label="Safety" value={trustMetrics.safetyLabel} description="Did the meetup feel comfortable and straightforward?" />
           </div>
 
           {ownerView ? (
             <Card className="space-y-6">
               <div className="space-y-2">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-                  Edit your public profile
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                  <AppIcon icon="profile" className="text-sm" />
+                  <span>Edit your public profile</span>
+                </div>
                 <h2 className="text-2xl font-semibold text-white">Update what people see on your profile</h2>
                 <p className="text-sm leading-7 text-app-soft">
                   Add a recognizable photo, a short bio, and any public links you want to share.
@@ -569,6 +575,7 @@ export function ProfilePage({ ownerView = false }) {
                   <Input
                     id="profile-name"
                     label="Display name"
+                    leadingIcon="profile"
                     value={profileForm.profileName}
                     onChange={handleProfileFieldChange('profileName')}
                     required
@@ -576,6 +583,7 @@ export function ProfilePage({ ownerView = false }) {
                   <Input
                     id="profile-picture"
                     label="Profile image URL"
+                    leadingIcon="seller"
                     value={profileForm.profilePicture}
                     onChange={handleProfileFieldChange('profilePicture')}
                     placeholder="https://..."
@@ -584,6 +592,7 @@ export function ProfilePage({ ownerView = false }) {
                 <Input
                   id="profile-banner"
                   label="Banner image URL"
+                  leadingIcon="open"
                   value={profileForm.profileBanner}
                   onChange={handleProfileFieldChange('profileBanner')}
                   placeholder="https://..."
@@ -591,6 +600,7 @@ export function ProfilePage({ ownerView = false }) {
                 <Textarea
                   id="profile-bio"
                   label="Short bio"
+                  leadingIcon="message"
                   value={profileForm.profileBio}
                   onChange={handleProfileFieldChange('profileBio')}
                   rows={4}
@@ -600,6 +610,7 @@ export function ProfilePage({ ownerView = false }) {
                   <Input
                     id="profile-instagram"
                     label="Instagram URL"
+                    leadingIcon="instagram"
                     value={profileForm.instagramUrl}
                     onChange={handleProfileFieldChange('instagramUrl')}
                     placeholder="https://instagram.com/..."
@@ -607,13 +618,14 @@ export function ProfilePage({ ownerView = false }) {
                   <Input
                     id="profile-linkedin"
                     label="LinkedIn URL"
+                    leadingIcon="linkedin"
                     value={profileForm.linkedinUrl}
                     onChange={handleProfileFieldChange('linkedinUrl')}
                     placeholder="https://linkedin.com/in/..."
                   />
                 </div>
 
-                <Button type="submit" loading={isSavingProfile}>
+                <Button type="submit" leadingIcon="verified" loading={isSavingProfile}>
                   Save profile changes
                 </Button>
               </form>
@@ -636,7 +648,10 @@ export function ProfilePage({ ownerView = false }) {
                         : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
                     }`}
                   >
-                    {tab.label}
+                    <span className="inline-flex items-center gap-2">
+                      <AppIcon icon={tab.icon} className="text-[0.95em]" />
+                      <span>{tab.label}</span>
+                    </span>
                   </button>
                 ))}
               </div>
@@ -651,11 +666,12 @@ export function ProfilePage({ ownerView = false }) {
                   />
                 ) : (
                   <EmptyState
+                    icon="createListing"
                     title="No active listings yet"
                     description="Create your first listing to start selling around campus."
                     action={
                       <Link to="/create" className="no-underline">
-                        <Button>Create listing</Button>
+                        <Button leadingIcon="createListing">Create listing</Button>
                       </Link>
                     }
                   />
@@ -668,11 +684,12 @@ export function ProfilePage({ ownerView = false }) {
                 />
               ) : (
                 <EmptyState
+                  icon="favorite"
                   title="No favorites saved yet"
                   description="Save listings you want to revisit and they will show up here."
                   action={
                     <Link to="/listings" className="no-underline">
-                      <Button variant="secondary">Browse listings</Button>
+                      <Button variant="secondary" leadingIcon="browse">Browse listings</Button>
                     </Link>
                   }
                 />
@@ -689,9 +706,10 @@ export function ProfilePage({ ownerView = false }) {
           {canReview ? (
             <Card className="space-y-5">
               <div className="space-y-2">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-                  Leave feedback
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                  <AppIcon icon="rating" className="text-sm" />
+                  <span>Leave feedback</span>
+                </div>
                 <h2 className="text-2xl font-semibold text-white">Rate this seller</h2>
                 <p className="text-sm leading-7 text-app-soft">
                   Share a quick rating after your purchase.
@@ -702,6 +720,7 @@ export function ProfilePage({ ownerView = false }) {
                 <Select
                   id="review-score"
                   label="Review rating"
+                  leadingIcon="rating"
                   value={reviewScore}
                   onChange={(event) => {
                     setReviewScore(event.target.value);
@@ -719,7 +738,7 @@ export function ProfilePage({ ownerView = false }) {
                   ))}
                 </Select>
 
-                <Button type="submit" loading={isSubmittingReview}>
+                <Button type="submit" leadingIcon="verified" loading={isSubmittingReview}>
                   Submit review score
                 </Button>
               </form>

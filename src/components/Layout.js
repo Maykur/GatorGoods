@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Show, UserButton, useUser } from '@clerk/react';
-import { Button } from './ui';
+import { AppIcon, Button } from './ui';
 
-const publicNavItems = [{ to: '/', label: 'Landing', end: true }];
+const publicNavItems = [{ to: '/', label: 'Landing', icon: 'home', end: true }];
 
 function getNavLinkClass(isActive) {
   return [
-    'rounded-full px-3 py-2 no-underline transition-colors duration-200',
+    'inline-flex items-center gap-2 rounded-full px-3 py-2 no-underline transition-colors duration-200',
     isActive
       ? 'bg-gatorOrange/15 text-white ring-1 ring-gatorOrange/35'
       : 'text-slate-300 hover:bg-white/5 hover:text-white',
@@ -22,16 +22,30 @@ function BrandMark() {
   );
 }
 
+function NavItemLink({ to, label, icon, end, onClick }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => getNavLinkClass(isActive)}
+      onClick={onClick}
+    >
+      {icon ? <AppIcon icon={icon} className="text-[0.95em]" /> : null}
+      <span>{label}</span>
+    </NavLink>
+  );
+}
+
 export function Layout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user } = useUser();
   const location = useLocation();
 
   const signedInNavItems = user ? [
-    { to: '/listings', label: 'Browse' },
-    { to: '/messages', label: 'Messages' },
-    { to: '/offers', label: 'Offers' },
-    { to: '/profile/me', label: 'Profile' },
+    { to: '/listings', label: 'Browse', icon: 'browse' },
+    { to: '/messages', label: 'Messages', icon: 'messages' },
+    { to: '/offers', label: 'Offers', icon: 'offers' },
+    { to: '/profile/me', label: 'Profile', icon: 'profile' },
   ] : [];
 
   useEffect(() => {
@@ -63,48 +77,49 @@ export function Layout() {
             aria-expanded={isMenuOpen}
             aria-controls="primary-nav"
           >
-            Menu
+            <span className="inline-flex items-center gap-2">
+              <AppIcon icon="menu" className="text-[0.95em]" />
+              <span>Menu</span>
+            </span>
           </button>
           <nav id="primary-nav" className="ml-auto hidden items-center gap-2 text-sm sm:flex">
-            {publicNavItems.map(({ to, label, end }) => (
-              <NavLink
+            {publicNavItems.map(({ to, label, icon, end }) => (
+              <NavItemLink
                 key={to}
                 to={to}
+                label={label}
+                icon={icon}
                 end={end}
-                className={({ isActive }) => getNavLinkClass(isActive)}
                 onClick={() => setIsMenuOpen(false)}
-              >
-                {label}
-              </NavLink>
+              />
             ))}
             <Show when="signed-in">
-              {signedInNavItems.map(({ to, label, end }) => (
-                <NavLink
+              {signedInNavItems.map(({ to, label, icon, end }) => (
+                <NavItemLink
                   key={to}
                   to={to}
+                  label={label}
+                  icon={icon}
                   end={end}
-                  className={({ isActive }) => getNavLinkClass(isActive)}
                   onClick={() => setIsMenuOpen(false)}
-                >
-                  {label}
-                </NavLink>
+                />
               ))}
             </Show>
             <Show when="signed-out">
               <Link to="/login" className="no-underline">
-                <Button type="button" variant="secondary" size="sm">
+                <Button type="button" variant="secondary" size="sm" leadingIcon="profile">
                   Log in
                 </Button>
               </Link>
               <Link to="/signup" className="no-underline">
-                <Button type="button" size="sm">
+                <Button type="button" size="sm" leadingIcon="createListing">
                   Sign up
                 </Button>
               </Link>
             </Show>
             <Show when="signed-in">
               <Link to="/create" className="no-underline">
-                <Button size="sm">Create listing</Button>
+                <Button size="sm" leadingIcon="createListing">Create listing</Button>
               </Link>
               <div className="rounded-full border border-white/10 bg-white/5 p-1">
                 <UserButton afterSignOutUrl="/" />
@@ -122,39 +137,37 @@ export function Layout() {
             />
             <div className="absolute inset-x-4 top-full z-40 animate-fade-in-up rounded-[1.75rem] border border-white/10 bg-app-panel/95 p-4 shadow-card">
               <nav className="flex flex-col gap-2 text-sm">
-                {publicNavItems.map(({ to, label, end }) => (
-                  <NavLink
+                {publicNavItems.map(({ to, label, icon, end }) => (
+                  <NavItemLink
                     key={to}
                     to={to}
+                    label={label}
+                    icon={icon}
                     end={end}
-                    className={({ isActive }) => getNavLinkClass(isActive)}
-                  >
-                    {label}
-                  </NavLink>
+                  />
                 ))}
                 <Show when="signed-in">
-                  {signedInNavItems.map(({ to, label, end }) => (
-                    <NavLink
+                  {signedInNavItems.map(({ to, label, icon, end }) => (
+                    <NavItemLink
                       key={to}
                       to={to}
+                      label={label}
+                      icon={icon}
                       end={end}
-                      className={({ isActive }) => getNavLinkClass(isActive)}
-                    >
-                      {label}
-                    </NavLink>
+                    />
                   ))}
                   <Link to="/create" className="mt-2 no-underline">
-                    <Button fullWidth>Create listing</Button>
+                    <Button fullWidth leadingIcon="createListing">Create listing</Button>
                   </Link>
                 </Show>
                 <Show when="signed-out">
                   <Link to="/login" className="no-underline">
-                    <Button variant="secondary" fullWidth>
+                    <Button variant="secondary" fullWidth leadingIcon="profile">
                       Log in
                     </Button>
                   </Link>
                   <Link to="/signup" className="no-underline">
-                    <Button fullWidth>Sign up</Button>
+                    <Button fullWidth leadingIcon="createListing">Sign up</Button>
                   </Link>
                 </Show>
               </nav>
@@ -172,11 +185,23 @@ export function Layout() {
             <p className="m-0 mt-1 text-app-muted">Built for UF students who want a calmer way to buy and sell.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link to="/" className="hover:text-white">Landing</Link>
+            <Link to="/" className="inline-flex items-center gap-2 hover:text-white">
+              <AppIcon icon="home" className="text-[0.9em]" />
+              <span>Landing</span>
+            </Link>
             <Show when="signed-in">
-              <Link to="/listings" className="hover:text-white">Browse</Link>
-              <Link to="/create" className="hover:text-white">Create listing</Link>
-              <Link to="/messages" className="hover:text-white">Messages</Link>
+              <Link to="/listings" className="inline-flex items-center gap-2 hover:text-white">
+                <AppIcon icon="browse" className="text-[0.9em]" />
+                <span>Browse</span>
+              </Link>
+              <Link to="/create" className="inline-flex items-center gap-2 hover:text-white">
+                <AppIcon icon="createListing" className="text-[0.9em]" />
+                <span>Create listing</span>
+              </Link>
+              <Link to="/messages" className="inline-flex items-center gap-2 hover:text-white">
+                <AppIcon icon="messages" className="text-[0.9em]" />
+                <span>Messages</span>
+              </Link>
             </Show>
           </div>
         </div>
