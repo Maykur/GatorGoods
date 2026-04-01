@@ -1,6 +1,19 @@
 import { Link } from 'react-router-dom';
 import { Badge, Card } from '../ui';
 
+function getStatusVariant(status) {
+  switch (status) {
+    case 'reserved':
+      return 'warning';
+    case 'sold':
+      return 'success';
+    case 'archived':
+      return 'default';
+    default:
+      return 'info';
+  }
+}
+
 function ProductCard({ item }) {
   return (
     <Link to={`/items/${item.id}`} className="block no-underline">
@@ -24,9 +37,14 @@ function ProductCard({ item }) {
         </div>
         <div className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-5">
           <div className="space-y-1.5 sm:space-y-2">
-            <p className="text-lg font-semibold tracking-tight text-gatorOrange sm:text-2xl">
-              {item.priceLabel}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-lg font-semibold tracking-tight text-gatorOrange sm:text-2xl">
+                {item.priceLabel}
+              </p>
+              <Badge variant={getStatusVariant(item.status)} className="px-2.5 py-1 text-[0.65rem] sm:px-3 sm:text-xs">
+                {item.statusLabel}
+              </Badge>
+            </div>
             <h2 className="min-h-[2.75rem] text-sm font-semibold leading-5 text-white sm:min-h-[3.5rem] sm:text-lg sm:leading-7">
               {item.title}
             </h2>

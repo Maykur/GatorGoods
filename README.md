@@ -77,3 +77,44 @@ From the repository root:
   ```
 
   Uses `npm-run-all` to start both the frontend (`frontStart`) and backend (`backStart`) in parallel.
+
+- **Seed demo data for class evaluation**
+
+  ```bash
+  npm run seed:demo
+  ```
+
+  By default this safely reseeds only demo-tagged records and leaves unrelated marketplace data alone. The presentation dataset includes:
+  - 8 polished accounts
+  - 12 listings across all 8 marketplace categories
+  - 9 offers
+  - 8 conversation threads with populated seller and buyer inbox views
+  - presenter-owned `Desk Lamp` (`active`) and `Mini Fridge` (`reserved`) listings for the core demo flow
+
+  Useful seed inputs:
+  - `DEMO_USER_EMAIL=you@ufl.edu`
+    Uses the Clerk Backend API to resolve the presenter account by email. Requires `CLERK_SECRET_KEY`.
+  - `DEMO_USER_ID=your_clerk_user_id`
+    Uses a known presenter Clerk ID directly when email lookup is not needed.
+  - `CLERK_SECRET_KEY=sk_test_...`
+    Required only when `DEMO_USER_EMAIL` is set.
+  - `SEED_FULL_RESET=true`
+    Clears every backend collection before seeding. Use only when you want a complete reset.
+  - `SEED_TAG=custom-demo-tag`
+    Overrides the default safe cleanup namespace (`gatorgoods-demo`).
+  - `FAKER_SEED=20260401`
+    Refreshes filler bios/messages deterministically while keeping the curated scenario set stable.
+
+  Common commands:
+
+  ```bash
+  DEMO_USER_EMAIL=you@ufl.edu CLERK_SECRET_KEY=sk_test_... npm run seed:demo
+  ```
+
+  ```bash
+  DEMO_USER_ID=your_clerk_user_id npm run seed:demo
+  ```
+
+  ```bash
+  SEED_FULL_RESET=true npm run seed:demo
+  ```

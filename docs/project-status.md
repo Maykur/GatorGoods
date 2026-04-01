@@ -12,14 +12,30 @@ Ship a proposal-aligned UF marketplace that supports:
 - Public browsing of listings, item detail pages, and seller trust signals
 - Offer-first negotiation with structured payment and meetup inputs
 - People-first messaging with item context attached to the thread
-- Transaction tracking, optional simulated escrow, and dual PIN release
-- Structured reviews and percent-based trust metrics
+- Trust-heavy public profiles with percent-based trust metrics
+- Demo-ready seeded data for evaluation and presentation
+
+## Current Implementation Snapshot
+
+Implemented now:
+
+- Public marketplace feed with filtering and visible listing status
+- Public item detail pages with trust-forward seller context
+- Structured offer creation from the item page
+- Buyer and seller offers inboxes with seller-side comparison and accept/decline actions
+- Listing reservation behavior after accepting an offer
+- People-first messaging with linked item context
+- Trust-heavy public profiles plus lightweight owner profile editing
+- Demo seed script that creates active, reserved, and sold listing scenarios
+
+Still storyboarded or stretch scope:
+
+- Dedicated transaction detail views
+- Simulated escrow and dual PIN release
+- Post-meetup structured exchange rating flow
 
 ## Delivery Dates
 
-- Core marketplace target: April 6, 2026
-- Negotiation and messaging target: April 11, 2026
-- Trust and transactions target: April 18, 2026
 - Evaluation-ready target: April 20, 2026
 - Final submission target: April 22, 2026
 
@@ -66,6 +82,10 @@ Ship a proposal-aligned UF marketplace that supports:
 ## Recommended Build Order
 
 `#11 -> #12 -> #13/#14 -> #15/#16/#17 -> #18/#19/#20 -> #21/#22 -> #23/#24 -> #25`
+
+## Issue Reality Check
+
+The GitHub issue map above is still useful for historical grouping, but it no longer perfectly reflects branch reality. The repo is already past the core marketplace and negotiation milestones; the highest-value remaining work is polish, evaluation readiness, and clearly communicating which proposal ideas are implemented versus storyboarded.
 
 ## Blockers
 

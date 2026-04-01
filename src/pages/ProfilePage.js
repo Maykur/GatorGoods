@@ -10,13 +10,19 @@ import {
   Card,
   EmptyState,
   ErrorBanner,
+  Input,
   PageHeader,
   Select,
   Skeleton,
+  Textarea,
   useConfirmDialog,
   useToast,
 } from '../components/ui';
-import { toListingCardViewModel, toProfileHeaderViewModel } from '../lib/viewModels';
+import {
+  toListingCardViewModel,
+  toProfileHeaderViewModel,
+  toTrustMetricsViewModel,
+} from '../lib/viewModels';
 
 const API_BASE_URL = 'http://localhost:5000';
 const OWNER_TABS = [
@@ -24,6 +30,17 @@ const OWNER_TABS = [
   { id: 'favorites', label: 'Favorites' },
 ];
 const REVIEW_OPTIONS = ['0', '1', '2', '3', '4', '5'];
+
+function getEditableProfileValues(profileHeader) {
+  return {
+    profileName: profileHeader?.displayName || '',
+    profilePicture: profileHeader?.avatarUrl || '',
+    profileBanner: profileHeader?.bannerUrl || '',
+    profileBio: profileHeader?.bio || '',
+    instagramUrl: profileHeader?.instagramUrl || '',
+    linkedinUrl: profileHeader?.linkedinUrl || '',
+  };
+}
 
 function ProfileSkeleton() {
   return (
@@ -34,30 +51,23 @@ function ProfileSkeleton() {
         <Skeleton className="h-6 w-full max-w-2xl" />
       </div>
 
-      <Card className="space-y-6">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center">
-          <Skeleton className="h-24 w-24 rounded-[1.5rem]" />
-          <div className="flex-1 space-y-3">
-            <Skeleton className="h-9 w-64" />
-            <Skeleton className="h-6 w-40" />
-            <div className="flex flex-wrap gap-3">
-              <Skeleton className="h-12 w-36 rounded-2xl" />
-              <Skeleton className="h-12 w-36 rounded-2xl" />
+      <Card padding="none" className="overflow-hidden">
+        <Skeleton className="h-40 rounded-none" />
+        <div className="space-y-6 p-5">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end">
+            <Skeleton className="h-24 w-24 rounded-[1.5rem]" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-9 w-64" />
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-6 w-full max-w-2xl" />
             </div>
           </div>
         </div>
       </Card>
 
-      <div className="space-y-4">
-        {Array.from({ length: 2 }).map((_, index) => (
-          <Card key={index} className="flex flex-col gap-5 lg:flex-row lg:items-center">
-            <Skeleton className="h-32 w-full rounded-[1.5rem] sm:w-40" />
-            <div className="flex-1 space-y-3">
-              <Skeleton className="h-8 w-28" />
-              <Skeleton className="h-7 w-full max-w-sm" />
-              <Skeleton className="h-5 w-40" />
-            </div>
-          </Card>
+      <div className="grid gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-24 rounded-[1.5rem]" />
         ))}
       </div>
     </section>
@@ -92,6 +102,37 @@ async function fetchOptionalItem(itemId) {
   }
 }
 
+function ProfileConnectorLinks({ profileHeader }) {
+  const connectors = [
+    profileHeader?.instagramUrl
+      ? { id: 'instagram', label: 'Instagram', href: profileHeader.instagramUrl }
+      : null,
+    profileHeader?.linkedinUrl
+      ? { id: 'linkedin', label: 'LinkedIn', href: profileHeader.linkedinUrl }
+      : null,
+  ].filter(Boolean);
+
+  if (connectors.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {connectors.map((connector) => (
+        <a
+          key={connector.id}
+          href={connector.href}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-app-soft no-underline transition hover:border-white/20 hover:text-white"
+        >
+          {connector.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function ProfilePage({ ownerView = false }) {
   const { user, isSignedIn } = useUser();
   const { id } = useParams();
@@ -103,9 +144,12 @@ export function ProfilePage({ ownerView = false }) {
   const [error, setError] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [reviewScore, setReviewScore] = useState('');
+  const [profileForm, setProfileForm] = useState(getEditableProfileValues(null));
+  const [profileFormError, setProfileFormError] = useState('');
   const [activeTab, setActiveTab] = useState('listings');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [activeActionId, setActiveActionId] = useState('');
 
   const loadProfile = useCallback(async () => {
@@ -142,7 +186,7 @@ export function ProfilePage({ ownerView = false }) {
     if (!profileId) {
       setInfo(null);
       setFavoriteItems([]);
-      setError(ownerView ? 'Sign in to manage your profile dashboard.' : 'Profile not found');
+      setError(ownerView ? 'Sign in to manage your profile.' : 'Profile not found');
       setIsLoading(false);
       return undefined;
     }
@@ -183,10 +227,8 @@ export function ProfilePage({ ownerView = false }) {
     () => (info ? toProfileHeaderViewModel(info, info.listings, ownerView ? user?.id : null) : null),
     [info, ownerView, user?.id]
   );
-  const listingItems = useMemo(
-    () => (info?.listings || []).map(toListingCardViewModel),
-    [info]
-  );
+  const trustMetrics = useMemo(() => toTrustMetricsViewModel(info), [info]);
+  const listingItems = useMemo(() => (info?.listings || []).map(toListingCardViewModel), [info]);
   const favoriteCards = useMemo(
     () =>
       favoriteItems.map((item) => ({
@@ -202,6 +244,15 @@ export function ProfilePage({ ownerView = false }) {
       info?.profile?.profileID &&
       info.profile.profileID !== user.id
   );
+
+  useEffect(() => {
+    if (!ownerView || !profileHeader) {
+      return;
+    }
+
+    setProfileForm(getEditableProfileValues(profileHeader));
+    setProfileFormError('');
+  }, [ownerView, profileHeader]);
 
   const refreshProfile = useCallback(async () => {
     const { profileData, favorites } = await loadProfile();
@@ -267,7 +318,7 @@ export function ProfilePage({ ownerView = false }) {
         await refreshProfile();
         showToast({
           title: 'Favorite removed',
-          description: `${listingTitle} is no longer saved in your dashboard.`,
+          description: `${listingTitle} is no longer in your saved items.`,
           variant: 'success',
         });
       } catch (favoriteError) {
@@ -326,6 +377,58 @@ export function ProfilePage({ ownerView = false }) {
     }
   };
 
+  const handleProfileFieldChange = (field) => (event) => {
+    setProfileForm((currentForm) => ({
+      ...currentForm,
+      [field]: event.target.value,
+    }));
+    setProfileFormError('');
+  };
+
+  const handleProfileSave = async (event) => {
+    event.preventDefault();
+
+    if (!profileId) {
+      return;
+    }
+
+    if (!profileForm.profileName.trim()) {
+      setProfileFormError('Display name is required.');
+      return;
+    }
+
+    try {
+      setIsSavingProfile(true);
+      const response = await fetch(`${API_BASE_URL}/user/${profileId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileForm),
+      });
+      const updatedProfile = await readJson(response, 'Unable to save profile changes');
+
+      setInfo((currentInfo) =>
+        currentInfo
+          ? {
+              ...currentInfo,
+              profile: updatedProfile,
+            }
+          : currentInfo
+      );
+      setProfileFormError('');
+      showToast({
+        title: 'Profile updated',
+        description: 'Your public seller profile is now up to date.',
+        variant: 'success',
+      });
+    } catch (saveError) {
+      setProfileFormError(saveError.message || 'Unable to save profile changes');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   if (isLoading) {
     return <ProfileSkeleton />;
   }
@@ -333,12 +436,12 @@ export function ProfilePage({ ownerView = false }) {
   return (
     <section className="w-full space-y-8">
       <PageHeader
-        eyebrow={ownerView ? 'Owner Dashboard' : 'Seller Profile'}
-        title={ownerView ? 'Manage your seller presence' : profileHeader?.displayName || 'Seller profile'}
+        eyebrow={ownerView ? 'Your Profile' : 'Seller Profile'}
+        title={ownerView ? 'Manage your profile' : profileHeader?.displayName || 'Seller profile'}
         description={
           ownerView
-            ? 'Review active listings, keep track of favorites, and make sure your marketplace presence stays current.'
-            : 'View seller reputation, current listings, and leave a quick review after a transaction.'
+            ? 'Update your photo, bio, links, listings, and saved items in one place.'
+            : 'See this seller\'s bio, links, and ratings before you decide to buy.'
         }
         actions={
           ownerView ? (
@@ -358,51 +461,164 @@ export function ProfilePage({ ownerView = false }) {
 
       {!error && profileHeader ? (
         <>
-          <Card className="space-y-6">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                <Avatar
-                  src={profileHeader.avatarUrl}
-                  alt={profileHeader.displayName}
-                  name={profileHeader.displayName}
-                  size="xl"
-                />
-
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                      {profileHeader.displayName}
-                    </h1>
-                    <Badge variant="orange">{profileHeader.ratingLabel}</Badge>
-                    {ownerView ? <Badge variant="info">Owner dashboard</Badge> : null}
+          <Card padding="none" className="overflow-hidden">
+            <div
+              className="min-h-[11rem] border-b border-white/10 bg-gradient-to-r from-brand-blue/25 via-app-surface to-gatorOrange/20"
+              style={profileHeader.bannerUrl ? { backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.35), rgba(2, 6, 23, 0.7)), url(${profileHeader.bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+            />
+            <div className="space-y-6 p-5 sm:p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-end">
+                  <div className="-mt-16 sm:-mt-20">
+                    <Avatar
+                      src={profileHeader.avatarUrl}
+                      alt={profileHeader.displayName}
+                      name={profileHeader.displayName}
+                      size="xl"
+                    />
                   </div>
 
-                  <p className="max-w-2xl text-sm leading-7 text-app-soft">
-                    {ownerView
-                      ? 'Your dashboard keeps listing management and saved items in one place.'
-                      : 'This public seller view keeps current listings and reputation visible before you start a conversation.'}
-                  </p>
-                </div>
-              </div>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                        {profileHeader.displayName}
+                      </h1>
+                      <Badge variant="orange">{trustMetrics.overallRatingLabel}</Badge>
+                      {profileHeader.ufVerified ? <Badge variant="success">UF verified</Badge> : null}
+                      {ownerView ? <Badge variant="info">Your profile</Badge> : null}
+                    </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Card variant="subtle" className="min-w-[11rem]">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                    Active listings
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold text-white">{profileHeader.listingCount}</p>
-                </Card>
-                <Card variant="subtle" className="min-w-[11rem]">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                    {ownerView ? 'Favorites' : 'Seller rating'}
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
-                    {ownerView ? profileHeader.favoritesCount : profileHeader.ratingLabel}
-                  </p>
-                </Card>
+                    <p className="max-w-2xl text-sm leading-7 text-app-soft">
+                      {profileHeader.bio ||
+                        (ownerView
+                          ? 'Add a short bio so people know what you usually sell.'
+                          : 'This seller has not added a bio yet.')}
+                    </p>
+
+                    <ProfileConnectorLinks profileHeader={profileHeader} />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Card variant="subtle" className="min-w-[10rem]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                      Active listings
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{profileHeader.listingCount}</p>
+                  </Card>
+                  <Card variant="subtle" className="min-w-[10rem]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                      Overall rating
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{trustMetrics.overallRatingLabel}</p>
+                  </Card>
+                  <Card variant="subtle" className="min-w-[10rem]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                      {ownerView ? 'Favorites' : 'Ratings logged'}
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-white">
+                      {ownerView ? profileHeader.favoritesCount : trustMetrics.totalRatings}
+                    </p>
+                  </Card>
+                </div>
               </div>
             </div>
           </Card>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Card variant="subtle" className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Reliability</p>
+              <p className="text-2xl font-semibold text-white">{trustMetrics.reliabilityLabel}</p>
+              <p className="text-sm leading-7 text-app-soft">Do they usually show up when they say they will?</p>
+            </Card>
+            <Card variant="subtle" className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Accuracy</p>
+              <p className="text-2xl font-semibold text-white">{trustMetrics.accuracyLabel}</p>
+              <p className="text-sm leading-7 text-app-soft">Did the item match the listing?</p>
+            </Card>
+            <Card variant="subtle" className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Responsiveness</p>
+              <p className="text-2xl font-semibold text-white">{trustMetrics.responsivenessLabel}</p>
+              <p className="text-sm leading-7 text-app-soft">How quickly did they reply?</p>
+            </Card>
+            <Card variant="subtle" className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">Safety</p>
+              <p className="text-2xl font-semibold text-white">{trustMetrics.safetyLabel}</p>
+              <p className="text-sm leading-7 text-app-soft">Did the meetup feel comfortable and straightforward?</p>
+            </Card>
+          </div>
+
+          {ownerView ? (
+            <Card className="space-y-6">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                  Edit your public profile
+                </p>
+                <h2 className="text-2xl font-semibold text-white">Update what people see on your profile</h2>
+                <p className="text-sm leading-7 text-app-soft">
+                  Add a recognizable photo, a short bio, and any public links you want to share.
+                </p>
+              </div>
+
+              {profileFormError ? (
+                <ErrorBanner title="We couldn't save your profile" message={profileFormError} />
+              ) : null}
+
+              <form className="space-y-4" onSubmit={handleProfileSave}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input
+                    id="profile-name"
+                    label="Display name"
+                    value={profileForm.profileName}
+                    onChange={handleProfileFieldChange('profileName')}
+                    required
+                  />
+                  <Input
+                    id="profile-picture"
+                    label="Profile image URL"
+                    value={profileForm.profilePicture}
+                    onChange={handleProfileFieldChange('profilePicture')}
+                    placeholder="https://..."
+                  />
+                </div>
+                <Input
+                  id="profile-banner"
+                  label="Banner image URL"
+                  value={profileForm.profileBanner}
+                  onChange={handleProfileFieldChange('profileBanner')}
+                  placeholder="https://..."
+                />
+                <Textarea
+                  id="profile-bio"
+                  label="Short bio"
+                  value={profileForm.profileBio}
+                  onChange={handleProfileFieldChange('profileBio')}
+                  rows={4}
+                  placeholder="Selling a few campus essentials and always meeting in public spots."
+                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input
+                    id="profile-instagram"
+                    label="Instagram URL"
+                    value={profileForm.instagramUrl}
+                    onChange={handleProfileFieldChange('instagramUrl')}
+                    placeholder="https://instagram.com/..."
+                  />
+                  <Input
+                    id="profile-linkedin"
+                    label="LinkedIn URL"
+                    value={profileForm.linkedinUrl}
+                    onChange={handleProfileFieldChange('linkedinUrl')}
+                    placeholder="https://linkedin.com/in/..."
+                  />
+                </div>
+
+                <Button type="submit" loading={isSavingProfile}>
+                  Save profile changes
+                </Button>
+              </form>
+            </Card>
+          ) : null}
 
           {ownerView ? (
             <Card className="space-y-6">
@@ -478,7 +694,7 @@ export function ProfilePage({ ownerView = false }) {
                 </p>
                 <h2 className="text-2xl font-semibold text-white">Rate this seller</h2>
                 <p className="text-sm leading-7 text-app-soft">
-                  Share a quick score after a completed purchase so future buyers have better context.
+                  Share a quick rating after your purchase.
                 </p>
               </div>
 
