@@ -178,6 +178,7 @@ export function ProfilePage({ ownerView = false }) {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [activeActionId, setActiveActionId] = useState('');
+  const [overlay, setOverlay] = useState(false);
 
   const loadProfile = useCallback(async () => {
     if (!profileId) {
@@ -449,6 +450,7 @@ export function ProfilePage({ ownerView = false }) {
         description: 'Your public seller profile is now up to date.',
         variant: 'success',
       });
+	  setOverlay(false);
     } catch (saveError) {
       setProfileFormError(saveError.message || 'Unable to save profile changes');
     } finally {
@@ -543,18 +545,19 @@ export function ProfilePage({ ownerView = false }) {
                   </div>
                 </div>
               </div>
+			  {ownerView && !overlay ? (
+				<Button onClick={() => setOverlay(true)}>
+					Edit Profile
+				</Button>
+			  ): null}
             </div>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <TrustMetricSurface icon="reliability" label="Reliability" value={trustMetrics.reliabilityLabel} description="Do they usually show up when they say they will?" />
-            <TrustMetricSurface icon="accuracy" label="Accuracy" value={trustMetrics.accuracyLabel} description="Did the item match the listing?" />
-            <TrustMetricSurface icon="responsiveness" label="Responsiveness" value={trustMetrics.responsivenessLabel} description="How quickly did they reply?" />
-            <TrustMetricSurface icon="safety" label="Safety" value={trustMetrics.safetyLabel} description="Did the meetup feel comfortable and straightforward?" />
-          </div>
-
-          {ownerView ? (
+		{ownerView && overlay ? (
             <Card className="space-y-6">
+				<Button onClick={() => setOverlay(false)}>
+					Exit
+				</Button>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
                   <AppIcon icon="profile" className="text-sm" />
@@ -631,6 +634,13 @@ export function ProfilePage({ ownerView = false }) {
               </form>
             </Card>
           ) : null}
+		  
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <TrustMetricSurface icon="reliability" label="Reliability" value={trustMetrics.reliabilityLabel} description="Do they usually show up when they say they will?" />
+            <TrustMetricSurface icon="accuracy" label="Accuracy" value={trustMetrics.accuracyLabel} description="Did the item match the listing?" />
+            <TrustMetricSurface icon="responsiveness" label="Responsiveness" value={trustMetrics.responsivenessLabel} description="How quickly did they reply?" />
+            <TrustMetricSurface icon="safety" label="Safety" value={trustMetrics.safetyLabel} description="Did the meetup feel comfortable and straightforward?" />
+          </div>
 
           {ownerView ? (
             <Card className="space-y-6">
