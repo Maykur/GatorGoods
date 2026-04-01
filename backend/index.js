@@ -4,6 +4,11 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
+const {
+  deriveListingPickupFields,
+  deriveOfferPickupFields,
+  isApprovedPickupHubId,
+} = require('../src/lib/pickupHubs');
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
@@ -24,6 +29,16 @@ const ItemSchema = new mongoose.Schema({
   itemLocation: {
     type: String,
     required: true,
+  },
+  pickupHubId: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  pickupArea: {
+    type: String,
+    default: '',
+    trim: true,
   },
   itemPicture: {
     type: String,
@@ -258,6 +273,16 @@ const offerSchema = new mongoose.Schema(
     meetupLocation: {
       type: String,
       required: true,
+      trim: true,
+    },
+    meetupHubId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    meetupArea: {
+      type: String,
+      default: '',
       trim: true,
     },
     meetupWindow: {
@@ -672,6 +697,7 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       buyerClerkUserId,
       buyerDisplayName,
       offeredPrice,
+      meetupHubId,
       meetupLocation,
       meetupWindow,
       paymentMethod,
@@ -696,7 +722,16 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       return resp.status(400).json({message: 'A valid offeredPrice is required'});
     }
 
-    if (!trimmedMeetupLocation) {
+    if (typeof meetupHubId !== 'undefined' && meetupHubId !== null && !isApprovedPickupHubId(meetupHubId)) {
+      return resp.status(400).json({message: 'meetupHubId must be one of the approved pickup hubs'});
+    }
+
+    const resolvedMeetupFields = deriveOfferPickupFields({
+      meetupHubId,
+      meetupLocation: trimmedMeetupLocation,
+    });
+
+    if (!resolvedMeetupFields.meetupLocation) {
       return resp.status(400).json({message: 'meetupLocation is required'});
     }
 
@@ -734,7 +769,9 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       sellerClerkUserId: listing.userPublishingID,
       conversationId: conversation.id,
       offeredPrice: normalizedPrice,
-      meetupLocation: trimmedMeetupLocation,
+      meetupHubId: resolvedMeetupFields.meetupHubId,
+      meetupArea: resolvedMeetupFields.meetupArea,
+      meetupLocation: resolvedMeetupFields.meetupLocation,
       meetupWindow: trimmedMeetupWindow,
       paymentMethod,
       message: normalizedMessage,
@@ -860,6 +897,7 @@ app.post('/create-item', async (req, resp) => {
       itemName,
       itemCost,
       itemCondition,
+      pickupHubId,
       itemLocation,
       itemPicture,
       itemDescription,
@@ -869,11 +907,22 @@ app.post('/create-item', async (req, resp) => {
       itemCat,
     } = req.body;
 
+    if (typeof pickupHubId !== 'undefined' && pickupHubId !== null && !isApprovedPickupHubId(pickupHubId)) {
+      return resp.status(400).json({message: 'pickupHubId must be one of the approved pickup hubs'});
+    }
+
+    const resolvedPickupFields = deriveListingPickupFields({
+      pickupHubId,
+      itemLocation,
+    });
+
     const result = await Item.create({
       itemName,
       itemCost,
       itemCondition,
-      itemLocation,
+      itemLocation: resolvedPickupFields.itemLocation,
+      pickupHubId: resolvedPickupFields.pickupHubId,
+      pickupArea: resolvedPickupFields.pickupArea,
       itemPicture,
       itemDescription,
       itemDetails,

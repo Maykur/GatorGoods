@@ -230,6 +230,46 @@ test('POST /create-item persists an explicit category', async () => {
   assert.equal(storedItem.itemCat, 'Home & Garden');
 });
 
+test('POST /create-item derives canonical pickup fields from an approved hub id', async () => {
+  const response = await request(app)
+    .post('/create-item')
+    .send({
+      itemName: 'Desk Chair',
+      itemCost: '35',
+      itemCondition: 'Good',
+      pickupHubId: 'library-west',
+      itemPicture: 'data:image/png;base64,chair',
+      itemDescription: 'Comfortable study chair',
+      itemDetails: 'Pickup near the library entrance',
+      userPublishingID: 'user_8',
+      userPublishingName: 'Seller Eight',
+    });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.pickupHubId, 'library-west');
+  assert.equal(response.body.pickupArea, 'Central Campus');
+  assert.equal(response.body.itemLocation, 'Library West');
+});
+
+test('POST /create-item rejects unknown pickup hub ids', async () => {
+  const response = await request(app)
+    .post('/create-item')
+    .send({
+      itemName: 'Notebook',
+      itemCost: '5',
+      itemCondition: 'New',
+      pickupHubId: 'midtown',
+      itemPicture: 'data:image/png;base64,notebook',
+      itemDescription: 'Unused notebook',
+      itemDetails: 'College ruled',
+      userPublishingID: 'user_10',
+      userPublishingName: 'Seller Ten',
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'pickupHubId must be one of the approved pickup hubs');
+});
+
 test('POST /create-item falls back to the default category when omitted', async () => {
   const response = await request(app)
     .post('/create-item')
@@ -312,6 +352,31 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   const linkedConversation = await Conversation.findById(response.body.conversationId);
   assert.deepEqual(linkedConversation.participantIds, ['buyer_1', 'user_1']);
   assert.equal(linkedConversation.activeListingId.toString(), item.id);
+});
+
+test('POST /api/listings/:id/offers derives canonical meetup fields from an approved hub id', async () => {
+  const {item} = await seedProfileAndItem();
+
+  const response = await createOffer(item.id, {
+    meetupHubId: 'plaza-americas',
+    meetupLocation: '',
+  });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.meetupHubId, 'plaza-americas');
+  assert.equal(response.body.meetupArea, 'Central Campus');
+  assert.equal(response.body.meetupLocation, 'Plaza of the Americas');
+});
+
+test('POST /api/listings/:id/offers rejects unknown meetup hub ids', async () => {
+  const {item} = await seedProfileAndItem();
+
+  const response = await createOffer(item.id, {
+    meetupHubId: 'sorority-row',
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'meetupHubId must be one of the approved pickup hubs');
 });
 
 test('POST /api/listings/:id/offers rejects self-offers', async () => {

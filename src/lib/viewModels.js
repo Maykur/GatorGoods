@@ -1,3 +1,9 @@
+import {
+  getPickupHubArea,
+  getPickupHubLabel,
+  normalizePickupHubId,
+} from './pickupHubs';
+
 const DEFAULT_CATEGORY = 'Miscellaneous';
 const DEFAULT_LOCATION = 'Campus pickup';
 const DEFAULT_SELLER_NAME = 'GatorGoods Seller';
@@ -98,12 +104,16 @@ export function formatDateLabel(value) {
 }
 
 export function toListingCardViewModel(raw) {
+  const pickupHubId = normalizePickupHubId(raw?.pickupHubId);
+
   return {
     id: raw?._id || raw?.id || '',
     title: normalizeText(raw?.itemName, DEFAULT_LISTING_TITLE),
     priceLabel: formatPriceLabel(raw?.itemCost),
     condition: normalizeText(raw?.itemCondition, 'Unknown'),
-    location: normalizeText(raw?.itemLocation, DEFAULT_LOCATION),
+    location: getPickupHubLabel(pickupHubId, normalizeText(raw?.itemLocation, DEFAULT_LOCATION)),
+    pickupHubId,
+    pickupArea: getPickupHubArea(pickupHubId, normalizeText(raw?.pickupArea, '')),
     imageUrl: normalizeText(raw?.itemPicture, ''),
     category: normalizeCategory(raw?.itemCat),
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
@@ -122,6 +132,8 @@ export function toListingDetailViewModel(raw, viewerId = null) {
     priceLabel: cardView.priceLabel,
     condition: cardView.condition,
     location: cardView.location,
+    pickupHubId: cardView.pickupHubId,
+    pickupArea: cardView.pickupArea,
     imageUrl: cardView.imageUrl,
     category: cardView.category,
     description: normalizeText(raw?.itemDescription, 'No description provided yet.'),
@@ -198,6 +210,7 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
   const listingCard = listing ? toListingCardViewModel(listing) : null;
   const buyerTrust = buyerProfile ? toTrustMetricsViewModel(buyerProfile) : null;
   const sellerTrust = sellerProfile ? toTrustMetricsViewModel(sellerProfile) : null;
+  const meetupHubId = normalizePickupHubId(rawOffer?.meetupHubId);
 
   return {
     id: rawOffer?._id || rawOffer?.id || '',
@@ -217,7 +230,9 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     ),
     offeredPrice: Number(rawOffer?.offeredPrice) || 0,
     offeredPriceLabel: formatPriceLabel(rawOffer?.offeredPrice),
-    meetupLocation: normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION),
+    meetupLocation: getPickupHubLabel(meetupHubId, normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION)),
+    meetupHubId,
+    meetupArea: getPickupHubArea(meetupHubId, normalizeText(rawOffer?.meetupArea, '')),
     meetupWindow: normalizeText(rawOffer?.meetupWindow, 'Meetup details pending'),
     paymentMethod: rawOffer?.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(rawOffer?.paymentMethod),

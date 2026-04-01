@@ -12,6 +12,12 @@ import {
   toProfileHeaderViewModel,
   toTrustMetricsViewModel,
 } from './viewModels';
+import {
+  APPROVED_PICKUP_HUBS,
+  deriveListingPickupFields,
+  deriveOfferPickupFields,
+  getPickupHubById,
+} from './pickupHubs';
 
 test('toListingCardViewModel normalizes core listing fields', () => {
   expect(
@@ -20,7 +26,9 @@ test('toListingCardViewModel normalizes core listing fields', () => {
       itemName: 'Desk Lamp',
       itemCost: '20',
       itemCondition: 'Good',
-      itemLocation: 'Library West',
+      pickupHubId: 'library-west',
+      pickupArea: 'Central Campus',
+      itemLocation: 'Old Label',
       itemPicture: 'lamp.png',
       itemCat: '',
       userPublishingName: '',
@@ -31,6 +39,8 @@ test('toListingCardViewModel normalizes core listing fields', () => {
     priceLabel: '$20',
     condition: 'Good',
     location: 'Library West',
+    pickupHubId: 'library-west',
+    pickupArea: 'Central Campus',
     imageUrl: 'lamp.png',
     category: 'Miscellaneous',
     sellerName: 'GatorGoods Seller',
@@ -140,7 +150,9 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
         buyerClerkUserId: 'buyer-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 45,
-        meetupLocation: 'Reitz Union',
+        meetupHubId: 'reitz',
+        meetupArea: 'Central Campus',
+        meetupLocation: 'Old Reitz Label',
         meetupWindow: 'Fri 2:00 PM - 3:00 PM',
         paymentMethod: 'cash',
         message: 'Can pick up after class.',
@@ -189,6 +201,8 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     offeredPrice: 45,
     offeredPriceLabel: '$45',
     meetupLocation: 'Reitz Union',
+    meetupHubId: 'reitz',
+    meetupArea: 'Central Campus',
     meetupWindow: 'Fri 2:00 PM - 3:00 PM',
     paymentMethod: 'cash',
     paymentMethodLabel: 'Cash',
@@ -211,6 +225,35 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
       responsivenessLabel: 'No data yet',
       safetyLabel: 'No data yet',
     },
+  });
+});
+
+test('pickup hub helpers expose approved hubs and derive compatibility fields', () => {
+  expect(APPROVED_PICKUP_HUBS).toHaveLength(10);
+  expect(getPickupHubById('turlington-hall')).toEqual(
+    expect.objectContaining({
+      label: 'Turlington Hall',
+      area: 'Central Campus',
+      publicSafe: true,
+    })
+  );
+  expect(
+    deriveListingPickupFields({
+      pickupHubId: 'marston',
+    })
+  ).toEqual({
+    pickupHubId: 'marston',
+    pickupArea: 'Central Campus',
+    itemLocation: 'Marston Science Library',
+  });
+  expect(
+    deriveOfferPickupFields({
+      meetupLocation: 'Plaza',
+    })
+  ).toEqual({
+    meetupHubId: 'plaza-americas',
+    meetupArea: 'Central Campus',
+    meetupLocation: 'Plaza of the Americas',
   });
 });
 
