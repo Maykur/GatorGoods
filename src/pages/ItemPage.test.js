@@ -141,6 +141,47 @@ test('signed-out users can view the item and see an offer-first login CTA', asyn
   expect(await screen.findByText('4.3/5')).toBeInTheDocument();
 });
 
+test('public item page shows the original public hub instead of the negotiated current hub', async () => {
+  global.fetch.mockImplementation((url, options = {}) => {
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse(
+        buildItemPayload({
+          originalPickupHubId: 'library-west',
+          originalPickupArea: 'Historic Core',
+          originalItemLocation: 'Library West',
+          pickupHubId: 'reitz',
+          pickupArea: 'South Core',
+          itemLocation: 'Reitz Union',
+        })
+      );
+    }
+
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileFavorites: [],
+          profileRating: 4.3,
+          profileTotalRating: 9,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
+        },
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<ItemPage />);
+
+  expect(await screen.findByRole('heading', { name: 'Desk Lamp' })).toBeInTheDocument();
+  expect(screen.getByText('Library West')).toBeInTheDocument();
+  expect(screen.queryByText('Reitz Union')).not.toBeInTheDocument();
+});
+
 test('signed-in non-owners can open and submit the structured offer form', async () => {
   setClerkState({
     isSignedIn: true,

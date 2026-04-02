@@ -626,6 +626,47 @@ test('PATCH /api/conversations/:id/pickup rejects meetup hub changes after accep
   );
 });
 
+test('PATCH /api/conversations/:id/pickup on a non-reserved conversation does not overwrite the listing actual pickup state', async () => {
+  const {item} = await seedProfileAndItem();
+  const acceptedOfferResponse = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_1',
+    meetupHubId: 'reitz',
+    meetupLocation: '',
+  });
+  const declinedOfferResponse = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_2',
+    buyerDisplayName: 'Buyer Two',
+    meetupHubId: 'plaza-americas',
+    meetupLocation: '',
+    paymentMethod: 'externalApp',
+  });
+
+  await request(app)
+    .patch(`/api/offers/${acceptedOfferResponse.body._id}`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      status: 'accepted',
+      pickupSpecifics: 'Meet outside the food court doors.',
+    });
+
+  const response = await request(app)
+    .patch(`/api/conversations/${declinedOfferResponse.body.conversationId}/pickup`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      pickupHubId: 'plaza-americas',
+      pickupSpecifics: 'I can still meet here if the accepted buyer falls through.',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.activePickupHubId, 'plaza-americas');
+
+  const updatedListing = await Item.findById(item.id);
+  assert.equal(updatedListing.pickupHubId, 'reitz');
+  assert.equal(updatedListing.itemLocation, 'Reitz Union');
+  assert.equal(updatedListing.originalPickupHubId, 'library-west');
+  assert.equal(updatedListing.originalItemLocation, 'Library West');
+});
+
 test('PATCH /api/conversations/:id/pickup requires seller-authored meetup specifics updates', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id);

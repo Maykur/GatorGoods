@@ -149,3 +149,12 @@ test("create listing requires an approved pickup hub selection", async () => {
   expect(await screen.findByText(/pickup hub is required\./i)).toBeInTheDocument();
   expect(global.fetch).not.toHaveBeenCalled();
 });
+
+test("selected pickup hub appears in the live preview before submit", async () => {
+  render(<CreateListingPage />);
+
+  fireEvent.click(screen.getByRole("radio", {name: /reitz union/i}));
+
+  expect(await screen.findAllByText("Reitz Union")).toHaveLength(3);
+  expect(screen.queryByText(/public campus pickup hub appears here/i)).not.toBeInTheDocument();
+});

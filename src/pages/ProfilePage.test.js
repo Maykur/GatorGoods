@@ -168,6 +168,7 @@ test('signed-in owners see their dashboard tabs, edit form, and saved favorites'
 
   render(<ProfilePage ownerView />);
 
+  fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
   const displayNameInput = await screen.findByLabelText(/display name/i);
   await waitFor(() => {
     expect(displayNameInput).toHaveValue('Seller One');
@@ -191,6 +192,7 @@ test('signed-in owners can save lightweight public profile edits', async () => {
 
   render(<ProfilePage ownerView />);
 
+  fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
   fireEvent.change(await screen.findByLabelText(/display name/i), {
     target: { value: 'Updated Seller' },
   });
