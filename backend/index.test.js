@@ -616,6 +616,63 @@ test('POST /api/conversations/:id/messages stores attached item snapshots and up
   assert.equal(fridgeLinkedItem.lastKnownStatus, secondItem.status);
 });
 
+test('GET /api/conversations returns active item summaries and linked item counts', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const secondItem = await Item.create({
+    itemName: 'Mini Fridge',
+    itemCost: '75',
+    itemCondition: 'Fair',
+    itemLocation: 'Reitz Union',
+    itemPicture: 'https://example.com/fridge.png',
+    itemDescription: 'Works well',
+    itemDetails: 'A few scratches',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id, secondItem._id],
+    activeListingId: secondItem._id,
+    lastMessageText: 'Still interested in the fridge.',
+    lastMessageAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'Still interested in the lamp too.',
+    attachedListingId: item._id,
+    attachedListingTitle: item.itemName,
+    attachedListingImageUrl: item.itemPicture,
+    createdAt: new Date('2026-04-01T12:00:00.000Z'),
+    updatedAt: new Date('2026-04-01T12:00:00.000Z'),
+  });
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'Still interested in the fridge.',
+    attachedListingId: secondItem._id,
+    attachedListingTitle: secondItem.itemName,
+    attachedListingImageUrl: secondItem.itemPicture,
+    createdAt: new Date('2026-04-02T15:00:00.000Z'),
+    updatedAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  const response = await request(app)
+    .get('/api/conversations')
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.length, 1);
+  assert.equal(response.body[0].linkedItemCount, 2);
+  assert.equal(response.body[0].activeItem.listingId.toString(), secondItem.id);
+  assert.equal(response.body[0].activeItem.title, secondItem.itemName);
+  assert.equal(response.body[0].activeItem.imageUrl, secondItem.itemPicture);
+  assert.equal(response.body[0].activeItem.state, 'active');
+});
+
 test('POST /api/listings/:id/offers derives canonical meetup fields from an approved hub id', async () => {
   const {item} = await seedProfileAndItem();
 
@@ -975,6 +1032,165 @@ test('GET /api/conversations/:id/messages repairs a legacy accepted conversation
   assert.equal(repairedConversation.activePickupHubId, 'marston');
 });
 
+test('GET /api/conversations/:id/messages returns sorted linked items, active item context, and derived states', async () => {
+  const {profile} = await seedProfileAndItem();
+  const activeItem = await Item.create({
+    itemName: 'Desk Lamp',
+    itemCost: '20',
+    itemCondition: 'Good',
+    itemLocation: 'Library West',
+    itemPicture: 'https://example.com/lamp.png',
+    itemDescription: 'Lamp for studying',
+    itemDetails: 'Warm bulb included',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+    status: 'active',
+  });
+  const pendingItem = await Item.create({
+    itemName: 'Mini Fridge',
+    itemCost: '70',
+    itemCondition: 'Fair',
+    itemLocation: 'Reitz Union',
+    itemPicture: 'https://example.com/fridge.png',
+    itemDescription: 'Cold and reliable',
+    itemDetails: 'A little loud',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+    status: 'reserved',
+  });
+  const completedItem = await Item.create({
+    itemName: 'Bike Helmet',
+    itemCost: '15',
+    itemCondition: 'Like New',
+    itemLocation: 'Marston Science Library',
+    itemPicture: 'https://example.com/helmet.png',
+    itemDescription: 'Helmet',
+    itemDetails: 'Medium size',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+    status: 'sold',
+  });
+  const archivedItem = await Item.create({
+    itemName: 'Poster Tube',
+    itemCost: '5',
+    itemCondition: 'Used',
+    itemLocation: 'Turlington Plaza',
+    itemPicture: 'https://example.com/tube.png',
+    itemDescription: 'Tube',
+    itemDetails: 'Still works',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+    status: 'archived',
+  });
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [activeItem._id, pendingItem._id, completedItem._id, archivedItem._id],
+    activeListingId: activeItem._id,
+    lastMessageText: 'Latest thread update',
+    lastMessageAt: new Date('2026-04-04T14:00:00.000Z'),
+  });
+  const pendingOffer = await Offer.create({
+    listingId: pendingItem._id,
+    buyerClerkUserId: 'buyer_1',
+    buyerDisplayName: 'Buyer One',
+    sellerClerkUserId: profile.profileID,
+    conversationId: conversation._id,
+    offeredPrice: 68,
+    meetupHubId: 'reitz',
+    meetupArea: 'South Core',
+    meetupLocation: 'Reitz Union',
+    meetupWindow: 'Tomorrow afternoon',
+    paymentMethod: 'cash',
+    message: 'Could meet tomorrow.',
+    status: 'accepted',
+  });
+  pendingItem.reservedOfferId = pendingOffer._id;
+  await pendingItem.save();
+
+  const completedOffer = await Offer.create({
+    listingId: completedItem._id,
+    buyerClerkUserId: 'buyer_1',
+    buyerDisplayName: 'Buyer One',
+    sellerClerkUserId: profile.profileID,
+    conversationId: conversation._id,
+    offeredPrice: 15,
+    meetupHubId: 'marston',
+    meetupArea: 'East Core',
+    meetupLocation: 'Marston Science Library',
+    meetupWindow: 'Today',
+    paymentMethod: 'cash',
+    message: 'Ready to buy.',
+    status: 'accepted',
+  });
+  completedItem.reservedOfferId = completedOffer._id;
+  await completedItem.save();
+
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'Checking on the lamp.',
+    attachedListingId: activeItem._id,
+    attachedListingTitle: activeItem.itemName,
+    attachedListingImageUrl: activeItem.itemPicture,
+    createdAt: new Date('2026-04-01T10:00:00.000Z'),
+    updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+  });
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: profile.profileID,
+    body: 'The fridge is reserved for you.',
+    attachedListingId: pendingItem._id,
+    attachedListingTitle: pendingItem.itemName,
+    attachedListingImageUrl: pendingItem.itemPicture,
+    createdAt: new Date('2026-04-02T10:00:00.000Z'),
+    updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+  });
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'system',
+    body: 'Helmet sale completed.',
+    attachedListingId: completedItem._id,
+    attachedListingTitle: completedItem.itemName,
+    attachedListingImageUrl: completedItem.itemPicture,
+    createdAt: new Date('2026-04-03T10:00:00.000Z'),
+    updatedAt: new Date('2026-04-03T10:00:00.000Z'),
+  });
+  const archivedMessage = await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: profile.profileID,
+    body: 'The poster tube is no longer available.',
+    attachedListingId: archivedItem._id,
+    attachedListingTitle: archivedItem.itemName,
+    attachedListingImageUrl: archivedItem.itemPicture,
+    createdAt: new Date('2026-04-04T10:00:00.000Z'),
+    updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+  });
+
+  const response = await request(app)
+    .get(`/api/conversations/${conversation._id}/messages`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.linkedItemCount, 4);
+  assert.equal(response.body.conversation.activeItem.listingId.toString(), activeItem.id);
+  assert.equal(response.body.conversation.activeItem.state, 'active');
+  assert.deepEqual(
+    response.body.conversation.linkedItems.map((linkedItem) => linkedItem.listingId.toString()),
+    [archivedItem.id, completedItem.id, pendingItem.id, activeItem.id]
+  );
+  assert.deepEqual(
+    response.body.conversation.linkedItems.map((linkedItem) => linkedItem.state),
+    ['unavailable', 'completedHere', 'pending', 'active']
+  );
+  assert.equal(response.body.messages[3].attachedItem.listingId.toString(), archivedItem.id);
+  assert.equal(response.body.messages[3].attachedItem.title, archivedItem.itemName);
+  assert.equal(response.body.messages[3].attachedItem.state, 'unavailable');
+  assert.equal(response.body.messages[3].attachedItem.lastKnownStatus, archivedItem.status);
+  assert.equal(response.body.conversation.linkedItems[0].latestContextMessageId.toString(), archivedMessage.id);
+});
+
 test('POST /api/conversations/:id/messages lazily repairs linked item history for a legacy conversation on write', async () => {
   const {item, profile} = await seedProfileAndItem();
   const conversation = await Conversation.create({
@@ -1067,10 +1283,18 @@ test('GET /api/conversations/:id/messages repairs legacy linked items from live 
   assert.equal(repairedDeletedLinkedItem.firstContextMessageId.toString(), deletedItemMessage.id);
   assert.equal(repairedDeletedLinkedItem.latestContextMessageId.toString(), deletedItemMessage.id);
   assert.equal(repairedDeletedLinkedItem.lastKnownStatus, 'deleted');
+  assert.equal(repairedDeletedLinkedItem.state, 'unavailable');
 
   assert.ok(repairedLiveLinkedItem);
   assert.equal(repairedLiveLinkedItem.title, item.itemName);
   assert.equal(repairedLiveLinkedItem.latestContextMessageId.toString(), liveItemMessage.id);
+  assert.equal(response.body.conversation.linkedItemCount, 2);
+  assert.equal(response.body.conversation.activeItem.listingId.toString(), item.id);
+  assert.equal(response.body.messages[0].attachedItem.title, 'Old Backpack Snapshot');
+  assert.equal(response.body.messages[0].attachedItem.imageUrl, 'https://example.com/backpack-snapshot.png');
+  assert.equal(response.body.messages[0].attachedItem.state, 'unavailable');
+  assert.equal(response.body.messages[1].attachedItem.title, item.itemName);
+  assert.equal(response.body.messages[1].attachedItem.state, 'active');
 
   const storedConversation = await Conversation.findById(conversation._id);
   const storedDeletedLinkedItem = storedConversation.linkedItems.find(
