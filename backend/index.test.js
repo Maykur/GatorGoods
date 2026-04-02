@@ -11,6 +11,7 @@ const {
   models: {
     Conversation,
     Item,
+    Message,
     Offer,
     Profile,
   },
@@ -297,6 +298,9 @@ test('POST /create-item derives canonical pickup fields from an approved hub id'
   assert.equal(response.body.pickupHubId, 'library-west');
   assert.equal(response.body.pickupArea, 'Historic Core');
   assert.equal(response.body.itemLocation, 'Library West');
+  assert.equal(response.body.originalPickupHubId, 'library-west');
+  assert.equal(response.body.originalPickupArea, 'Historic Core');
+  assert.equal(response.body.originalItemLocation, 'Library West');
 });
 
 test('POST /create-item rejects unknown pickup hub ids', async () => {
@@ -480,6 +484,26 @@ test('PATCH /api/offers/:id only allows the seller to update a pending offer', a
   assert.equal(response.body.message, 'Only the seller can update this offer');
 });
 
+test('PATCH /api/offers/:id requires meetup specifics before accepting an offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  const response = await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'pickupSpecifics is required when accepting an offer');
+
+  const updatedItem = await Item.findById(item.id);
+  const updatedOffer = await Offer.findById(offerResponse.body._id);
+  assert.equal(updatedItem.status, 'active');
+  assert.equal(updatedOffer.status, 'pending');
+});
+
 test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {
   const {item, profile} = await seedProfileAndItem();
   const firstOfferResponse = await createOffer(item.id, {
@@ -499,6 +523,7 @@ test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines
     .send({
       requesterClerkUserId: profile.profileID,
       status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
     });
 
   assert.equal(response.status, 200);
@@ -507,6 +532,10 @@ test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines
   const updatedItem = await Item.findById(item.id);
   assert.equal(updatedItem.status, 'reserved');
   assert.equal(updatedItem.reservedOfferId.toString(), firstOfferResponse.body._id);
+  assert.equal(updatedItem.pickupHubId, 'plaza-americas');
+  assert.equal(updatedItem.itemLocation, 'Plaza of the Americas');
+  assert.equal(updatedItem.originalPickupHubId, 'library-west');
+  assert.equal(updatedItem.originalItemLocation, 'Library West');
 
   const firstOffer = await Offer.findById(firstOfferResponse.body._id);
   const secondOffer = await Offer.findById(secondOfferResponse.body._id);
@@ -515,9 +544,17 @@ test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines
 
   const acceptedConversation = await Conversation.findById(firstOffer.conversationId);
   assert.equal(acceptedConversation.activePickupHubId, firstOffer.meetupHubId);
+  assert.equal(acceptedConversation.activePickupSpecifics, 'Outside Library West by the front benches.');
+
+  const acceptanceMessage = await Message.findOne({
+    conversationId: firstOffer.conversationId,
+    senderClerkUserId: 'system',
+  }).sort({createdAt: -1});
+  assert.match(acceptanceMessage.body, /Offer accepted\./);
+  assert.match(acceptanceMessage.body, /Meetup specifics: Outside Library West by the front benches\./);
 });
 
-test('PATCH /api/conversations/:id/pickup updates the active pickup hub and appends a system message', async () => {
+test('PATCH /api/conversations/:id/pickup updates the active meetup details and appends a system message', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id, {
     buyerClerkUserId: 'buyer_1',
@@ -525,38 +562,132 @@ test('PATCH /api/conversations/:id/pickup updates the active pickup hub and appe
     meetupLocation: '',
   });
 
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      status: 'accepted',
+      pickupSpecifics: 'Meet outside the food court doors.',
+    });
+
   const response = await request(app)
     .patch(`/api/conversations/${offerResponse.body.conversationId}/pickup`)
     .send({
-      requesterClerkUserId: 'buyer_1',
+      requesterClerkUserId: 'user_1',
       pickupHubId: 'plaza-americas',
-      pickupNote: 'Meet near the main benches.',
+      pickupSpecifics: 'Meet near the main benches.',
     });
 
   assert.equal(response.status, 200);
   assert.equal(response.body.conversation.activePickupHubId, 'plaza-americas');
-  assert.equal(response.body.conversation.activePickupNote, 'Meet near the main benches.');
+  assert.equal(response.body.conversation.activePickupSpecifics, 'Meet near the main benches.');
   assert.equal(response.body.systemMessage.senderClerkUserId, 'system');
-  assert.match(response.body.systemMessage.body, /Pickup spot updated to Plaza of the Americas/);
+  assert.match(response.body.systemMessage.body, /Meetup details updated to Plaza of the Americas/);
 
   const updatedConversation = await Conversation.findById(offerResponse.body.conversationId);
   assert.equal(updatedConversation.activePickupHubId, 'plaza-americas');
-  assert.equal(updatedConversation.activePickupNote, 'Meet near the main benches.');
+  assert.equal(updatedConversation.activePickupSpecifics, 'Meet near the main benches.');
+
+  const updatedListing = await Item.findById(item.id);
+  assert.equal(updatedListing.pickupHubId, 'plaza-americas');
+  assert.equal(updatedListing.itemLocation, 'Plaza of the Americas');
+  assert.equal(updatedListing.originalPickupHubId, 'library-west');
+  assert.equal(updatedListing.originalItemLocation, 'Library West');
 });
 
-test('PATCH /api/conversations/:id/pickup rejects non-participants', async () => {
+test('PATCH /api/conversations/:id/pickup requires seller-authored meetup specifics updates', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      status: 'accepted',
+      pickupSpecifics: 'Meet at the main entrance.',
+    });
 
   const response = await request(app)
     .patch(`/api/conversations/${offerResponse.body.conversationId}/pickup`)
     .send({
-      requesterClerkUserId: 'outsider',
+      requesterClerkUserId: 'buyer_1',
       pickupHubId: 'reitz',
+      pickupSpecifics: 'Near the front doors.',
     });
 
   assert.equal(response.status, 403);
-  assert.equal(response.body.message, 'You are not a participant in this conversation');
+  assert.equal(response.body.message, 'Only the seller can update meetup details');
+});
+
+test('PATCH /api/conversations/:id/pickup requires meetup specifics text', async () => {
+  const {item} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      status: 'accepted',
+      pickupSpecifics: 'Meet at the main entrance.',
+    });
+
+  const response = await request(app)
+    .patch(`/api/conversations/${offerResponse.body.conversationId}/pickup`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      pickupHubId: 'reitz',
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'pickupSpecifics is required');
+});
+
+test('GET /api/conversations/:id/messages repairs a legacy accepted conversation pickup hub from the reserved offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id],
+    activeListingId: item._id,
+    activePickupHubId: null,
+    activePickupSpecifics: 'By the tables outside',
+  });
+  const legacyOffer = await Offer.create({
+    listingId: item._id,
+    buyerClerkUserId: 'buyer_1',
+    buyerDisplayName: 'Buyer One',
+    sellerClerkUserId: profile.profileID,
+    conversationId: conversation._id,
+    offeredPrice: 18,
+    meetupHubId: null,
+    meetupArea: '',
+    meetupLocation: 'Marston Science Library',
+    meetupWindow: 'Tomorrow at noon',
+    paymentMethod: 'cash',
+    message: 'Can we do Marston?',
+    status: 'accepted',
+  });
+
+  item.status = 'reserved';
+  item.reservedOfferId = legacyOffer._id;
+  item.pickupHubId = 'marston';
+  item.pickupArea = 'East Core';
+  item.itemLocation = 'Marston Science Library';
+  item.originalPickupHubId = 'library-west';
+  item.originalPickupArea = 'Historic Core';
+  item.originalItemLocation = 'Library West';
+  await item.save();
+
+  const response = await request(app)
+    .get(`/api/conversations/${conversation._id}/messages`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.activePickupHubId, 'marston');
+
+  const repairedConversation = await Conversation.findById(conversation._id);
+  assert.equal(repairedConversation.activePickupHubId, 'marston');
 });
 
 test('POST /api/listings/:id/offers rejects new offers once a listing is reserved', async () => {
@@ -568,6 +699,7 @@ test('POST /api/listings/:id/offers rejects new offers once a listing is reserve
     .send({
       requesterClerkUserId: profile.profileID,
       status: 'accepted',
+      pickupSpecifics: 'Meet outside the main doors.',
     });
 
   const response = await createOffer(item.id, {

@@ -155,7 +155,11 @@ export function ItemPage() {
         }
 
         setItem(data);
-        const defaultMeetupHubId = data.pickupHubId || resolvePickupHub(data.itemLocation)?.id || '';
+        const defaultMeetupHubId =
+          data.originalPickupHubId ||
+          data.pickupHubId ||
+          resolvePickupHub(data.originalItemLocation || data.itemLocation)?.id ||
+          '';
         setOfferValues((currentValues) => ({
           ...currentValues,
           meetupHubId: defaultMeetupHubId,

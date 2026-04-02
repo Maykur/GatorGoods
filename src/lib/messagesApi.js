@@ -78,7 +78,7 @@ export async function updateConversationPickup({
   conversationId,
   requesterClerkUserId,
   pickupHubId,
-  pickupNote = '',
+  pickupSpecifics,
 }) {
   return fetchFromApi(
     `${API_BASE_URL}/api/conversations/${conversationId}/pickup`,
@@ -90,7 +90,7 @@ export async function updateConversationPickup({
       body: JSON.stringify({
         requesterClerkUserId,
         pickupHubId,
-        pickupNote,
+        pickupSpecifics,
       }),
     },
     'Failed to update pickup details'

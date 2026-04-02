@@ -36,6 +36,24 @@ function normalizeText(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function getPublicListingPickup(raw) {
+  const pickupHubId = normalizePickupHubId(raw?.originalPickupHubId || raw?.pickupHubId);
+  const location = getPickupHubLabel(
+    pickupHubId,
+    normalizeText(raw?.originalItemLocation || raw?.itemLocation, DEFAULT_LOCATION)
+  );
+  const pickupArea = getPickupHubArea(
+    pickupHubId,
+    normalizeText(raw?.originalPickupArea || raw?.pickupArea, '')
+  );
+
+  return {
+    pickupHubId,
+    pickupArea,
+    location,
+  };
+}
+
 export function normalizeCategory(category) {
   return normalizeText(category, DEFAULT_CATEGORY);
 }
@@ -104,21 +122,31 @@ export function formatDateLabel(value) {
 }
 
 export function toListingCardViewModel(raw) {
-  const pickupHubId = normalizePickupHubId(raw?.pickupHubId);
+  const publicPickup = getPublicListingPickup(raw);
 
   return {
     id: raw?._id || raw?.id || '',
     title: normalizeText(raw?.itemName, DEFAULT_LISTING_TITLE),
     priceLabel: formatPriceLabel(raw?.itemCost),
     condition: normalizeText(raw?.itemCondition, 'Unknown'),
-    location: getPickupHubLabel(pickupHubId, normalizeText(raw?.itemLocation, DEFAULT_LOCATION)),
-    pickupHubId,
-    pickupArea: getPickupHubArea(pickupHubId, normalizeText(raw?.pickupArea, '')),
+    location: publicPickup.location,
+    pickupHubId: publicPickup.pickupHubId,
+    pickupArea: publicPickup.pickupArea,
     imageUrl: normalizeText(raw?.itemPicture, ''),
     category: normalizeCategory(raw?.itemCat),
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
     status: normalizeListingStatus(raw?.status),
     statusLabel: formatListingStatusLabel(raw?.status),
+  };
+}
+
+export function getListingActualPickup(raw) {
+  const pickupHubId = normalizePickupHubId(raw?.pickupHubId);
+
+  return {
+    pickupHubId,
+    pickupArea: getPickupHubArea(pickupHubId, normalizeText(raw?.pickupArea, '')),
+    location: getPickupHubLabel(pickupHubId, normalizeText(raw?.itemLocation, DEFAULT_LOCATION)),
   };
 }
 

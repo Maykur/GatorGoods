@@ -256,6 +256,81 @@ test('buyers can choose a different approved meetup hub before sending an offer'
   });
 });
 
+test('offer form defaults to the listing original public hub when the reserved hub differs', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+      fullName: 'Buyer One',
+    },
+  });
+  global.fetch.mockImplementation((url, options = {}) => {
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse(
+        buildItemPayload({
+          originalPickupHubId: 'library-west',
+          originalPickupArea: 'Historic Core',
+          originalItemLocation: 'Library West',
+          pickupHubId: 'plaza-americas',
+          pickupArea: 'Historic Core',
+          itemLocation: 'Plaza of the Americas',
+        })
+      );
+    }
+
+    if (url === 'http://localhost:5000/profile/buyer-1') {
+      return jsonResponse({
+        profile: {
+          profileFavorites: ['item-1'],
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileFavorites: [],
+          profileRating: 4.3,
+          profileTotalRating: 9,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
+        },
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+  mockCreateOffer.mockResolvedValue({
+    _id: 'offer-3',
+    conversationId: 'conversation-3',
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+  fireEvent.change(screen.getByLabelText(/your offer/i), {
+    target: { value: '17' },
+  });
+  fireEvent.change(screen.getByLabelText(/meetup window/i), {
+    target: { value: 'Thu 2:00 PM - 3:00 PM' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
+
+  await waitFor(() => {
+    expect(mockCreateOffer).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({
+        meetupHubId: 'library-west',
+        meetupLocation: 'Library West',
+      })
+    );
+  });
+});
+
 test('signed-in owners still see the delete control', async () => {
   setClerkState({
     isSignedIn: true,

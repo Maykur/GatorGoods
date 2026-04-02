@@ -7,6 +7,7 @@ import { getPickupHubById, resolvePickupHub } from '../lib/pickupHubs';
 import { getConversationMessages, sendMessage, updateConversationPickup } from '../lib/messagesApi';
 
 const API_BASE_URL = 'http://localhost:5000';
+const MIN_PICKUP_SPECIFICS_LENGTH = 8;
 
 function ThreadSkeleton() {
   return (
@@ -63,11 +64,13 @@ export function ChatThreadPage() {
   const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
   const [listingId, setListingId] = useState('');
   const [listingName, setListingName] = useState('');
-  const [listingPickupHubId, setListingPickupHubId] = useState('');
+  const [listingOriginalPickupHubId, setListingOriginalPickupHubId] = useState('');
+  const [listingCurrentPickupHubId, setListingCurrentPickupHubId] = useState('');
+  const [listingSellerId, setListingSellerId] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [pickupValues, setPickupValues] = useState({
     pickupHubId: '',
-    pickupNote: '',
+    pickupSpecifics: '',
   });
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
@@ -80,8 +83,16 @@ export function ChatThreadPage() {
   const conversationListings = listingName && listingId
     ? [{ id: listingId, name: listingName }]
     : [];
-  const activePickupHubId = conversation?.activePickupHubId || listingPickupHubId || '';
+  const activePickupHubId =
+    conversation?.activePickupHubId ||
+    (conversation?.activePickupSpecifics ? listingCurrentPickupHubId : '') ||
+    listingOriginalPickupHubId ||
+    '';
   const activePickupHub = getPickupHubById(activePickupHubId);
+  const isSeller = Boolean(user?.id && listingSellerId && user.id === listingSellerId);
+  const pickupHubError = pickupError.toLowerCase().includes('hub') ? pickupError : '';
+  const pickupSpecificsError =
+    pickupError && !pickupHubError ? pickupError : '';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -127,7 +138,16 @@ export function ChatThreadPage() {
         setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
         setListingName(listingData?.itemName || '');
         setListingId(listingData?._id || threadData.conversation.activeListingId?.toString?.() || '');
-        setListingPickupHubId(listingData?.pickupHubId || resolvePickupHub(listingData?.itemLocation)?.id || '');
+        setListingOriginalPickupHubId(
+          listingData?.originalPickupHubId ||
+            listingData?.pickupHubId ||
+            resolvePickupHub(listingData?.originalItemLocation || listingData?.itemLocation)?.id ||
+            ''
+        );
+        setListingCurrentPickupHubId(
+          listingData?.pickupHubId || resolvePickupHub(listingData?.itemLocation)?.id || ''
+        );
+        setListingSellerId(listingData?.userPublishingID || '');
         setPageError('');
       } catch (loadError) {
         if (isMounted) {
@@ -159,10 +179,10 @@ export function ChatThreadPage() {
     }
 
     setPickupValues({
-      pickupHubId: conversation?.activePickupHubId || listingPickupHubId || '',
-      pickupNote: conversation?.activePickupNote || '',
+      pickupHubId: conversation?.activePickupHubId || listingOriginalPickupHubId || '',
+      pickupSpecifics: conversation?.activePickupSpecifics || '',
     });
-  }, [conversation?.activePickupHubId, conversation?.activePickupNote, isPickupEditorOpen, listingPickupHubId]);
+  }, [conversation?.activePickupHubId, conversation?.activePickupSpecifics, isPickupEditorOpen, listingOriginalPickupHubId]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -216,8 +236,18 @@ export function ChatThreadPage() {
   const handlePickupSubmit = async (event) => {
     event.preventDefault();
 
+    if (!isSeller) {
+      setPickupError('Only the seller can update the structured meetup details.');
+      return;
+    }
+
     if (!pickupValues.pickupHubId.trim()) {
-      setPickupError('Choose a pickup hub before updating the thread.');
+      setPickupError('Choose a meetup hub before updating the thread.');
+      return;
+    }
+
+    if (pickupValues.pickupSpecifics.trim().length < MIN_PICKUP_SPECIFICS_LENGTH) {
+      setPickupError(`Meetup specifics must be at least ${MIN_PICKUP_SPECIFICS_LENGTH} characters.`);
       return;
     }
 
@@ -227,7 +257,7 @@ export function ChatThreadPage() {
         conversationId,
         requesterClerkUserId: user.id,
         pickupHubId: pickupValues.pickupHubId,
-        pickupNote: pickupValues.pickupNote,
+        pickupSpecifics: pickupValues.pickupSpecifics.trim(),
       });
 
       setConversation(result.conversation);
@@ -334,66 +364,78 @@ export function ChatThreadPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
               <AppIcon icon="location" className="text-[0.95em]" />
-              <span>Active pickup hub</span>
+              <span>Meetup hub</span>
             </div>
-            <h2 className="text-xl font-semibold text-white">
-              {activePickupHub?.label || 'Pickup hub not set yet'}
+            <h2 className="ml-6 text-xl font-semibold text-white">
+              {activePickupHub?.label || 'Meetup hub not set yet'}
             </h2>
-            <p className="text-sm leading-7 text-app-soft">
-              {activePickupHub?.description || 'Choose a campus meetup hub so both participants stay aligned in this thread.'}
-            </p>
-            {conversation?.activePickupNote ? (
-              <p className="text-sm leading-7 text-app-soft">
-                Note: {conversation.activePickupNote}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                <AppIcon icon="description" className="text-[0.95em]" />
+                <span>Meetup specifics</span>
+              </div>
+              <p className="ml-6 text-xl font-semibold text-white">
+                {conversation?.activePickupSpecifics || 'The seller will add the exact meetup specifics when they confirm the handoff.'}
               </p>
-            ) : null}
+            </div>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            leadingIcon="location"
-            onClick={() => {
-              setPickupValues({
-                pickupHubId: conversation?.activePickupHubId || listingPickupHubId || '',
-                pickupNote: conversation?.activePickupNote || '',
-              });
-              setPickupError('');
-              setIsPickupEditorOpen((isOpen) => !isOpen);
-            }}
-          >
-            {isPickupEditorOpen ? 'Hide pickup editor' : 'Suggest different pickup spot'}
-          </Button>
+          {isSeller ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon="location"
+              onClick={() => {
+                setPickupValues({
+                  pickupHubId: conversation?.activePickupHubId || listingOriginalPickupHubId || '',
+                  pickupSpecifics: conversation?.activePickupSpecifics || '',
+                });
+                setPickupError('');
+                setIsPickupEditorOpen((isOpen) => !isOpen);
+              }}
+            >
+              {isPickupEditorOpen ? 'Hide meetup editor' : 'Edit meetup details'}
+            </Button>
+          ) : null}
         </div>
+
+        {!isSeller ? (
+          <p className="text-sm leading-7 text-app-soft">
+            Need a different spot? Suggest it in chat and the seller can update the official meetup details here.
+          </p>
+        ) : null}
 
         {isPickupEditorOpen ? (
           <form className="space-y-4" onSubmit={handlePickupSubmit}>
             <PickupHubPicker
               id="conversation-pickup-hub"
-              label="Updated pickup hub"
-              description="Choose a new approved campus meetup hub for this conversation."
+              label="Meetup hub"
+              description="Choose the approved campus meetup hub for this handoff."
               selectedHubId={pickupValues.pickupHubId}
               onChange={handlePickupHubChange}
-              error={pickupError}
+              error={pickupHubError}
               required
             />
             <Textarea
-              id="conversation-pickup-note"
-              label="Optional pickup note"
+              id="conversation-pickup-specifics"
+              label="Meetup specifics"
               leadingIcon="message"
+              required
               rows={3}
-              value={pickupValues.pickupNote}
+              value={pickupValues.pickupSpecifics}
               onChange={(event) => {
                 setPickupValues((currentValues) => ({
                   ...currentValues,
-                  pickupNote: event.target.value,
+                  pickupSpecifics: event.target.value,
                 }));
                 setPickupError('');
               }}
-              placeholder="Meet outside the main entrance..."
+              error={pickupSpecificsError}
+              hint="Required. Add the exact landmark, entrance, or side of the building the buyer should use."
+              placeholder="Outside the north entrance by the benches..."
             />
             <div className="flex flex-wrap gap-3">
               <Button type="submit" leadingIcon="verified" loading={isUpdatingPickup}>
-                Update pickup spot
+                Save meetup details
               </Button>
               <Button
                 type="button"
@@ -425,11 +467,19 @@ export function ChatThreadPage() {
               const isOwnMessage = message.senderClerkUserId === user.id;
 
               if (isSystemMessage) {
+                const isAcceptedOfferMessage = message.body.startsWith('Offer accepted.');
+                const systemMessageClassName = isAcceptedOfferMessage
+                  ? 'border-app-success/30 bg-app-success/15'
+                  : 'border-gatorOrange/20 bg-gatorOrange/10';
+                const systemTimestampClassName = isAcceptedOfferMessage
+                  ? 'text-green-100/75'
+                  : 'text-app-muted';
+
                 return (
                   <div key={message._id} className="flex justify-center">
-                    <div className="max-w-[85%] rounded-full border border-gatorOrange/20 bg-gatorOrange/10 px-4 py-2 text-center">
+                    <div className={`max-w-[85%] rounded-full border px-4 py-2 text-center ${systemMessageClassName}`}>
                       <p className="text-sm font-medium text-white">{message.body}</p>
-                      <p className="mt-1 text-xs text-app-muted">{formatMessageTime(message.createdAt)}</p>
+                      <p className={`mt-1 text-xs ${systemTimestampClassName}`}>{formatMessageTime(message.createdAt)}</p>
                     </div>
                   </div>
                 );
@@ -495,7 +545,7 @@ export function ChatThreadPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="inline-flex items-center gap-2 text-sm text-app-soft">
               <AppIcon icon="location" className="text-[0.95em]" />
-              <span>Keep pickup details and notes here so you can find them later.</span>
+              <span>Use chat for suggestions and questions. The structured meetup details above stay as the source of truth.</span>
             </p>
             <Button type="submit" leadingIcon="send" loading={isSending}>
               Send message

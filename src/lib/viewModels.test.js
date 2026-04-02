@@ -3,6 +3,7 @@ import {
   formatPaymentMethodLabel,
   formatPercentLabel,
   formatPriceLabel,
+  getListingActualPickup,
   groupOffersByListing,
   normalizeCategory,
   normalizeListingStatus,
@@ -26,6 +27,9 @@ test('toListingCardViewModel normalizes core listing fields', () => {
       itemName: 'Desk Lamp',
       itemCost: '20',
       itemCondition: 'Good',
+      originalPickupHubId: 'library-west',
+      originalPickupArea: 'Historic Core',
+      originalItemLocation: 'Library West',
       pickupHubId: 'library-west',
       pickupArea: 'Historic Core',
       itemLocation: 'Old Label',
@@ -46,6 +50,42 @@ test('toListingCardViewModel normalizes core listing fields', () => {
     sellerName: 'GatorGoods Seller',
     status: 'active',
     statusLabel: 'Active',
+  });
+});
+
+test('toListingCardViewModel prefers original public pickup fields when actual pickup changes later', () => {
+  expect(
+    toListingCardViewModel({
+      _id: 'item-2',
+      itemName: 'Monitor',
+      itemCost: '60',
+      itemCondition: 'Good',
+      originalPickupHubId: 'library-west',
+      originalPickupArea: 'Historic Core',
+      originalItemLocation: 'Library West',
+      pickupHubId: 'plaza-americas',
+      pickupArea: 'Historic Core',
+      itemLocation: 'Plaza of the Americas',
+      itemPicture: 'monitor.png',
+    })
+  ).toEqual(
+    expect.objectContaining({
+      location: 'Library West',
+      pickupHubId: 'library-west',
+      pickupArea: 'Historic Core',
+    })
+  );
+
+  expect(
+    getListingActualPickup({
+      pickupHubId: 'plaza-americas',
+      pickupArea: 'Historic Core',
+      itemLocation: 'Plaza of the Americas',
+    })
+  ).toEqual({
+    pickupHubId: 'plaza-americas',
+    pickupArea: 'Historic Core',
+    location: 'Plaza of the Americas',
   });
 });
 

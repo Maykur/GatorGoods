@@ -59,7 +59,7 @@ beforeEach(() => {
       participantIds: ['buyer-1', 'seller-1'],
       activeListingId: 'item-1',
       activePickupHubId: 'reitz',
-      activePickupNote: 'Meet outside the food court doors.',
+      activePickupSpecifics: 'Meet outside the food court doors.',
       lastMessageText: 'Sounds good',
       lastMessageAt: '2026-03-29T13:00:00.000Z',
       lastReadAtByUser: {
@@ -97,6 +97,7 @@ beforeEach(() => {
         itemName: 'Desk Lamp',
         pickupHubId: 'library-west',
         itemLocation: 'Library West',
+        userPublishingID: 'seller-1',
       });
     }
 
@@ -120,6 +121,107 @@ test('thread view renders participant and listing context', async () => {
   expect(screen.getByText('Hi there')).toBeInTheDocument();
   expect(screen.getByText('Reitz Union')).toBeInTheDocument();
   expect(screen.getByText(/meet outside the food court doors\./i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /edit meetup details/i })).not.toBeInTheDocument();
+});
+
+test('threads without an active negotiated hub fall back to the listing original public hub', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activePickupHubId: '',
+      activePickupSpecifics: '',
+      lastMessageText: 'Still available?',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [],
+  });
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        originalPickupHubId: 'library-west',
+        originalItemLocation: 'Library West',
+        pickupHubId: 'plaza-americas',
+        itemLocation: 'Plaza of the Americas',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByText('Library West')).toBeInTheDocument();
+  expect(screen.getByText(/seller will add the exact meetup specifics/i)).toBeInTheDocument();
+});
+
+test('accepted threads fall back to the listing current reserved hub when specifics exist but the hub id is missing', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activePickupHubId: '',
+      activePickupSpecifics: 'By the tables outside',
+      lastMessageText: 'Offer accepted.',
+      lastMessageAt: '2026-04-01T21:27:21.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-04-01T21:27:21.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-3',
+        senderClerkUserId: 'system',
+        body: 'Offer accepted. Meetup hub: Marston Science Library. Meetup specifics: By the tables outside',
+        createdAt: '2026-04-01T21:27:21.000Z',
+      },
+    ],
+  });
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        originalPickupHubId: 'library-west',
+        originalItemLocation: 'Library West',
+        pickupHubId: 'marston',
+        itemLocation: 'Marston Science Library',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByText('Marston Science Library')).toBeInTheDocument();
+  expect(screen.getByText('Meetup specifics')).toBeInTheDocument();
+  expect(screen.getAllByText(/by the tables outside/i)).toHaveLength(2);
 });
 
 test('sending a message appends it to the thread', async () => {
@@ -142,46 +244,73 @@ test('sending a message appends it to the thread', async () => {
   expect(await screen.findByText('I can pick it up today.')).toBeInTheDocument();
 });
 
-test('participants can update the active pickup hub from the thread header', async () => {
+test('seller can update the active meetup details from the thread header', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
   mockUpdateConversationPickup.mockResolvedValue({
     conversation: {
       _id: 'conversation-1',
       participantIds: ['buyer-1', 'seller-1'],
       activeListingId: 'item-1',
       activePickupHubId: 'plaza-americas',
-      activePickupNote: 'I will wait by the benches.',
-      lastMessageText: 'Pickup spot updated to Plaza of the Americas. Note: I will wait by the benches.',
+      activePickupSpecifics: 'I will wait by the benches.',
+      lastMessageText: 'Meetup details updated to Plaza of the Americas. Specifics: I will wait by the benches.',
       lastMessageAt: '2026-03-29T13:10:00.000Z',
       lastReadAtByUser: {
-        'buyer-1': '2026-03-29T13:10:00.000Z',
+        'seller-1': '2026-03-29T13:10:00.000Z',
       },
     },
     systemMessage: {
       _id: 'message-2',
       senderClerkUserId: 'system',
-      body: 'Pickup spot updated to Plaza of the Americas. Note: I will wait by the benches.',
+      body: 'Meetup details updated to Plaza of the Americas. Specifics: I will wait by the benches.',
       createdAt: '2026-03-29T13:10:00.000Z',
     },
   });
 
   render(<ChatThreadPage />);
 
-  fireEvent.click(await screen.findByRole('button', { name: /suggest different pickup spot/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /edit meetup details/i }));
   fireEvent.click(screen.getByRole('radio', { name: /plaza of the americas/i }));
-  fireEvent.change(screen.getByLabelText(/optional pickup note/i), {
+  fireEvent.change(screen.getByLabelText(/meetup specifics/i), {
     target: { value: 'I will wait by the benches.' },
   });
-  fireEvent.click(screen.getByRole('button', { name: /update pickup spot/i }));
+  fireEvent.click(screen.getByRole('button', { name: /save meetup details/i }));
 
   await waitFor(() => {
     expect(mockUpdateConversationPickup).toHaveBeenCalledWith({
       conversationId: 'conversation-1',
-      requesterClerkUserId: 'buyer-1',
+      requesterClerkUserId: 'seller-1',
       pickupHubId: 'plaza-americas',
-      pickupNote: 'I will wait by the benches.',
+      pickupSpecifics: 'I will wait by the benches.',
     });
   });
 
   expect(await screen.findByText('Plaza of the Americas')).toBeInTheDocument();
-  expect(screen.getByText(/pickup spot updated to plaza of the americas/i)).toBeInTheDocument();
+  expect(screen.getByText(/meetup details updated to plaza of the americas/i)).toBeInTheDocument();
+});
+
+test('seller cannot submit meetup updates without required specifics', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  render(<ChatThreadPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /edit meetup details/i }));
+  fireEvent.change(screen.getByLabelText(/meetup specifics/i), {
+    target: { value: 'short' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /^save meetup details$/i }));
+
+  expect(mockUpdateConversationPickup).not.toHaveBeenCalled();
+  expect(await screen.findByText(/meetup specifics must be at least 8 characters/i)).toBeInTheDocument();
 });

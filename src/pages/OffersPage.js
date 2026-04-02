@@ -12,10 +12,12 @@ import {
   ErrorBanner,
   PageHeader,
   Skeleton,
+  Textarea,
   useToast,
 } from '../components/ui';
 
 const API_BASE_URL = 'http://localhost:5000';
+const MIN_PICKUP_SPECIFICS_LENGTH = 8;
 const MODE_OPTIONS = [
   { id: 'seller', label: 'Selling', icon: 'offers' },
   { id: 'buyer', label: 'Buying', icon: 'payment' },
@@ -103,6 +105,16 @@ function OfferMetaCard({ icon, label, value, emphasis = false }) {
   );
 }
 
+function getFirstName(name) {
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+
+  if (!trimmedName) {
+    return '';
+  }
+
+  return trimmedName.split(/\s+/)[0];
+}
+
 export function OffersPage() {
   const { user } = useUser();
   const { showToast } = useToast();
@@ -113,6 +125,9 @@ export function OffersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeActionId, setActiveActionId] = useState('');
+  const [openAcceptanceOfferId, setOpenAcceptanceOfferId] = useState('');
+  const [acceptanceSpecifics, setAcceptanceSpecifics] = useState('');
+  const [acceptanceError, setAcceptanceError] = useState('');
 
   const loadOffers = useCallback(
     async (showLoadingState = true) => {
@@ -199,7 +214,7 @@ export function OffersPage() {
     };
   }, [loadOffers]);
 
-  const handleOfferAction = async (offerId, nextStatus) => {
+  const handleOfferAction = async (offerId, nextStatus, pickupSpecifics = '') => {
     if (!user?.id) {
       return;
     }
@@ -209,13 +224,17 @@ export function OffersPage() {
       await updateOfferStatus(offerId, {
         requesterClerkUserId: user.id,
         status: nextStatus,
+        ...(nextStatus === 'accepted' ? { pickupSpecifics } : {}),
       });
       await loadOffers(false);
+      setOpenAcceptanceOfferId('');
+      setAcceptanceSpecifics('');
+      setAcceptanceError('');
       showToast({
         title: nextStatus === 'accepted' ? 'Offer accepted' : 'Offer declined',
         description:
           nextStatus === 'accepted'
-            ? 'The listing is now reserved for that buyer.'
+            ? 'The listing is now reserved and the meetup specifics are confirmed in the conversation.'
             : 'The buyer will see that this offer was declined.',
         variant: 'success',
       });
@@ -224,6 +243,17 @@ export function OffersPage() {
     } finally {
       setActiveActionId('');
     }
+  };
+
+  const handleConfirmAcceptance = async (offerId) => {
+    const trimmedSpecifics = acceptanceSpecifics.trim();
+
+    if (trimmedSpecifics.length < MIN_PICKUP_SPECIFICS_LENGTH) {
+      setAcceptanceError(`Meetup specifics must be at least ${MIN_PICKUP_SPECIFICS_LENGTH} characters.`);
+      return;
+    }
+
+    await handleOfferAction(offerId, 'accepted', trimmedSpecifics);
   };
 
   const totalOffers = mode === 'seller'
@@ -338,7 +368,11 @@ export function OffersPage() {
               </div>
 
               <div className="space-y-4">
-                {group.offers.map((offer) => (
+                {group.offers.map((offer) => {
+                  const buyerFirstName = getFirstName(offer.buyerName);
+                  const meetupHintTarget = buyerFirstName || 'the buyer';
+
+                  return (
                   <Card key={offer.id} variant="subtle" className="space-y-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="space-y-2">
@@ -366,12 +400,12 @@ export function OffersPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <OfferMetaCard icon="payment" label="Offer" value={offer.offeredPriceLabel} emphasis />
-                      <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
-                      <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
-                      <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
-                    </div>
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <OfferMetaCard icon="payment" label="Offer" value={offer.offeredPriceLabel} emphasis />
+                        <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
+                        <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                        <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
+                      </div>
 
                     {offer.buyerTrust ? (
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -385,11 +419,18 @@ export function OffersPage() {
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <Button
                         leadingIcon="verified"
-                        onClick={() => handleOfferAction(offer.id, 'accepted')}
-                        loading={activeActionId === `accepted-${offer.id}`}
+                        onClick={() => {
+                          setOpenAcceptanceOfferId((currentOfferId) =>
+                            currentOfferId === offer.id ? '' : offer.id
+                          );
+                          setAcceptanceSpecifics('');
+                          setAcceptanceError('');
+                          setError('');
+                        }}
+                        loading={activeActionId === `accepted-${offer.id}` && openAcceptanceOfferId !== offer.id}
                         disabled={offer.status !== 'pending'}
                       >
-                        Accept
+                        {openAcceptanceOfferId === offer.id ? 'Hide acceptance details' : 'Accept'}
                       </Button>
                       <Button
                         variant="secondary"
@@ -401,8 +442,62 @@ export function OffersPage() {
                         Decline
                       </Button>
                     </div>
+
+                    {offer.status === 'pending' && openAcceptanceOfferId === offer.id ? (
+                      <Card variant="subtle" className="space-y-4 border border-gatorOrange/20 bg-gatorOrange/5">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                            <AppIcon icon="location" className="text-[0.95em]" />
+                            <span>Meetup hub</span>
+                          </div>
+                          <p className="text-lg font-semibold text-white">{offer.meetupLocation}</p>
+                          <p className="text-sm leading-7 text-app-soft">
+                            Accepting this offer will reserve the listing and confirm the exact meetup details in chat.
+                          </p>
+                        </div>
+
+                        <Textarea
+                          id={`acceptance-specifics-${offer.id}`}
+                          label="Meetup specifics:"
+                          required
+                          leadingIcon="message"
+                          rows={3}
+                          value={acceptanceSpecifics}
+                          error={acceptanceError}
+                          onChange={(event) => {
+                            setAcceptanceSpecifics(event.target.value);
+                            setAcceptanceError('');
+                            setError('');
+                          }}
+                          placeholder="North entrance by the benches, near the bike rack..."
+                          hint={`Required: Share the exact entrance, room, or side of the building ${meetupHintTarget} should meet you at.`}
+                        />
+
+                        <div className="flex flex-wrap gap-3">
+                          <Button
+                            leadingIcon="verified"
+                            onClick={() => handleConfirmAcceptance(offer.id)}
+                            loading={activeActionId === `accepted-${offer.id}`}
+                          >
+                            Confirm acceptance
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setOpenAcceptanceOfferId('');
+                              setAcceptanceSpecifics('');
+                              setAcceptanceError('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : null}
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           ))}
