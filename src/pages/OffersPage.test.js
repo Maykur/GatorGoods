@@ -133,6 +133,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
       buyerClerkUserId: 'buyer-1',
       sellerClerkUserId: 'seller-1',
       offeredPrice: 18,
+      meetupHubId: 'plaza-americas',
       meetupLocation: 'Plaza of the Americas',
       meetupWindow: 'Tue 1:00 PM - 2:00 PM',
       paymentMethod: 'cash',
@@ -146,6 +147,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
       buyerClerkUserId: 'buyer-2',
       sellerClerkUserId: 'seller-1',
       offeredPrice: 20,
+      meetupHubId: 'library-west',
       meetupLocation: 'Library West',
       meetupWindow: 'Wed 3:00 PM - 4:00 PM',
       paymentMethod: 'externalApp',
@@ -162,10 +164,38 @@ test('seller mode groups incoming offers by listing and shows comparison details
   expect(screen.getByText('Buyer Two')).toBeInTheDocument();
   expect(screen.getByText('$18')).toBeInTheDocument();
   expect(screen.getByText('External app')).toBeInTheDocument();
+  expect(screen.getAllByText('Proposed meetup hub')).toHaveLength(2);
   expect(screen.getAllByRole('button', { name: /accept/i })).toHaveLength(2);
 });
 
-test('seller mode can accept an offer and refresh the inbox', async () => {
+test('seller mode requires meetup specifics before accepting an offer', async () => {
+  mockGetOffers.mockResolvedValue([
+    {
+      _id: 'offer-1',
+      listingId: 'item-1',
+      buyerClerkUserId: 'buyer-1',
+      sellerClerkUserId: 'seller-1',
+      offeredPrice: 18,
+      meetupHubId: 'plaza-americas',
+      meetupLocation: 'Plaza of the Americas',
+      meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+      paymentMethod: 'cash',
+      message: 'Can meet after class.',
+      status: 'pending',
+      conversationId: 'conversation-1',
+    },
+  ]);
+
+  render(<OffersPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /^accept$/i }));
+  fireEvent.click(screen.getByRole('button', { name: /confirm acceptance/i }));
+
+  expect(mockUpdateOfferStatus).not.toHaveBeenCalled();
+  expect(await screen.findByText(/meetup specifics must be at least 8 characters/i)).toBeInTheDocument();
+});
+
+test('seller mode can accept an offer with required meetup specifics and refresh the inbox', async () => {
   mockGetOffers
     .mockResolvedValueOnce([
       {
@@ -174,6 +204,7 @@ test('seller mode can accept an offer and refresh the inbox', async () => {
         buyerClerkUserId: 'buyer-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',
@@ -189,6 +220,7 @@ test('seller mode can accept an offer and refresh the inbox', async () => {
         buyerClerkUserId: 'buyer-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',
@@ -201,12 +233,17 @@ test('seller mode can accept an offer and refresh the inbox', async () => {
 
   render(<OffersPage />);
 
-  fireEvent.click(await screen.findByRole('button', { name: /accept/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /^accept$/i }));
+  fireEvent.change(screen.getByLabelText(/meetup specifics/i), {
+    target: { value: 'Meet outside the Plaza benches.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /confirm acceptance/i }));
 
   await waitFor(() => {
     expect(mockUpdateOfferStatus).toHaveBeenCalledWith('offer-1', {
       requesterClerkUserId: 'seller-1',
       status: 'accepted',
+      pickupSpecifics: 'Meet outside the Plaza benches.',
     });
   });
 
@@ -228,6 +265,7 @@ test('buyer mode shows sent offers and seller context', async () => {
         buyerClerkUserId: 'seller-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',

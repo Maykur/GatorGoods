@@ -3,6 +3,7 @@ import {
   formatPaymentMethodLabel,
   formatPercentLabel,
   formatPriceLabel,
+  getListingActualPickup,
   groupOffersByListing,
   normalizeCategory,
   normalizeListingStatus,
@@ -12,6 +13,12 @@ import {
   toProfileHeaderViewModel,
   toTrustMetricsViewModel,
 } from './viewModels';
+import {
+  APPROVED_PICKUP_HUBS,
+  deriveListingPickupFields,
+  deriveOfferPickupFields,
+  getPickupHubById,
+} from './pickupHubs';
 
 test('toListingCardViewModel normalizes core listing fields', () => {
   expect(
@@ -20,7 +27,12 @@ test('toListingCardViewModel normalizes core listing fields', () => {
       itemName: 'Desk Lamp',
       itemCost: '20',
       itemCondition: 'Good',
-      itemLocation: 'Library West',
+      originalPickupHubId: 'library-west',
+      originalPickupArea: 'Historic Core',
+      originalItemLocation: 'Library West',
+      pickupHubId: 'library-west',
+      pickupArea: 'Historic Core',
+      itemLocation: 'Old Label',
       itemPicture: 'lamp.png',
       itemCat: '',
       userPublishingName: '',
@@ -31,11 +43,49 @@ test('toListingCardViewModel normalizes core listing fields', () => {
     priceLabel: '$20',
     condition: 'Good',
     location: 'Library West',
+    pickupHubId: 'library-west',
+    pickupArea: 'Historic Core',
     imageUrl: 'lamp.png',
     category: 'Miscellaneous',
     sellerName: 'GatorGoods Seller',
     status: 'active',
     statusLabel: 'Active',
+  });
+});
+
+test('toListingCardViewModel prefers original public pickup fields when actual pickup changes later', () => {
+  expect(
+    toListingCardViewModel({
+      _id: 'item-2',
+      itemName: 'Monitor',
+      itemCost: '60',
+      itemCondition: 'Good',
+      originalPickupHubId: 'library-west',
+      originalPickupArea: 'Historic Core',
+      originalItemLocation: 'Library West',
+      pickupHubId: 'plaza-americas',
+      pickupArea: 'Historic Core',
+      itemLocation: 'Plaza of the Americas',
+      itemPicture: 'monitor.png',
+    })
+  ).toEqual(
+    expect.objectContaining({
+      location: 'Library West',
+      pickupHubId: 'library-west',
+      pickupArea: 'Historic Core',
+    })
+  );
+
+  expect(
+    getListingActualPickup({
+      pickupHubId: 'plaza-americas',
+      pickupArea: 'Historic Core',
+      itemLocation: 'Plaza of the Americas',
+    })
+  ).toEqual({
+    pickupHubId: 'plaza-americas',
+    pickupArea: 'Historic Core',
+    location: 'Plaza of the Americas',
   });
 });
 
@@ -140,7 +190,9 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
         buyerClerkUserId: 'buyer-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 45,
-        meetupLocation: 'Reitz Union',
+        meetupHubId: 'reitz',
+        meetupArea: 'South Core',
+        meetupLocation: 'Old Reitz Label',
         meetupWindow: 'Fri 2:00 PM - 3:00 PM',
         paymentMethod: 'cash',
         message: 'Can pick up after class.',
@@ -189,6 +241,8 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     offeredPrice: 45,
     offeredPriceLabel: '$45',
     meetupLocation: 'Reitz Union',
+    meetupHubId: 'reitz',
+    meetupArea: 'South Core',
     meetupWindow: 'Fri 2:00 PM - 3:00 PM',
     paymentMethod: 'cash',
     paymentMethodLabel: 'Cash',
@@ -211,6 +265,35 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
       responsivenessLabel: 'No data yet',
       safetyLabel: 'No data yet',
     },
+  });
+});
+
+test('pickup hub helpers expose approved hubs and derive compatibility fields', () => {
+  expect(APPROVED_PICKUP_HUBS).toHaveLength(9);
+  expect(getPickupHubById('turlington-hall')).toEqual(
+    expect.objectContaining({
+      label: 'Turlington Hall',
+      area: 'Historic Core',
+      publicSafe: true,
+    })
+  );
+  expect(
+    deriveListingPickupFields({
+      pickupHubId: 'marston',
+    })
+  ).toEqual({
+    pickupHubId: 'marston',
+    pickupArea: 'East Core',
+    itemLocation: 'Marston Science Library',
+  });
+  expect(
+    deriveOfferPickupFields({
+      meetupLocation: 'Plaza',
+    })
+  ).toEqual({
+    meetupHubId: 'plaza-americas',
+    meetupArea: 'Historic Core',
+    meetupLocation: 'Plaza of the Americas',
   });
 });
 

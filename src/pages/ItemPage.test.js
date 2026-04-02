@@ -67,6 +67,7 @@ function buildItemPayload(overrides = {}) {
     itemName: 'Desk Lamp',
     itemCost: '20',
     itemCondition: 'Good',
+    pickupHubId: 'library-west',
     itemLocation: 'Library West',
     itemPicture: 'lamp.png',
     itemDescription: 'Lamp for studying',
@@ -140,6 +141,47 @@ test('signed-out users can view the item and see an offer-first login CTA', asyn
   expect(await screen.findByText('4.3/5')).toBeInTheDocument();
 });
 
+test('public item page shows the original public hub instead of the negotiated current hub', async () => {
+  global.fetch.mockImplementation((url, options = {}) => {
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse(
+        buildItemPayload({
+          originalPickupHubId: 'library-west',
+          originalPickupArea: 'Historic Core',
+          originalItemLocation: 'Library West',
+          pickupHubId: 'reitz',
+          pickupArea: 'South Core',
+          itemLocation: 'Reitz Union',
+        })
+      );
+    }
+
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileFavorites: [],
+          profileRating: 4.3,
+          profileTotalRating: 9,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
+        },
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<ItemPage />);
+
+  expect(await screen.findByRole('heading', { name: 'Desk Lamp' })).toBeInTheDocument();
+  expect(screen.getByText('Library West')).toBeInTheDocument();
+  expect(screen.queryByText('Reitz Union')).not.toBeInTheDocument();
+});
+
 test('signed-in non-owners can open and submit the structured offer form', async () => {
   setClerkState({
     isSignedIn: true,
@@ -176,6 +218,7 @@ test('signed-in non-owners can open and submit the structured offer form', async
         buyerClerkUserId: 'buyer-1',
         buyerDisplayName: 'Buyer One',
         offeredPrice: 18,
+        meetupHubId: 'library-west',
         meetupLocation: 'Library West',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',
@@ -216,6 +259,117 @@ test('offer submission validates the structured fields before sending', async ()
 
   expect(await screen.findByText(/please complete the offer details before sending it/i)).toBeInTheDocument();
   expect(mockCreateOffer).not.toHaveBeenCalled();
+});
+
+test('buyers can choose a different approved meetup hub before sending an offer', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+      fullName: 'Buyer One',
+    },
+  });
+  mockCreateOffer.mockResolvedValue({
+    _id: 'offer-2',
+    conversationId: 'conversation-2',
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+  fireEvent.click(screen.getByRole('radio', { name: /reitz union/i }));
+  fireEvent.change(screen.getByLabelText(/your offer/i), {
+    target: { value: '19' },
+  });
+  fireEvent.change(screen.getByLabelText(/meetup window/i), {
+    target: { value: 'Wed 3:00 PM - 4:00 PM' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
+
+  await waitFor(() => {
+    expect(mockCreateOffer).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({
+        meetupHubId: 'reitz',
+        meetupLocation: 'Reitz Union',
+      })
+    );
+  });
+});
+
+test('offer form defaults to the listing original public hub when the reserved hub differs', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+      fullName: 'Buyer One',
+    },
+  });
+  global.fetch.mockImplementation((url, options = {}) => {
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse(
+        buildItemPayload({
+          originalPickupHubId: 'library-west',
+          originalPickupArea: 'Historic Core',
+          originalItemLocation: 'Library West',
+          pickupHubId: 'plaza-americas',
+          pickupArea: 'Historic Core',
+          itemLocation: 'Plaza of the Americas',
+        })
+      );
+    }
+
+    if (url === 'http://localhost:5000/profile/buyer-1') {
+      return jsonResponse({
+        profile: {
+          profileFavorites: ['item-1'],
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileFavorites: [],
+          profileRating: 4.3,
+          profileTotalRating: 9,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
+        },
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+  mockCreateOffer.mockResolvedValue({
+    _id: 'offer-3',
+    conversationId: 'conversation-3',
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+  fireEvent.change(screen.getByLabelText(/your offer/i), {
+    target: { value: '17' },
+  });
+  fireEvent.change(screen.getByLabelText(/meetup window/i), {
+    target: { value: 'Thu 2:00 PM - 3:00 PM' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
+
+  await waitFor(() => {
+    expect(mockCreateOffer).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({
+        meetupHubId: 'library-west',
+        meetupLocation: 'Library West',
+      })
+    );
+  });
 });
 
 test('signed-in owners still see the delete control', async () => {

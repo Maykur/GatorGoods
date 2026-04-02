@@ -52,6 +52,12 @@ This document defines the intended product architecture for the current implemen
 - `price`
 - `condition`
 - `location`
+- `pickupHubId` = approved campus hub id when the listing uses a structured hub
+- `pickupArea` = derived area for approved hubs
+- `originalPickupHubId` = immutable public/default hub for browse and item pages
+- `originalPickupArea`
+- `originalItemLocation` = immutable public/default location label
+- `itemLocation` = current actual meetup location label
 - `imageUrl`
 - `description`
 - `details`
@@ -66,6 +72,8 @@ This document defines the intended product architecture for the current implemen
 - `sellerClerkUserId`
 - `conversationId`
 - `offeredPrice`
+- `meetupHubId` = approved campus hub id when the offer uses a structured hub
+- `meetupArea` = derived area for approved hubs
 - `meetupLocation`
 - `meetupWindow`
 - `paymentMethod` = `cash | externalApp | gatorgoodsEscrow`
@@ -80,6 +88,8 @@ This document defines the intended product architecture for the current implemen
 - `participantIds`
 - `linkedListingIds`
 - `activeListingId`
+- `activePickupHubId` = accepted or thread-level structured hub when one exists
+- `activePickupSpecifics` = seller-authored exact meetup details after acceptance
 - `lastMessageAt`
 - `lastReadAtByUser`
 - `createdAt`
@@ -156,6 +166,7 @@ This document defines the intended product architecture for the current implemen
 - `POST /api/conversations`
 - `GET /api/conversations/:id/messages`
 - `POST /api/conversations/:id/messages`
+- `PATCH /api/conversations/:id/pickup`
 - `GET /api/transactions`
 - `GET /api/transactions/:id`
 - `POST /api/transactions/:id/escrow`
@@ -171,3 +182,5 @@ This document defines the intended product architecture for the current implemen
 - Escrow is simulated for HCI and trust-flow purposes; no real payment processor is required for the class deliverable
 - Messaging is people-first with attached item context, not one thread per item
 - REST plus polling is acceptable for v1; websockets are not required to complete the project
+- Approved campus hubs power the structured map picker today, but listings and offers still preserve arbitrary custom location text as a fallback for legacy or future expanded location support
+- Public browse and item surfaces always use the original public pickup location, while accepted conversations use the negotiated current meetup details

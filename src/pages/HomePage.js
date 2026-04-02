@@ -5,6 +5,7 @@ import ProductCard from '../components/HomePage/ProductCard.js';
 import { AppIcon, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Select, Skeleton } from '../components/ui';
 import { getCategoryIcon } from '../components/ui/Icon';
 import { getCachedListings, getListingsPage, hasCachedListings } from '../lib/listingsApi';
+import { getPickupLocationLabels } from '../lib/pickupHubs';
 import { LISTING_CATEGORIES, toListingCardViewModel } from '../lib/viewModels';
 import { cn } from '../lib/ui';
 
@@ -73,6 +74,7 @@ export function HomePage({ forceSignedOutView = false }) {
     limit: PAGE_SIZE,
     search: '',
     category: 'All',
+    pickupLocation: 'All',
     sort: 'newest',
   };
   const initialCachedResponse = !shouldRenderLanding ? getCachedListings(initialRequestParams) : null;
@@ -80,6 +82,7 @@ export function HomePage({ forceSignedOutView = false }) {
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedPickupLocation, setSelectedPickupLocation] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState(
@@ -109,6 +112,7 @@ export function HomePage({ forceSignedOutView = false }) {
       limit: PAGE_SIZE,
       search: deferredSearch,
       category: selectedCategory,
+      pickupLocation: selectedPickupLocation,
       sort: sortBy,
     };
     const shouldUseInitialLoading = !hasLoadedFeed && !hasCachedListings(requestParams);
@@ -151,7 +155,7 @@ export function HomePage({ forceSignedOutView = false }) {
     return () => {
       isMounted = false;
     };
-  }, [deferredSearch, hasLoadedFeed, page, selectedCategory, shouldRenderLanding, sortBy]);
+  }, [deferredSearch, hasLoadedFeed, page, selectedCategory, selectedPickupLocation, shouldRenderLanding, sortBy]);
 
   if (shouldRenderLanding) {
     return (
@@ -209,7 +213,12 @@ export function HomePage({ forceSignedOutView = false }) {
 
   const listingCards = items.map(toListingCardViewModel);
   const categoryOptions = ['All', ...LISTING_CATEGORIES];
-  const hasFilters = deferredSearch.trim().length > 0 || selectedCategory !== 'All' || sortBy !== 'newest';
+  const pickupLocationOptions = ['All', ...getPickupLocationLabels()];
+  const hasFilters =
+    deferredSearch.trim().length > 0 ||
+    selectedCategory !== 'All' ||
+    selectedPickupLocation !== 'All' ||
+    sortBy !== 'newest';
   const visiblePages = getVisiblePages(meta.page, meta.totalPages);
 
   return (
@@ -238,7 +247,7 @@ export function HomePage({ forceSignedOutView = false }) {
       />
 
       <Card className="space-y-4 sm:space-y-5">
-        <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.5fr)_220px]">
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.5fr)_220px_220px]">
           <Input
             id="marketplace-search"
             label="Search listings"
@@ -250,6 +259,22 @@ export function HomePage({ forceSignedOutView = false }) {
               setPage(1);
             }}
           />
+          <Select
+            id="marketplace-pickup-location"
+            label="Pickup location"
+            leadingIcon="location"
+            value={selectedPickupLocation}
+            onChange={(event) => {
+              setSelectedPickupLocation(event.target.value);
+              setPage(1);
+            }}
+          >
+            {pickupLocationOptions.map((location) => (
+              <option key={location} value={location}>
+                {location === 'All' ? 'All pickup locations' : location}
+              </option>
+            ))}
+          </Select>
           <Select
             id="marketplace-sort"
             label="Sort by"
@@ -295,7 +320,9 @@ export function HomePage({ forceSignedOutView = false }) {
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-app-soft sm:text-sm">
             {meta.totalItems} {meta.totalItems === 1 ? 'listing' : 'listings'}
-            {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}.
+            {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}
+            {selectedPickupLocation !== 'All' ? `${selectedCategory !== 'All' ? ' near ' : ' in '}${selectedPickupLocation}` : ''}.
+            .
           </p>
           <div className="flex items-center gap-3">
             {isRefreshing ? (
@@ -311,6 +338,7 @@ export function HomePage({ forceSignedOutView = false }) {
                 onClick={() => {
                   setSearch('');
                   setSelectedCategory('All');
+                  setSelectedPickupLocation('All');
                   setSortBy('newest');
                   setPage(1);
                 }}
@@ -344,6 +372,7 @@ export function HomePage({ forceSignedOutView = false }) {
                 onClick={() => {
                   setSearch('');
                   setSelectedCategory('All');
+                  setSelectedPickupLocation('All');
                   setSortBy('newest');
                   setPage(1);
                 }}

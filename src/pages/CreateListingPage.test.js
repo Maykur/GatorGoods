@@ -81,9 +81,7 @@ test("successful submit posts the listing and navigates home", async () => {
   fireEvent.change(screen.getByLabelText(/condition/i), {
     target: {value: "Good"},
   });
-  fireEvent.change(screen.getByLabelText(/pickup location/i), {
-    target: {value: "Library West"},
-  });
+  fireEvent.click(screen.getByRole("radio", {name: /library west/i}));
   fireEvent.change(container.querySelector('input[type="file"]'), {
     target: {
       files: [new File(["lamp"], "lamp.png", {type: "image/png"})],
@@ -121,6 +119,7 @@ test("successful submit posts the listing and navigates home", async () => {
       itemName: "Desk Lamp",
       itemCost: "20",
       itemCondition: "Good",
+      pickupHubId: "library-west",
       itemLocation: "Library West",
       itemPicture: "data:image/png;base64,preview",
       itemDescription: "Lamp for studying",
@@ -140,4 +139,22 @@ test("successful submit posts the listing and navigates home", async () => {
     );
     expect(mockNavigate).toHaveBeenCalledWith("/listings");
   });
+});
+
+test("create listing requires an approved pickup hub selection", async () => {
+  render(<CreateListingPage />);
+
+  fireEvent.click(screen.getByRole("button", {name: /create listing/i}));
+
+  expect(await screen.findByText(/pickup hub is required\./i)).toBeInTheDocument();
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+test("selected pickup hub appears in the live preview before submit", async () => {
+  render(<CreateListingPage />);
+
+  fireEvent.click(screen.getByRole("radio", {name: /reitz union/i}));
+
+  expect(await screen.findAllByText("Reitz Union")).toHaveLength(3);
+  expect(screen.queryByText(/public campus pickup hub appears here/i)).not.toBeInTheDocument();
 });

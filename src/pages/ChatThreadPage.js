@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
+import { PickupHubPicker } from '../components/PickupHubPicker';
 import { AppIcon, Avatar, Button, Card, ErrorBanner, Skeleton, Textarea } from '../components/ui';
-import { getConversationMessages, sendMessage } from '../lib/messagesApi';
+import { getPickupHubById, resolvePickupHub } from '../lib/pickupHubs';
+import { getConversationMessages, sendMessage, updateConversationPickup } from '../lib/messagesApi';
 
 const API_BASE_URL = 'http://localhost:5000';
+const MIN_PICKUP_SPECIFICS_LENGTH = 8;
 
 function ThreadSkeleton() {
   return (
@@ -50,6 +53,16 @@ async function fetchOptionalJson(url) {
   }
 }
 
+function getFirstName(name) {
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+
+  if (!trimmedName) {
+    return '';
+  }
+
+  return trimmedName.split(/\s+/)[0];
+}
+
 export function ChatThreadPage() {
   const { conversationId } = useParams();
   const { user } = useUser();
@@ -61,15 +74,45 @@ export function ChatThreadPage() {
   const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
   const [listingId, setListingId] = useState('');
   const [listingName, setListingName] = useState('');
+  const [listingOriginalPickupHubId, setListingOriginalPickupHubId] = useState('');
+  const [listingOriginalPickupLabel, setListingOriginalPickupLabel] = useState('');
+  const [listingCurrentPickupHubId, setListingCurrentPickupHubId] = useState('');
+  const [listingCurrentPickupLabel, setListingCurrentPickupLabel] = useState('');
+  const [listingSellerId, setListingSellerId] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
+  const [pickupValues, setPickupValues] = useState({
+    pickupHubId: '',
+    pickupSpecifics: '',
+  });
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
+  const [pickupError, setPickupError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isPickupEditorOpen, setIsPickupEditorOpen] = useState(false);
+  const [isUpdatingPickup, setIsUpdatingPickup] = useState(false);
   const conversationListings = listingName && listingId
     ? [{ id: listingId, name: listingName }]
     : [];
+  const activePickupHubId =
+    conversation?.activePickupHubId ||
+    (conversation?.activePickupSpecifics ? listingCurrentPickupHubId : '') ||
+    listingOriginalPickupHubId ||
+    '';
+  const activePickupHub = getPickupHubById(activePickupHubId);
+  const activePickupLabel =
+    activePickupHub?.label ||
+    (conversation?.activePickupSpecifics ? listingCurrentPickupLabel : '') ||
+    listingOriginalPickupLabel ||
+    '';
+  const isSeller = Boolean(user?.id && listingSellerId && user.id === listingSellerId);
+  const isAcceptedMeetupLocked = Boolean(conversation?.isMeetupHubLocked);
+  const buyerFirstName = getFirstName(otherParticipantName);
+  const meetupHintTarget = buyerFirstName || 'the buyer';
+  const pickupHubError = pickupError.toLowerCase().includes('hub') ? pickupError : '';
+  const pickupSpecificsError =
+    pickupError && !pickupHubError ? pickupError : '';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -115,6 +158,28 @@ export function ChatThreadPage() {
         setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
         setListingName(listingData?.itemName || '');
         setListingId(listingData?._id || threadData.conversation.activeListingId?.toString?.() || '');
+        setListingOriginalPickupHubId(
+          listingData?.originalPickupHubId ||
+            listingData?.pickupHubId ||
+            resolvePickupHub(listingData?.originalItemLocation || listingData?.itemLocation)?.id ||
+            ''
+        );
+        setListingOriginalPickupLabel(
+          listingData?.originalItemLocation ||
+            getPickupHubById(listingData?.originalPickupHubId || listingData?.pickupHubId)?.label ||
+            listingData?.itemLocation ||
+            ''
+        );
+        setListingCurrentPickupHubId(
+          listingData?.pickupHubId || resolvePickupHub(listingData?.itemLocation)?.id || ''
+        );
+        setListingCurrentPickupLabel(
+          listingData?.itemLocation ||
+            getPickupHubById(listingData?.pickupHubId)?.label ||
+            listingData?.originalItemLocation ||
+            ''
+        );
+        setListingSellerId(listingData?.userPublishingID || '');
         setPageError('');
       } catch (loadError) {
         if (isMounted) {
@@ -139,6 +204,17 @@ export function ChatThreadPage() {
       window.clearInterval(intervalId);
     };
   }, [conversationId, user?.id]);
+
+  useEffect(() => {
+    if (isPickupEditorOpen) {
+      return;
+    }
+
+    setPickupValues({
+      pickupHubId: activePickupHubId,
+      pickupSpecifics: conversation?.activePickupSpecifics || '',
+    });
+  }, [activePickupHubId, conversation?.activePickupSpecifics, isPickupEditorOpen]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -178,6 +254,56 @@ export function ChatThreadPage() {
       setComposerError(sendError.message || 'Failed to send message');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePickupHubChange = (pickupHubId) => {
+    setPickupValues((currentValues) => ({
+      ...currentValues,
+      pickupHubId,
+    }));
+    setPickupError('');
+  };
+
+  const handlePickupSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!isSeller) {
+      setPickupError('Only the seller can update the structured meetup details.');
+      return;
+    }
+
+    const normalizedPickupHubId = pickupValues.pickupHubId.trim();
+    const canUseLockedCustomLocation = isAcceptedMeetupLocked && !normalizedPickupHubId && Boolean(activePickupLabel);
+
+    if (!normalizedPickupHubId && !canUseLockedCustomLocation) {
+      setPickupError('Choose a meetup hub before updating the thread.');
+      return;
+    }
+
+    if (pickupValues.pickupSpecifics.trim().length < MIN_PICKUP_SPECIFICS_LENGTH) {
+      setPickupError(`Meetup specifics must be at least ${MIN_PICKUP_SPECIFICS_LENGTH} characters.`);
+      return;
+    }
+
+    try {
+      setIsUpdatingPickup(true);
+      const result = await updateConversationPickup({
+        conversationId,
+        requesterClerkUserId: user.id,
+        pickupHubId: normalizedPickupHubId,
+        pickupSpecifics: pickupValues.pickupSpecifics.trim(),
+      });
+
+      setConversation(result.conversation);
+      setMessages((currentMessages) => [...currentMessages, result.systemMessage]);
+      setPickupError('');
+      setIsPickupEditorOpen(false);
+      setPageError('');
+    } catch (updateError) {
+      setPickupError(updateError.message || 'Failed to update pickup details');
+    } finally {
+      setIsUpdatingPickup(false);
     }
   };
 
@@ -268,6 +394,109 @@ export function ChatThreadPage() {
         </Card>
       ) : null}
 
+      <Card variant="subtle" className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+              <AppIcon icon="location" className="text-[0.95em]" />
+              <span>Meetup hub</span>
+            </div>
+            <h2 className="ml-6 text-xl font-semibold text-white">
+              {activePickupLabel || 'Meetup hub not set yet'}
+            </h2>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                <AppIcon icon="description" className="text-[0.95em]" />
+                <span>Meetup specifics</span>
+              </div>
+              <p className="ml-6 text-xl font-semibold text-white">
+                {conversation?.activePickupSpecifics || 'The seller will add the exact meetup specifics when they confirm the handoff.'}
+              </p>
+            </div>
+          </div>
+          {isSeller ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon="location"
+              onClick={() => {
+                setPickupValues({
+                  pickupHubId: activePickupHubId,
+                  pickupSpecifics: conversation?.activePickupSpecifics || '',
+                });
+                setPickupError('');
+                setIsPickupEditorOpen((isOpen) => !isOpen);
+              }}
+            >
+              {isPickupEditorOpen ? 'Hide meetup editor' : 'Edit meetup details'}
+            </Button>
+          ) : null}
+        </div>
+
+        {!isSeller ? (
+          <p className="text-sm leading-7 text-app-soft">
+            Need a different spot? Suggest it in chat and the seller can update the official meetup details here.
+          </p>
+        ) : null}
+
+        {isPickupEditorOpen ? (
+          <form className="space-y-4" onSubmit={handlePickupSubmit}>
+            <PickupHubPicker
+              id="conversation-pickup-hub"
+              label="Meetup hub"
+              description={
+                isAcceptedMeetupLocked
+                  ? 'The meetup hub is locked after offer acceptance. You can still review it here.'
+                  : 'Choose the approved campus meetup hub for this handoff.'
+              }
+              selectedHubId={pickupValues.pickupHubId}
+              onChange={handlePickupHubChange}
+              error={pickupHubError}
+              required
+              disabled={isAcceptedMeetupLocked}
+            />
+            {isAcceptedMeetupLocked ? (
+              <p className="rounded-[1rem] border border-app-danger/30 bg-app-danger/15 px-4 py-3 text-sm leading-6 text-red-100">
+                The meetup hub is locked after acceptance so both sides keep one consistent pickup plan. You can still update the meetup specifics below.
+              </p>
+            ) : null}
+            <Textarea
+              id="conversation-pickup-specifics"
+              label="Meetup specifics"
+              leadingIcon="message"
+              required
+              rows={3}
+              value={pickupValues.pickupSpecifics}
+              onChange={(event) => {
+                setPickupValues((currentValues) => ({
+                  ...currentValues,
+                  pickupSpecifics: event.target.value,
+                }));
+                setPickupError('');
+              }}
+              error={pickupSpecificsError}
+              hint={`Add the exact entrance, room, or side of the building ${meetupHintTarget} should use.`}
+              placeholder="Outside the north entrance by the benches..."
+            />
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" leadingIcon="verified" loading={isUpdatingPickup}>
+                Save meetup details
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setIsPickupEditorOpen(false);
+                  setPickupError('');
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </Card>
+
       <Card padding="none" className="overflow-hidden">
         <div className="max-h-[32rem] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           {messages.length === 0 ? (
@@ -279,7 +508,27 @@ export function ChatThreadPage() {
             </div>
           ) : (
             messages.map((message) => {
+              const isSystemMessage = message.senderClerkUserId === 'system';
               const isOwnMessage = message.senderClerkUserId === user.id;
+
+              if (isSystemMessage) {
+                const isAcceptedOfferMessage = message.body.startsWith('Offer accepted.');
+                const systemMessageClassName = isAcceptedOfferMessage
+                  ? 'border-app-success/30 bg-app-success/15'
+                  : 'border-gatorOrange/20 bg-gatorOrange/10';
+                const systemTimestampClassName = isAcceptedOfferMessage
+                  ? 'text-green-100/75'
+                  : 'text-app-muted';
+
+                return (
+                  <div key={message._id} className="flex justify-center">
+                    <div className={`max-w-[85%] rounded-full border px-4 py-2 text-center ${systemMessageClassName}`}>
+                      <p className="text-sm font-medium text-white">{message.body}</p>
+                      <p className={`mt-1 text-xs ${systemTimestampClassName}`}>{formatMessageTime(message.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div
@@ -341,7 +590,7 @@ export function ChatThreadPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="inline-flex items-center gap-2 text-sm text-app-soft">
               <AppIcon icon="location" className="text-[0.95em]" />
-              <span>Keep pickup details and notes here so you can find them later.</span>
+              <span>Use chat for suggestions and questions. The structured meetup details above stay as the source of truth.</span>
             </p>
             <Button type="submit" leadingIcon="send" loading={isSending}>
               Send message

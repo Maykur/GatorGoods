@@ -4,9 +4,17 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
+const {
+  deriveListingPickupFields,
+  deriveOfferPickupFields,
+  getPickupHubById,
+  isApprovedPickupLocationLabel,
+  findPickupHubByLabel,
+} = require('../src/lib/pickupHubs');
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
+const MIN_PICKUP_SPECIFICS_LENGTH = 8;
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -24,6 +32,31 @@ const ItemSchema = new mongoose.Schema({
   itemLocation: {
     type: String,
     required: true,
+  },
+  pickupHubId: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  originalPickupHubId: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  pickupArea: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  originalPickupArea: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  originalItemLocation: {
+    type: String,
+    default: '',
+    trim: true,
   },
   itemPicture: {
     type: String,
@@ -163,6 +196,16 @@ const conversationSchema = new mongoose.Schema(
       ref: 'items',
       default: null,
     },
+    activePickupHubId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    activePickupSpecifics: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     lastMessageText: {
       type: String,
       default: '',
@@ -258,6 +301,16 @@ const offerSchema = new mongoose.Schema(
     meetupLocation: {
       type: String,
       required: true,
+      trim: true,
+    },
+    meetupHubId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    meetupArea: {
+      type: String,
+      default: '',
       trim: true,
     },
     meetupWindow: {
@@ -376,6 +429,153 @@ function toObjectId(value) {
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizePickupSpecifics(value) {
+  return normalizeOptionalString(value);
+}
+
+function isValidPickupSpecifics(value) {
+  return value.length >= MIN_PICKUP_SPECIFICS_LENGTH;
+}
+
+async function getConversationListing(conversation) {
+  if (!conversation?.activeListingId) {
+    return null;
+  }
+
+  return Item.findById(conversation.activeListingId);
+}
+
+function deriveOriginalListingPickupFields(item = {}) {
+  return deriveListingPickupFields({
+    pickupHubId: item.originalPickupHubId || item.pickupHubId,
+    itemLocation: item.originalItemLocation || item.itemLocation,
+  });
+}
+
+function deriveCurrentListingPickupFields(item = {}) {
+  return deriveListingPickupFields({
+    pickupHubId: item.pickupHubId,
+    itemLocation: item.itemLocation,
+  });
+}
+
+function applyOriginalListingPickupFields(item, resolvedPickupFields) {
+  item.originalPickupHubId = resolvedPickupFields.pickupHubId;
+  item.originalPickupArea = resolvedPickupFields.pickupArea;
+  item.originalItemLocation = resolvedPickupFields.itemLocation;
+}
+
+function applyCurrentListingPickupFields(item, resolvedPickupFields) {
+  item.pickupHubId = resolvedPickupFields.pickupHubId;
+  item.pickupArea = resolvedPickupFields.pickupArea;
+  item.itemLocation = resolvedPickupFields.itemLocation;
+}
+
+function ensureListingOriginalPickupFields(item) {
+  const originalPickupFields = deriveOriginalListingPickupFields(item);
+
+  if (!item.originalPickupHubId && originalPickupFields.pickupHubId) {
+    item.originalPickupHubId = originalPickupFields.pickupHubId;
+  }
+
+  if (!item.originalPickupArea && originalPickupFields.pickupArea) {
+    item.originalPickupArea = originalPickupFields.pickupArea;
+  }
+
+  if (!item.originalItemLocation && originalPickupFields.itemLocation) {
+    item.originalItemLocation = originalPickupFields.itemLocation;
+  }
+}
+
+async function syncReservedConversationListingPickup(conversation, pickupHubId) {
+  if (!conversation?.activeListingId) {
+    return null;
+  }
+
+  const listing = await Item.findById(conversation.activeListingId);
+
+  if (!listing || !listing.reservedOfferId) {
+    return listing;
+  }
+
+  const reservedOffer = await Offer.findById(listing.reservedOfferId);
+
+  if (!reservedOffer || reservedOffer.conversationId?.toString() !== conversation._id.toString()) {
+    return listing;
+  }
+
+  ensureListingOriginalPickupFields(listing);
+  applyCurrentListingPickupFields(
+    listing,
+    deriveListingPickupFields({
+      pickupHubId,
+      itemLocation: getPickupHubById(pickupHubId)?.label || listing.itemLocation,
+    })
+  );
+  await listing.save();
+
+  return listing;
+}
+
+async function getReservedOfferForConversation(conversation) {
+  if (!conversation?.activeListingId) {
+    return {listing: null, reservedOffer: null};
+  }
+
+  const listing = await Item.findById(conversation.activeListingId);
+
+  if (!listing?.reservedOfferId) {
+    return {listing, reservedOffer: null};
+  }
+
+  const reservedOffer = await Offer.findById(listing.reservedOfferId);
+
+  if (!reservedOffer || reservedOffer.conversationId?.toString() !== conversation._id.toString()) {
+    return {listing, reservedOffer: null};
+  }
+
+  return {listing, reservedOffer};
+}
+
+async function repairConversationPickupHub(conversation) {
+  if (!conversation || conversation.activePickupHubId) {
+    return conversation;
+  }
+
+  const {listing, reservedOffer} = await getReservedOfferForConversation(conversation);
+
+  if (reservedOffer) {
+    const resolvedOfferPickup = deriveOfferPickupFields({
+      meetupHubId: reservedOffer.meetupHubId,
+      meetupLocation: reservedOffer.meetupLocation,
+    });
+
+    if (resolvedOfferPickup.meetupHubId) {
+      conversation.activePickupHubId = resolvedOfferPickup.meetupHubId;
+      await conversation.save();
+      return conversation;
+    }
+  }
+
+  if (conversation.activePickupSpecifics && listing?.pickupHubId) {
+    conversation.activePickupHubId = listing.pickupHubId;
+    await conversation.save();
+  }
+
+  return conversation;
+}
+
+function serializeConversation(conversation, extras = {}) {
+  if (!conversation) {
+    return conversation;
+  }
+
+  return {
+    ...conversation.toObject(),
+    ...extras,
+  };
 }
 
 function buildProfileUpdatePayload(payload = {}, {allowEmptyStrings = false} = {}) {
@@ -591,13 +791,17 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
       return resp.status(403).json({message: 'You are not a participant in this conversation'});
     }
 
+    await repairConversationPickupHub(conversation);
+    const {reservedOffer} = await getReservedOfferForConversation(conversation);
     conversation.lastReadAtByUser.set(participantId, new Date());
     await conversation.save();
 
     const messages = await Message.find({conversationId}).sort({createdAt: 1});
 
     resp.json({
-      conversation,
+      conversation: serializeConversation(conversation, {
+        isMeetupHubLocked: Boolean(reservedOffer),
+      }),
       messages,
     });
   } catch (e) {
@@ -665,6 +869,118 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
   }
 });
 
+app.patch('/api/conversations/:id/pickup', async (req, resp) => {
+  try {
+    const conversationId = toObjectId(req.params.id);
+    const requesterClerkUserId = req.body.requesterClerkUserId?.trim();
+    const pickupHubId = req.body.pickupHubId?.trim() || '';
+    const pickupSpecifics = normalizePickupSpecifics(req.body.pickupSpecifics);
+
+    if (!conversationId) {
+      return resp.status(400).json({message: 'Valid conversation id is required'});
+    }
+
+    if (!requesterClerkUserId) {
+      return resp.status(400).json({message: 'requesterClerkUserId is required'});
+    }
+
+    if (!pickupSpecifics) {
+      return resp.status(400).json({message: 'pickupSpecifics is required'});
+    }
+
+    if (!isValidPickupSpecifics(pickupSpecifics)) {
+      return resp.status(400).json({
+        message: `pickupSpecifics must be at least ${MIN_PICKUP_SPECIFICS_LENGTH} characters`,
+      });
+    }
+
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      return resp.status(404).json({message: 'Conversation not found'});
+    }
+
+    if (!conversation.participantIds.includes(requesterClerkUserId)) {
+      return resp.status(403).json({message: 'You are not a participant in this conversation'});
+    }
+
+    const listing = await getConversationListing(conversation);
+
+    if (!listing) {
+      return resp.status(404).json({message: 'Listing not found for this conversation'});
+    }
+
+    if (listing.userPublishingID !== requesterClerkUserId) {
+      return resp.status(403).json({message: 'Only the seller can update meetup details'});
+    }
+
+    const {reservedOffer} = await getReservedOfferForConversation(conversation);
+    const resolvedReservedOfferPickup = deriveOfferPickupFields({
+      meetupHubId: reservedOffer?.meetupHubId,
+      meetupLocation: reservedOffer?.meetupLocation,
+    });
+    const lockedPickupHubId =
+      conversation.activePickupHubId ||
+      listing.pickupHubId ||
+      resolvedReservedOfferPickup.meetupHubId ||
+      null;
+    const lockedPickupLabel =
+      getPickupHubById(lockedPickupHubId)?.label ||
+      listing.itemLocation ||
+      resolvedReservedOfferPickup.meetupLocation ||
+      '';
+
+    if (!reservedOffer && !pickupHubId) {
+      return resp.status(400).json({message: 'pickupHubId is required'});
+    }
+
+    if (!reservedOffer && pickupHubId && !getPickupHubById(pickupHubId)) {
+      return resp.status(400).json({message: 'pickupHubId must be one of the approved pickup hubs'});
+    }
+
+    if (reservedOffer && lockedPickupHubId && pickupHubId && pickupHubId !== lockedPickupHubId) {
+      return resp.status(409).json({
+        message: 'The meetup hub is locked after acceptance. You can still update meetup specifics.',
+      });
+    }
+
+    if (reservedOffer && !lockedPickupHubId && pickupHubId) {
+      return resp.status(409).json({
+        message: 'The meetup hub is locked after acceptance. You can still update meetup specifics.',
+      });
+    }
+
+    const pickupHubLabel = getPickupHubById(pickupHubId)?.label || lockedPickupLabel;
+    const systemMessageBody = `Meetup details updated to ${pickupHubLabel}. Specifics: ${pickupSpecifics}`;
+
+    await syncReservedConversationListingPickup(conversation, pickupHubId);
+    conversation.activePickupHubId = pickupHubId || null;
+    conversation.activePickupSpecifics = pickupSpecifics;
+
+    const systemMessage = await Message.create({
+      conversationId,
+      senderClerkUserId: 'system',
+      body: systemMessageBody,
+      attachedListingId: conversation.activeListingId || null,
+    });
+
+    conversation.lastMessageText = systemMessage.body;
+    conversation.lastMessageAt = systemMessage.createdAt;
+    conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+
+    await conversation.save();
+
+    resp.json({
+      conversation: serializeConversation(conversation, {
+        isMeetupHubLocked: Boolean(reservedOffer),
+      }),
+      systemMessage,
+    });
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to update pickup details', error: e.message});
+  }
+});
+
 app.post('/api/listings/:id/offers', async (req, resp) => {
   try {
     const listingId = toObjectId(req.params.id);
@@ -672,6 +988,7 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       buyerClerkUserId,
       buyerDisplayName,
       offeredPrice,
+      meetupHubId,
       meetupLocation,
       meetupWindow,
       paymentMethod,
@@ -696,7 +1013,12 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       return resp.status(400).json({message: 'A valid offeredPrice is required'});
     }
 
-    if (!trimmedMeetupLocation) {
+    const resolvedMeetupFields = deriveOfferPickupFields({
+      meetupHubId,
+      meetupLocation: trimmedMeetupLocation,
+    });
+
+    if (!resolvedMeetupFields.meetupLocation) {
       return resp.status(400).json({message: 'meetupLocation is required'});
     }
 
@@ -734,7 +1056,9 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       sellerClerkUserId: listing.userPublishingID,
       conversationId: conversation.id,
       offeredPrice: normalizedPrice,
-      meetupLocation: trimmedMeetupLocation,
+      meetupHubId: resolvedMeetupFields.meetupHubId,
+      meetupArea: resolvedMeetupFields.meetupArea,
+      meetupLocation: resolvedMeetupFields.meetupLocation,
       meetupWindow: trimmedMeetupWindow,
       paymentMethod,
       message: normalizedMessage,
@@ -777,6 +1101,7 @@ app.patch('/api/offers/:id', async (req, resp) => {
     const offerId = toObjectId(req.params.id);
     const requesterClerkUserId = req.body.requesterClerkUserId?.trim();
     const nextStatus = req.body.status?.trim();
+    const pickupSpecifics = normalizePickupSpecifics(req.body.pickupSpecifics);
 
     if (!offerId) {
       return resp.status(400).json({message: 'Valid offer id is required'});
@@ -811,6 +1136,16 @@ app.patch('/api/offers/:id', async (req, resp) => {
     }
 
     if (nextStatus === 'accepted') {
+      if (!pickupSpecifics) {
+        return resp.status(400).json({message: 'pickupSpecifics is required when accepting an offer'});
+      }
+
+      if (!isValidPickupSpecifics(pickupSpecifics)) {
+        return resp.status(400).json({
+          message: `pickupSpecifics must be at least ${MIN_PICKUP_SPECIFICS_LENGTH} characters`,
+        });
+      }
+
       const reservedByDifferentOffer =
         listing.status === 'reserved' &&
         listing.reservedOfferId &&
@@ -823,10 +1158,55 @@ app.patch('/api/offers/:id', async (req, resp) => {
       offer.status = 'accepted';
       listing.status = 'reserved';
       listing.reservedOfferId = offer._id;
+      const resolvedAcceptedPickup = deriveOfferPickupFields({
+        meetupHubId: offer.meetupHubId,
+        meetupLocation: offer.meetupLocation,
+      });
+      const conversation =
+        (offer.conversationId ? await Conversation.findById(offer.conversationId) : null) ||
+        (await Conversation.findOne({
+          participantIds: normalizeParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]),
+          linkedListingIds: offer.listingId,
+        }));
+      let systemMessage = null;
 
-      await Promise.all([
+      if (conversation) {
+        ensureListingOriginalPickupFields(listing);
+        applyCurrentListingPickupFields(
+          listing,
+          deriveListingPickupFields({
+            pickupHubId: resolvedAcceptedPickup.meetupHubId,
+            itemLocation: resolvedAcceptedPickup.meetupLocation,
+          })
+        );
+        conversation.activePickupHubId = resolvedAcceptedPickup.meetupHubId || null;
+        conversation.activePickupSpecifics = pickupSpecifics;
+
+        const pickupHubLabel =
+          getPickupHubById(resolvedAcceptedPickup.meetupHubId)?.label || resolvedAcceptedPickup.meetupLocation;
+        systemMessage = await Message.create({
+          conversationId: conversation._id,
+          senderClerkUserId: 'system',
+          body: `Offer accepted. Meetup hub: ${pickupHubLabel}. Meetup specifics: ${pickupSpecifics}`,
+          attachedListingId: conversation.activeListingId || offer.listingId,
+        });
+
+        conversation.lastMessageText = systemMessage.body;
+        conversation.lastMessageAt = systemMessage.createdAt;
+        conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+      }
+
+      const saveOperations = [
         offer.save(),
         listing.save(),
+      ];
+
+      if (conversation) {
+        saveOperations.push(conversation.save());
+      }
+
+      await Promise.all([
+        ...saveOperations,
         Offer.updateMany(
           {
             listingId: offer.listingId,
@@ -860,6 +1240,7 @@ app.post('/create-item', async (req, resp) => {
       itemName,
       itemCost,
       itemCondition,
+      pickupHubId,
       itemLocation,
       itemPicture,
       itemDescription,
@@ -869,11 +1250,25 @@ app.post('/create-item', async (req, resp) => {
       itemCat,
     } = req.body;
 
+    const resolvedPickupFields = deriveListingPickupFields({
+      pickupHubId,
+      itemLocation,
+    });
+
+    if (!resolvedPickupFields.itemLocation) {
+      return resp.status(400).json({message: 'itemLocation is required'});
+    }
+
     const result = await Item.create({
       itemName,
       itemCost,
       itemCondition,
-      itemLocation,
+      itemLocation: resolvedPickupFields.itemLocation,
+      pickupHubId: resolvedPickupFields.pickupHubId,
+      pickupArea: resolvedPickupFields.pickupArea,
+      originalItemLocation: resolvedPickupFields.itemLocation,
+      originalPickupHubId: resolvedPickupFields.pickupHubId,
+      originalPickupArea: resolvedPickupFields.pickupArea,
       itemPicture,
       itemDescription,
       itemDetails,
@@ -893,7 +1288,7 @@ app.post('/create-item', async (req, resp) => {
 // Get entire listing
 app.get('/items', async (req, resp) => {
   try {
-    const hasQueryMode = ['page', 'limit', 'search', 'category', 'sort'].some(
+    const hasQueryMode = ['page', 'limit', 'search', 'category', 'pickupLocation', 'sort'].some(
       (key) => typeof req.query[key] !== 'undefined'
     );
 
@@ -907,22 +1302,59 @@ app.get('/items', async (req, resp) => {
     const limit = clampPositiveInteger(req.query.limit, 9, 24);
     const search = req.query.search?.trim() || '';
     const category = req.query.category?.trim() || '';
+    const pickupLocation = req.query.pickupLocation?.trim() || '';
     const sort = req.query.sort?.trim() || 'newest';
-    const filter = {};
+    const filterClauses = [];
 
     if (category && category !== 'All') {
-      filter.itemCat = category;
+      filterClauses.push({itemCat: category});
+    }
+
+    if (pickupLocation && pickupLocation !== 'All') {
+      if (!isApprovedPickupLocationLabel(pickupLocation)) {
+        return resp.status(400).json({message: 'pickupLocation must match an approved pickup hub'});
+      }
+
+      const pickupHub = findPickupHubByLabel(pickupLocation);
+      filterClauses.push({
+        $or: [
+          {originalPickupHubId: pickupHub?.id || null},
+          {originalItemLocation: pickupHub?.label || pickupLocation},
+          {
+            originalPickupHubId: {$in: [null, '']},
+            pickupHubId: pickupHub?.id || null,
+          },
+          {
+            originalItemLocation: {$in: [null, '']},
+            itemLocation: pickupHub?.label || pickupLocation,
+          },
+        ],
+      });
     }
 
     if (search) {
       const escapedSearch = escapeRegex(search);
-      filter.$or = [
+      filterClauses.push({
+        $or: [
         {itemName: {$regex: escapedSearch, $options: 'i'}},
-        {itemLocation: {$regex: escapedSearch, $options: 'i'}},
+        {originalItemLocation: {$regex: escapedSearch, $options: 'i'}},
+        {originalPickupArea: {$regex: escapedSearch, $options: 'i'}},
+        {
+          originalItemLocation: {$in: [null, '']},
+          itemLocation: {$regex: escapedSearch, $options: 'i'},
+        },
+        {
+          originalPickupArea: {$in: [null, '']},
+          pickupArea: {$regex: escapedSearch, $options: 'i'},
+        },
         {userPublishingName: {$regex: escapedSearch, $options: 'i'}},
         {itemCat: {$regex: escapedSearch, $options: 'i'}},
-      ];
+        ],
+      });
     }
+
+    const filter =
+      filterClauses.length === 0 ? {} : filterClauses.length === 1 ? filterClauses[0] : {$and: filterClauses};
 
     const totalItems = await Item.countDocuments(filter);
     const totalPages = Math.max(1, Math.ceil(totalItems / limit));

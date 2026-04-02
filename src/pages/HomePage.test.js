@@ -35,7 +35,12 @@ jest.mock(
 );
 
 jest.mock("../components/HomePage/ProductCard.js", () => ({item, data}) => (
-  <div>{item?.title || data?.itemName || data?.title}</div>
+  <div>
+    <span>{item?.title || data?.itemName || data?.title}</span>
+    <span data-testid={`location-${item?.id || data?._id || data?.id || "listing"}`}>
+      {item?.location || data?.itemLocation || ""}
+    </span>
+  </div>
 ));
 
 function jsonResponse(body, status = 200) {
@@ -52,10 +57,12 @@ function buildPaginatedItemsResponse(url, items) {
   const limit = Number(parsedUrl.searchParams.get("limit") || "9");
   const search = (parsedUrl.searchParams.get("search") || "").toLowerCase();
   const category = parsedUrl.searchParams.get("category") || "All";
+  const pickupLocation = parsedUrl.searchParams.get("pickupLocation") || "All";
   const sort = parsedUrl.searchParams.get("sort") || "newest";
 
   let filteredItems = items.filter((item) => {
     const matchesCategory = category === "All" || item.itemCat === category;
+    const matchesPickupLocation = pickupLocation === "All" || item.itemLocation === pickupLocation;
     const haystack = [
       item.itemName,
       item.itemLocation,
@@ -66,7 +73,7 @@ function buildPaginatedItemsResponse(url, items) {
       .join(" ")
       .toLowerCase();
 
-    return matchesCategory && (!search || haystack.includes(search));
+    return matchesCategory && matchesPickupLocation && (!search || haystack.includes(search));
   });
 
   if (sort === "title") {
@@ -161,6 +168,56 @@ test("signed-out users can browse the listings feed, category chips, and cards",
   expect(global.fetch).toHaveBeenCalledWith(
     expect.stringContaining("/items?page=1&limit=9&sort=newest")
   );
+});
+
+test("browse users can filter listings by pickup location", async () => {
+  mockItems = [
+    {
+      _id: "item-1",
+      itemName: "Desk Lamp",
+      itemCat: "Electronics & Computers",
+      itemLocation: "Library West",
+    },
+    {
+      _id: "item-2",
+      itemName: "Dorm Rug",
+      itemCat: "Home & Garden",
+      itemLocation: "Reitz Union",
+    },
+  ];
+
+  render(<HomePage />);
+
+  const locationSelect = await screen.findByLabelText(/pickup location/i);
+  fireEvent.change(locationSelect, {
+    target: {value: "Reitz Union"},
+  });
+
+  expect(await screen.findByText("Dorm Rug")).toBeInTheDocument();
+  expect(screen.queryByText("Desk Lamp")).not.toBeInTheDocument();
+  expect(global.fetch).toHaveBeenLastCalledWith(
+    expect.stringContaining("pickupLocation=Reitz+Union")
+  );
+});
+
+test("public browse cards show the original public hub instead of the negotiated current hub", async () => {
+  mockItems = [
+    {
+      _id: "item-1",
+      itemName: "Desk Lamp",
+      itemCat: "Electronics & Computers",
+      originalPickupHubId: "library-west",
+      originalItemLocation: "Library West",
+      pickupHubId: "reitz",
+      itemLocation: "Reitz Union",
+    },
+  ];
+
+  render(<HomePage />);
+
+  expect(await screen.findByText("Desk Lamp")).toBeInTheDocument();
+  expect(screen.getByTestId("location-item-1")).toHaveTextContent("Library West");
+  expect(screen.getByTestId("location-item-1")).not.toHaveTextContent("Reitz Union");
 });
 
 test("signed-in users still see the create listing action in the feed header", async () => {
