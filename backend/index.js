@@ -7,6 +7,7 @@ const cors = require('cors');
 const {
   deriveListingPickupFields,
   deriveOfferPickupFields,
+  getPickupHubById,
   isApprovedPickupHubId,
   isApprovedPickupLocationLabel,
   findPickupHubByLabel,
@@ -179,6 +180,16 @@ const conversationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'items',
       default: null,
+    },
+    activePickupHubId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    activePickupNote: {
+      type: String,
+      default: '',
+      trim: true,
     },
     lastMessageText: {
       type: String,
@@ -692,6 +703,69 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
   }
 });
 
+app.patch('/api/conversations/:id/pickup', async (req, resp) => {
+  try {
+    const conversationId = toObjectId(req.params.id);
+    const requesterClerkUserId = req.body.requesterClerkUserId?.trim();
+    const pickupHubId = req.body.pickupHubId?.trim();
+    const pickupNote = normalizeOptionalString(req.body.pickupNote);
+
+    if (!conversationId) {
+      return resp.status(400).json({message: 'Valid conversation id is required'});
+    }
+
+    if (!requesterClerkUserId) {
+      return resp.status(400).json({message: 'requesterClerkUserId is required'});
+    }
+
+    if (!pickupHubId) {
+      return resp.status(400).json({message: 'pickupHubId is required'});
+    }
+
+    if (!isApprovedPickupHubId(pickupHubId)) {
+      return resp.status(400).json({message: 'pickupHubId must be one of the approved pickup hubs'});
+    }
+
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      return resp.status(404).json({message: 'Conversation not found'});
+    }
+
+    if (!conversation.participantIds.includes(requesterClerkUserId)) {
+      return resp.status(403).json({message: 'You are not a participant in this conversation'});
+    }
+
+    const pickupHub = getPickupHubById(pickupHubId);
+    const systemMessageBody = pickupNote
+      ? `Pickup spot updated to ${pickupHub.label}. Note: ${pickupNote}`
+      : `Pickup spot updated to ${pickupHub.label}`;
+
+    conversation.activePickupHubId = pickupHubId;
+    conversation.activePickupNote = pickupNote;
+
+    const systemMessage = await Message.create({
+      conversationId,
+      senderClerkUserId: 'system',
+      body: systemMessageBody,
+      attachedListingId: conversation.activeListingId || null,
+    });
+
+    conversation.lastMessageText = systemMessage.body;
+    conversation.lastMessageAt = systemMessage.createdAt;
+    conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+
+    await conversation.save();
+
+    resp.json({
+      conversation,
+      systemMessage,
+    });
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to update pickup details', error: e.message});
+  }
+});
+
 app.post('/api/listings/:id/offers', async (req, resp) => {
   try {
     const listingId = toObjectId(req.params.id);
@@ -862,10 +936,29 @@ app.patch('/api/offers/:id', async (req, resp) => {
       offer.status = 'accepted';
       listing.status = 'reserved';
       listing.reservedOfferId = offer._id;
+      const conversation =
+        (offer.conversationId ? await Conversation.findById(offer.conversationId) : null) ||
+        (await Conversation.findOne({
+          participantIds: normalizeParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]),
+          linkedListingIds: offer.listingId,
+        }));
 
-      await Promise.all([
+      if (conversation) {
+        conversation.activePickupHubId = offer.meetupHubId || null;
+        conversation.activePickupNote = '';
+      }
+
+      const saveOperations = [
         offer.save(),
         listing.save(),
+      ];
+
+      if (conversation) {
+        saveOperations.push(conversation.save());
+      }
+
+      await Promise.all([
+        ...saveOperations,
         Offer.updateMany(
           {
             listingId: offer.listingId,

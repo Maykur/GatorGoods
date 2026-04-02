@@ -73,3 +73,26 @@ export async function sendMessage({conversationId, senderClerkUserId, body, atta
     'Failed to send message'
   );
 }
+
+export async function updateConversationPickup({
+  conversationId,
+  requesterClerkUserId,
+  pickupHubId,
+  pickupNote = '',
+}) {
+  return fetchFromApi(
+    `${API_BASE_URL}/api/conversations/${conversationId}/pickup`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requesterClerkUserId,
+        pickupHubId,
+        pickupNote,
+      }),
+    },
+    'Failed to update pickup details'
+  );
+}

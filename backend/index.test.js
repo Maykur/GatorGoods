@@ -512,6 +512,51 @@ test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines
   const secondOffer = await Offer.findById(secondOfferResponse.body._id);
   assert.equal(firstOffer.status, 'accepted');
   assert.equal(secondOffer.status, 'declined');
+
+  const acceptedConversation = await Conversation.findById(firstOffer.conversationId);
+  assert.equal(acceptedConversation.activePickupHubId, firstOffer.meetupHubId);
+});
+
+test('PATCH /api/conversations/:id/pickup updates the active pickup hub and appends a system message', async () => {
+  const {item} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_1',
+    meetupHubId: 'reitz',
+    meetupLocation: '',
+  });
+
+  const response = await request(app)
+    .patch(`/api/conversations/${offerResponse.body.conversationId}/pickup`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      pickupHubId: 'plaza-americas',
+      pickupNote: 'Meet near the main benches.',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.activePickupHubId, 'plaza-americas');
+  assert.equal(response.body.conversation.activePickupNote, 'Meet near the main benches.');
+  assert.equal(response.body.systemMessage.senderClerkUserId, 'system');
+  assert.match(response.body.systemMessage.body, /Pickup spot updated to Plaza of the Americas/);
+
+  const updatedConversation = await Conversation.findById(offerResponse.body.conversationId);
+  assert.equal(updatedConversation.activePickupHubId, 'plaza-americas');
+  assert.equal(updatedConversation.activePickupNote, 'Meet near the main benches.');
+});
+
+test('PATCH /api/conversations/:id/pickup rejects non-participants', async () => {
+  const {item} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  const response = await request(app)
+    .patch(`/api/conversations/${offerResponse.body.conversationId}/pickup`)
+    .send({
+      requesterClerkUserId: 'outsider',
+      pickupHubId: 'reitz',
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'You are not a participant in this conversation');
 });
 
 test('POST /api/listings/:id/offers rejects new offers once a listing is reserved', async () => {

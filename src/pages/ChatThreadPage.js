@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
+import { PickupHubPicker } from '../components/PickupHubPicker';
 import { AppIcon, Avatar, Button, Card, ErrorBanner, Skeleton, Textarea } from '../components/ui';
-import { getConversationMessages, sendMessage } from '../lib/messagesApi';
+import { getPickupHubById, resolvePickupHub } from '../lib/pickupHubs';
+import { getConversationMessages, sendMessage, updateConversationPickup } from '../lib/messagesApi';
 
 const API_BASE_URL = 'http://localhost:5000';
 
@@ -61,15 +63,25 @@ export function ChatThreadPage() {
   const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
   const [listingId, setListingId] = useState('');
   const [listingName, setListingName] = useState('');
+  const [listingPickupHubId, setListingPickupHubId] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
+  const [pickupValues, setPickupValues] = useState({
+    pickupHubId: '',
+    pickupNote: '',
+  });
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
+  const [pickupError, setPickupError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isPickupEditorOpen, setIsPickupEditorOpen] = useState(false);
+  const [isUpdatingPickup, setIsUpdatingPickup] = useState(false);
   const conversationListings = listingName && listingId
     ? [{ id: listingId, name: listingName }]
     : [];
+  const activePickupHubId = conversation?.activePickupHubId || listingPickupHubId || '';
+  const activePickupHub = getPickupHubById(activePickupHubId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -115,6 +127,7 @@ export function ChatThreadPage() {
         setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
         setListingName(listingData?.itemName || '');
         setListingId(listingData?._id || threadData.conversation.activeListingId?.toString?.() || '');
+        setListingPickupHubId(listingData?.pickupHubId || resolvePickupHub(listingData?.itemLocation)?.id || '');
         setPageError('');
       } catch (loadError) {
         if (isMounted) {
@@ -139,6 +152,17 @@ export function ChatThreadPage() {
       window.clearInterval(intervalId);
     };
   }, [conversationId, user?.id]);
+
+  useEffect(() => {
+    if (isPickupEditorOpen) {
+      return;
+    }
+
+    setPickupValues({
+      pickupHubId: conversation?.activePickupHubId || listingPickupHubId || '',
+      pickupNote: conversation?.activePickupNote || '',
+    });
+  }, [conversation?.activePickupHubId, conversation?.activePickupNote, isPickupEditorOpen, listingPickupHubId]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -178,6 +202,43 @@ export function ChatThreadPage() {
       setComposerError(sendError.message || 'Failed to send message');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePickupHubChange = (pickupHubId) => {
+    setPickupValues((currentValues) => ({
+      ...currentValues,
+      pickupHubId,
+    }));
+    setPickupError('');
+  };
+
+  const handlePickupSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!pickupValues.pickupHubId.trim()) {
+      setPickupError('Choose a pickup hub before updating the thread.');
+      return;
+    }
+
+    try {
+      setIsUpdatingPickup(true);
+      const result = await updateConversationPickup({
+        conversationId,
+        requesterClerkUserId: user.id,
+        pickupHubId: pickupValues.pickupHubId,
+        pickupNote: pickupValues.pickupNote,
+      });
+
+      setConversation(result.conversation);
+      setMessages((currentMessages) => [...currentMessages, result.systemMessage]);
+      setPickupError('');
+      setIsPickupEditorOpen(false);
+      setPageError('');
+    } catch (updateError) {
+      setPickupError(updateError.message || 'Failed to update pickup details');
+    } finally {
+      setIsUpdatingPickup(false);
     }
   };
 
@@ -268,6 +329,87 @@ export function ChatThreadPage() {
         </Card>
       ) : null}
 
+      <Card variant="subtle" className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+              <AppIcon icon="location" className="text-[0.95em]" />
+              <span>Active pickup hub</span>
+            </div>
+            <h2 className="text-xl font-semibold text-white">
+              {activePickupHub?.label || 'Pickup hub not set yet'}
+            </h2>
+            <p className="text-sm leading-7 text-app-soft">
+              {activePickupHub?.description || 'Choose a campus meetup hub so both participants stay aligned in this thread.'}
+            </p>
+            {conversation?.activePickupNote ? (
+              <p className="text-sm leading-7 text-app-soft">
+                Note: {conversation.activePickupNote}
+              </p>
+            ) : null}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            leadingIcon="location"
+            onClick={() => {
+              setPickupValues({
+                pickupHubId: conversation?.activePickupHubId || listingPickupHubId || '',
+                pickupNote: conversation?.activePickupNote || '',
+              });
+              setPickupError('');
+              setIsPickupEditorOpen((isOpen) => !isOpen);
+            }}
+          >
+            {isPickupEditorOpen ? 'Hide pickup editor' : 'Suggest different pickup spot'}
+          </Button>
+        </div>
+
+        {isPickupEditorOpen ? (
+          <form className="space-y-4" onSubmit={handlePickupSubmit}>
+            <PickupHubPicker
+              id="conversation-pickup-hub"
+              label="Updated pickup hub"
+              description="Choose a new approved campus meetup hub for this conversation."
+              selectedHubId={pickupValues.pickupHubId}
+              onChange={handlePickupHubChange}
+              error={pickupError}
+              required
+            />
+            <Textarea
+              id="conversation-pickup-note"
+              label="Optional pickup note"
+              leadingIcon="message"
+              rows={3}
+              value={pickupValues.pickupNote}
+              onChange={(event) => {
+                setPickupValues((currentValues) => ({
+                  ...currentValues,
+                  pickupNote: event.target.value,
+                }));
+                setPickupError('');
+              }}
+              placeholder="Meet outside the main entrance..."
+            />
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" leadingIcon="verified" loading={isUpdatingPickup}>
+                Update pickup spot
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setIsPickupEditorOpen(false);
+                  setPickupError('');
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </Card>
+
       <Card padding="none" className="overflow-hidden">
         <div className="max-h-[32rem] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           {messages.length === 0 ? (
@@ -279,7 +421,19 @@ export function ChatThreadPage() {
             </div>
           ) : (
             messages.map((message) => {
+              const isSystemMessage = message.senderClerkUserId === 'system';
               const isOwnMessage = message.senderClerkUserId === user.id;
+
+              if (isSystemMessage) {
+                return (
+                  <div key={message._id} className="flex justify-center">
+                    <div className="max-w-[85%] rounded-full border border-gatorOrange/20 bg-gatorOrange/10 px-4 py-2 text-center">
+                      <p className="text-sm font-medium text-white">{message.body}</p>
+                      <p className="mt-1 text-xs text-app-muted">{formatMessageTime(message.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div
