@@ -311,12 +311,12 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
     ['active', 'reserved']
   );
 
-  const activeListing = dataset.listings.find((listing) => listing.key === 'desk-lamp');
-  const reservedListing = dataset.listings.find((listing) => listing.key === 'mini-fridge');
+  const reservedListing = dataset.listings.find((listing) => listing.key === 'desk-lamp');
+  const activeListing = dataset.listings.find((listing) => listing.key === 'mini-fridge');
 
   assert.equal(
     dataset.offers.filter((offer) => offer.listingKey === activeListing.key && offer.status === 'pending').length,
-    3
+    1
   );
   assert.equal(
     dataset.offers.filter((offer) => offer.listingKey === reservedListing.key && offer.status === 'accepted').length,
@@ -324,7 +324,13 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
   );
   assert.equal(
     dataset.offers.filter((offer) => offer.listingKey === reservedListing.key && offer.status === 'declined').length,
-    1
+    2
+  );
+  assert.equal(reservedListing.originalPickupHubId, 'library-west');
+  assert.equal(reservedListing.pickupHubId, 'reitz');
+  assert.equal(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-desk-lamp-ethan').activePickupHubId,
+    'reitz'
   );
   assert.ok(dataset.offers.some((offer) => offer.buyerKey === 'presenter'));
 });
@@ -335,19 +341,36 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
 
   await insertSeedDataset(dataset, config);
 
-  const reservedListing = await Item.findOne({itemName: 'Mini Fridge'});
+  const reservedListing = await Item.findOne({itemName: 'Desk Lamp'});
   const acceptedOffer = await Offer.findOne({
     listingId: reservedListing._id,
     status: 'accepted',
   });
+  const acceptedConversation = await Conversation.findById(acceptedOffer.conversationId).lean();
   const offers = await Offer.find().lean();
   const conversations = await Conversation.find().lean();
   const items = await Item.find().lean();
   const profiles = await Profile.find().lean();
 
   assert.equal(String(reservedListing.reservedOfferId), String(acceptedOffer._id));
+  assert.equal(reservedListing.originalPickupHubId, 'library-west');
+  assert.equal(reservedListing.originalItemLocation, 'Library West');
+  assert.equal(reservedListing.pickupHubId, 'reitz');
+  assert.equal(reservedListing.itemLocation, 'Reitz Union');
+  assert.equal(acceptedOffer.meetupHubId, 'marston');
+  assert.equal(acceptedOffer.meetupLocation, 'Marston Science Library');
+  assert.equal(acceptedConversation.activePickupHubId, 'reitz');
+  assert.equal(acceptedConversation.activePickupSpecifics, 'Ground floor entrance by the benches.');
   assert.equal(offers.every((offer) => Boolean(offer.conversationId)), true);
   assert.equal(conversations.every((conversation) => conversation.participantIds.length === 2), true);
+
+  const systemMessages = await Message.find({
+    conversationId: acceptedConversation._id,
+    senderClerkUserId: 'system',
+  }).sort({createdAt: 1}).lean();
+  assert.equal(systemMessages.length, 2);
+  assert.match(systemMessages[0].body, /Offer accepted\. Meetup hub: Marston Science Library/);
+  assert.match(systemMessages[1].body, /Meetup details updated to Reitz Union/);
 
   const itemIds = new Set(items.map((item) => String(item._id)));
   profiles.forEach((profile) => {
@@ -388,7 +411,7 @@ test('running tag-only cleanup and seed twice does not duplicate tagged data and
   assert.equal(await Item.countDocuments({seedTag: config.seedTag}), 12);
   assert.equal(await Offer.countDocuments({seedTag: config.seedTag}), 9);
   assert.equal(await Conversation.countDocuments({seedTag: config.seedTag}), 8);
-  assert.equal(await Message.countDocuments({seedTag: config.seedTag}), 25);
+  assert.equal(await Message.countDocuments({seedTag: config.seedTag}), 29);
 
   assert.equal(await Item.countDocuments({_id: unrelatedItem._id}), 1);
   assert.equal(await Profile.countDocuments({profileID: unrelatedProfile.profileID}), 1);

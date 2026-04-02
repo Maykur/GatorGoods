@@ -1,4 +1,8 @@
 const {faker} = require('@faker-js/faker');
+const {
+  deriveListingPickupFields,
+  deriveOfferPickupFields,
+} = require('../../src/lib/pickupHubs');
 
 const {
   clearDatabase,
@@ -24,7 +28,7 @@ const PRESENTER_PROFILE_DEFAULTS = {
   profileName: 'Scott Knowles',
   profilePicture: DEFAULT_PRESENTER_PICTURE,
   profileBanner: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1400&q=80',
-  profileBio: 'Selling a polished mix of dorm and apartment essentials before summer move-out. I usually meet near Library West, Marston, or Heavener between classes.',
+  profileBio: 'Selling a polished mix of dorm and apartment essentials before summer move-out. I usually meet near Library West, Marston, or Reitz between classes.',
   instagramUrl: 'https://instagram.com/gatorgoods_demo',
   linkedinUrl: 'https://linkedin.com/in/gatorgoods-demo',
   ufVerified: true,
@@ -57,7 +61,7 @@ const MESSAGE_VARIANTS = [
   'I can head over after my afternoon class.',
   'That timing works on my side.',
   'Thanks for the quick reply.',
-  'I can meet near Library West or Reitz.',
+  'I can meet near Library West or Marston.',
   'I will message when I am walking over.',
 ];
 
@@ -409,12 +413,13 @@ function buildSeedDataset(config) {
       itemName: 'Desk Lamp',
       itemCost: '28',
       itemCondition: 'Good',
-      itemLocation: 'Library West',
+      originalPickupHubId: 'library-west',
+      pickupHubId: 'reitz',
       itemPicture: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'A bright desk lamp that makes late-night study sessions easier without taking much desk space.',
-      itemDetails: 'Warm bulb included and the neck still pivots smoothly. Pickup works best near Library West or Marston.',
+      itemDetails: 'Warm bulb included and the neck still pivots smoothly. Listed with a Library West default, but the accepted meetup moved after negotiation.',
       itemCat: 'Home & Garden',
-      status: 'active',
+      status: 'reserved',
       date: subtractHours(now, 5),
       seedTag: config.seedTag,
     },
@@ -424,12 +429,12 @@ function buildSeedDataset(config) {
       itemName: 'Mini Fridge',
       itemCost: '70',
       itemCondition: 'Fair',
-      itemLocation: 'Heavener Hall',
+      pickupHubId: 'hume-hall',
       itemPicture: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Compact dorm mini fridge that still cools quickly and fits under a lofted bed.',
-      itemDetails: 'Some cosmetic wear on the door, but it runs reliably. Already reserved for pickup tonight.',
+      itemDetails: 'Some cosmetic wear on the door, but it runs reliably. Pickup usually works best near Hume Hall in the evening.',
       itemCat: 'Home & Garden',
-      status: 'reserved',
+      status: 'active',
       date: subtractHours(now, 22),
       seedTag: config.seedTag,
     },
@@ -439,7 +444,7 @@ function buildSeedDataset(config) {
       itemName: 'Noise-Cancelling Headphones',
       itemCost: '85',
       itemCondition: 'Good',
-      itemLocation: 'Reitz Union',
+      pickupHubId: 'reitz',
       itemPicture: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Over-ear Bluetooth headphones with the case and charger included.',
       itemDetails: 'Sold recently and still includes the case and charging cable.',
@@ -454,7 +459,7 @@ function buildSeedDataset(config) {
       itemName: 'Campus Commuter Scooter',
       itemCost: '120',
       itemCondition: 'Good',
-      itemLocation: 'Southwest Recreation Center',
+      pickupHubId: 'keys-residential-complex',
       itemPicture: 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Foldable electric scooter that is easy to stash in an apartment or carry into class.',
       itemDetails: 'Battery lasts about a week of short campus trips and the charger is included.',
@@ -466,13 +471,13 @@ function buildSeedDataset(config) {
     {
       key: 'sublease-room',
       ownerKey: 'jasmine',
-      itemName: 'Summer Sublease Near Sorority Row',
+      itemName: 'Summer Sublease Near Honors Village',
       itemCost: '780',
       itemCondition: 'Excellent',
-      itemLocation: 'Sorority Row',
+      pickupHubId: 'honors-village',
       itemPicture: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Private furnished room in a 4x4 with in-unit laundry and a quick bike ride to campus.',
-      itemDetails: 'Available May through July with parking and utilities mostly included. Great for internships or summer classes.',
+      itemDetails: 'Available May through July with parking and utilities mostly included. Public meetup defaults to Honors Village for tours and key handoff coordination.',
       itemCat: 'Property Rentals',
       status: 'active',
       date: subtractHours(now, 12),
@@ -484,10 +489,10 @@ function buildSeedDataset(config) {
       itemName: 'Under-Bed Storage Drawers',
       itemCost: '35',
       itemCondition: 'Good',
-      itemLocation: 'Midtown',
+      pickupHubId: 'turlington-hall',
       itemPicture: 'https://images.unsplash.com/photo-1558997519-83ea9252edf8?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Set of clear rolling drawers that fit under a dorm bed or apartment guest bed.',
-      itemDetails: 'Reserved for pickup later this week.',
+      itemDetails: 'Reserved for pickup later this week after an afternoon meetup near Turlington Hall.',
       itemCat: 'Miscellaneous',
       status: 'reserved',
       date: subtractHours(now, 28),
@@ -499,7 +504,7 @@ function buildSeedDataset(config) {
       itemName: 'Vintage Denim Jacket',
       itemCost: '42',
       itemCondition: 'Good',
-      itemLocation: 'Plaza of the Americas',
+      pickupHubId: 'plaza-americas',
       itemPicture: 'https://images.unsplash.com/photo-1543076447-215ad9ba6923?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'A broken-in denim jacket with room for a hoodie underneath on cooler Gainesville nights.',
       itemDetails: 'Fits like a roomy medium and has no tears or missing buttons.',
@@ -514,7 +519,7 @@ function buildSeedDataset(config) {
       itemName: 'Beginner Acoustic Guitar',
       itemCost: '95',
       itemCondition: 'Good',
-      itemLocation: 'Norman Hall',
+      pickupHubId: 'broward',
       itemPicture: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Full-size acoustic guitar that is perfect for learning a few songs before summer.',
       itemDetails: 'Comes with a soft case, tuner, and extra picks.',
@@ -529,7 +534,7 @@ function buildSeedDataset(config) {
       itemName: 'Stroller Organizer Caddy',
       itemCost: '18',
       itemCondition: 'Like New',
-      itemLocation: 'Shands',
+      pickupHubId: 'honors-village',
       itemPicture: 'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Keeps bottles, snacks, and keys easy to reach on stroller walks around campus.',
       itemDetails: 'Only used a few weekends and the insulated cup holders are still spotless.',
@@ -544,7 +549,7 @@ function buildSeedDataset(config) {
       itemName: 'Strategy Board Game Set',
       itemCost: '22',
       itemCondition: 'Good',
-      itemLocation: 'Broward Hall',
+      pickupHubId: 'broward',
       itemPicture: 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'A well-kept game-night favorite with all pieces accounted for.',
       itemDetails: 'Sold recently after a few campus game nights.',
@@ -559,7 +564,7 @@ function buildSeedDataset(config) {
       itemName: 'Organic Chemistry Textbook Bundle',
       itemCost: '55',
       itemCondition: 'Fair',
-      itemLocation: 'Marston Science Library',
+      pickupHubId: 'marston',
       itemPicture: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Lecture text, solution manual, and study guide bundle for a cheaper semester setup.',
       itemDetails: 'Highlighted in a few sections, but still perfect for practice problems and review sessions.',
@@ -574,7 +579,7 @@ function buildSeedDataset(config) {
       itemName: 'North Campus Backpack',
       itemCost: '34',
       itemCondition: 'Good',
-      itemLocation: 'Little Hall',
+      pickupHubId: 'turlington-hall',
       itemPicture: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80',
       itemDescription: 'Laptop-ready backpack with a clean main compartment and plenty of organization pockets.',
       itemDetails: 'Comfortable for long walks across campus and still looks sharp for internships.',
@@ -621,6 +626,8 @@ function buildSeedDataset(config) {
       key: 'conv-desk-lamp-ethan',
       listingKey: 'desk-lamp',
       participantKeys: ['presenter', 'ethan'],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Ground floor entrance by the benches.',
       messages: [
         {
           senderKey: 'ethan',
@@ -637,10 +644,30 @@ function buildSeedDataset(config) {
           body: 'Sounds good. Let me know if the timing shifts.',
           createdAt: subtractHours(now, 19.1),
         },
+        {
+          senderKey: 'system',
+          body: 'Offer accepted. Meetup hub: Marston Science Library. Meetup specifics: By the tables outside',
+          createdAt: subtractHours(now, 18.8),
+        },
+        {
+          senderKey: 'ethan',
+          body: 'Quick update: could we switch the handoff to Reitz instead? I have a club meeting nearby right after.',
+          createdAt: subtractHours(now, 18.2),
+        },
+        {
+          senderKey: 'presenter',
+          body: 'Yes, Reitz works for me. I can meet near the ground floor entrance and keep it quick.',
+          createdAt: subtractHours(now, 17.9),
+        },
+        {
+          senderKey: 'system',
+          body: 'Meetup details updated to Reitz Union. Specifics: Ground floor entrance by the benches.',
+          createdAt: subtractHours(now, 17.7),
+        },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 19.1,
-        ethan: 19.1,
+        presenter: 17.7,
+        ethan: 17.7,
       },
     },
     {
@@ -676,12 +703,12 @@ function buildSeedDataset(config) {
       messages: [
         {
           senderKey: 'noah',
-          body: 'Thanks for accepting the fridge offer. I can swing by Heavener after 6:00 tonight.',
+          body: 'I sent an offer on the fridge. I can swing by Hume after 6:00 tonight if that works.',
           createdAt: subtractHours(now, 14),
         },
         {
           senderKey: 'presenter',
-          body: 'Perfect. I already wiped it down and can meet outside the garage entrance.',
+          body: 'That works. I already wiped it down and can meet outside the Hume side entrance.',
           createdAt: subtractHours(now, 13.7),
         },
         {
@@ -733,7 +760,7 @@ function buildSeedDataset(config) {
       messages: [
         {
           senderKey: 'presenter',
-          body: 'I sent an offer on the summer sublease and wanted to ask whether parking is still available.',
+          body: 'I sent an offer on the summer sublease and wanted to ask whether parking is still available if we meet near Honors Village.',
           createdAt: subtractHours(now, 11),
         },
         {
@@ -759,7 +786,7 @@ function buildSeedDataset(config) {
       messages: [
         {
           senderKey: 'presenter',
-          body: addFiller('Sent an offer on the backpack. Could pickup happen near Little Hall after 3:00 tomorrow?', MESSAGE_VARIANTS),
+          body: addFiller('Sent an offer on the backpack. Could pickup happen near Turlington after 3:00 tomorrow?', MESSAGE_VARIANTS),
           createdAt: subtractHours(now, 27),
         },
         {
@@ -780,7 +807,7 @@ function buildSeedDataset(config) {
       messages: [
         {
           senderKey: 'ava',
-          body: 'I sent an offer on the stroller organizer. Could pickup happen near Shands tomorrow afternoon?',
+          body: 'I sent an offer on the stroller organizer. Could pickup happen near Honors Village tomorrow afternoon?',
           createdAt: subtractHours(now, 8),
         },
         {
@@ -808,11 +835,11 @@ function buildSeedDataset(config) {
       buyerKey: 'ava',
       conversationKey: 'conv-desk-lamp-ava',
       offeredPrice: 24,
-      meetupLocation: 'Library West',
+      meetupHubId: 'library-west',
       meetupWindow: 'Today 4:30 PM - 5:00 PM',
       paymentMethod: 'cash',
       message: addFiller('I can pick this up fast if it is still available today.', OFFER_MESSAGE_VARIANTS),
-      status: 'pending',
+      status: 'declined',
       createdAt: subtractHours(now, 30),
     },
     {
@@ -821,11 +848,12 @@ function buildSeedDataset(config) {
       buyerKey: 'ethan',
       conversationKey: 'conv-desk-lamp-ethan',
       offeredPrice: 25,
-      meetupLocation: 'Marston Science Library',
+      meetupHubId: 'marston',
       meetupWindow: 'Tomorrow 12:15 PM - 12:45 PM',
       paymentMethod: 'externalApp',
       message: addFiller('Happy to send payment as soon as we lock in the meetup.', OFFER_MESSAGE_VARIANTS),
-      status: 'pending',
+      status: 'accepted',
+      acceptedPickupSpecifics: 'By the tables outside',
       createdAt: subtractHours(now, 20),
     },
     {
@@ -834,11 +862,11 @@ function buildSeedDataset(config) {
       buyerKey: 'leo',
       conversationKey: 'conv-desk-lamp-leo',
       offeredPrice: 26,
-      meetupLocation: 'Reitz Union',
+      meetupHubId: 'reitz',
       meetupWindow: 'Tomorrow 2:00 PM - 2:20 PM',
       paymentMethod: 'gatorgoodsEscrow',
       message: addFiller('I can use escrow if you want the handoff to feel extra straightforward.', OFFER_MESSAGE_VARIANTS),
-      status: 'pending',
+      status: 'declined',
       createdAt: subtractHours(now, 23),
     },
     {
@@ -847,11 +875,11 @@ function buildSeedDataset(config) {
       buyerKey: 'noah',
       conversationKey: 'conv-mini-fridge-noah',
       offeredPrice: 70,
-      meetupLocation: 'Heavener Hall',
+      meetupHubId: 'hume-hall',
       meetupWindow: 'Today 6:00 PM - 6:20 PM',
       paymentMethod: 'cash',
       message: addFiller('Happy to pay asking price if the pickup can happen tonight.', OFFER_MESSAGE_VARIANTS),
-      status: 'accepted',
+      status: 'pending',
       createdAt: subtractHours(now, 14),
     },
     {
@@ -860,7 +888,7 @@ function buildSeedDataset(config) {
       buyerKey: 'jasmine',
       conversationKey: 'conv-mini-fridge-jasmine',
       offeredPrice: 66,
-      meetupLocation: 'Heavener Hall',
+      meetupHubId: 'hume-hall',
       meetupWindow: 'Tomorrow 11:30 AM - 12:00 PM',
       paymentMethod: 'externalApp',
       message: addFiller('I can be a backup buyer if your current pickup falls through.', OFFER_MESSAGE_VARIANTS),
@@ -873,7 +901,7 @@ function buildSeedDataset(config) {
       buyerKey: 'presenter',
       conversationKey: 'conv-sublease-presenter',
       offeredPrice: 740,
-      meetupLocation: 'Sorority Row',
+      meetupHubId: 'honors-village',
       meetupWindow: 'Tomorrow 5:30 PM - 6:00 PM',
       paymentMethod: 'gatorgoodsEscrow',
       message: addFiller('I am interested in a quick walkthrough and can move fast if it is a fit.', OFFER_MESSAGE_VARIANTS),
@@ -886,7 +914,7 @@ function buildSeedDataset(config) {
       buyerKey: 'presenter',
       conversationKey: 'conv-backpack-presenter',
       offeredPrice: 30,
-      meetupLocation: 'Little Hall',
+      meetupHubId: 'turlington-hall',
       meetupWindow: 'Tomorrow 3:00 PM - 3:20 PM',
       paymentMethod: 'cash',
       message: addFiller('If the current buyer passes, I can meet quickly between classes.', OFFER_MESSAGE_VARIANTS),
@@ -899,7 +927,7 @@ function buildSeedDataset(config) {
       buyerKey: 'ava',
       conversationKey: 'conv-stroller-ava',
       offeredPrice: 14,
-      meetupLocation: 'Shands',
+      meetupHubId: 'honors-village',
       meetupWindow: 'Tomorrow 1:00 PM - 1:20 PM',
       paymentMethod: 'externalApp',
       message: addFiller('Starting a little lower in case you want the pickup handled fast.', OFFER_MESSAGE_VARIANTS),
@@ -912,7 +940,7 @@ function buildSeedDataset(config) {
       buyerKey: 'ava',
       conversationKey: 'conv-stroller-ava',
       offeredPrice: 17,
-      meetupLocation: 'Shands',
+      meetupHubId: 'honors-village',
       meetupWindow: 'Tomorrow 1:00 PM - 1:20 PM',
       paymentMethod: 'cash',
       message: addFiller('I sent an updated offer that is closer to asking price.', OFFER_MESSAGE_VARIANTS),
@@ -1028,6 +1056,29 @@ function buildLastReadAtMap(conversation, dataset, now) {
   return lastReadMap;
 }
 
+function resolveSeedListingPickup(listing) {
+  const originalPickup = deriveListingPickupFields({
+    pickupHubId: listing.originalPickupHubId || listing.pickupHubId,
+    itemLocation: listing.originalItemLocation || listing.itemLocation,
+  });
+  const currentPickup = deriveListingPickupFields({
+    pickupHubId: listing.pickupHubId || listing.originalPickupHubId,
+    itemLocation: listing.itemLocation || listing.originalItemLocation,
+  });
+
+  return {
+    originalPickup,
+    currentPickup,
+  };
+}
+
+function resolveSeedOfferPickup(offer) {
+  return deriveOfferPickupFields({
+    meetupHubId: offer.meetupHubId,
+    meetupLocation: offer.meetupLocation,
+  });
+}
+
 async function insertSeedDataset(dataset, config, deps = defaultDependencies()) {
   const now = config.now instanceof Date ? config.now : new Date(config.now || Date.now());
   const profileIdByKey = new Map();
@@ -1087,11 +1138,17 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
 
   for (const listing of dataset.listings) {
     const ownerProfile = dataset.profilesByKey[listing.ownerKey];
+    const {originalPickup, currentPickup} = resolveSeedListingPickup(listing);
     const createdListing = await deps.models.Item.create({
       itemName: listing.itemName,
       itemCost: listing.itemCost,
       itemCondition: listing.itemCondition,
-      itemLocation: listing.itemLocation,
+      itemLocation: currentPickup.itemLocation,
+      pickupHubId: currentPickup.pickupHubId,
+      pickupArea: currentPickup.pickupArea,
+      originalItemLocation: originalPickup.itemLocation,
+      originalPickupHubId: originalPickup.pickupHubId,
+      originalPickupArea: originalPickup.pickupArea,
       itemPicture: listing.itemPicture,
       itemDescription: listing.itemDescription,
       itemDetails: listing.itemDetails,
@@ -1119,6 +1176,8 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       participantIds,
       linkedListingIds: listingId ? [listingId] : [],
       activeListingId: listingId,
+      activePickupHubId: conversation.activePickupHubId || null,
+      activePickupSpecifics: conversation.activePickupSpecifics || '',
       lastMessageText: lastMessage.body,
       lastMessageAt: lastMessage.createdAt,
       lastReadAtByUser: buildLastReadAtMap(conversation, dataset, now),
@@ -1132,7 +1191,7 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     for (const message of conversation.messages) {
       await deps.models.Message.create({
         conversationId: createdConversation._id,
-        senderClerkUserId: profileIdByKey.get(message.senderKey),
+        senderClerkUserId: message.senderKey === 'system' ? 'system' : profileIdByKey.get(message.senderKey),
         body: message.body,
         attachedListingId: listingId,
         seedTag: config.seedTag,
@@ -1147,6 +1206,7 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
   for (const offer of dataset.offers) {
     const buyerProfile = dataset.profilesByKey[offer.buyerKey];
     const listing = itemByKey.get(offer.listingKey);
+    const resolvedMeetup = resolveSeedOfferPickup(offer);
     const createdOffer = await deps.models.Offer.create({
       listingId: itemIdByKey.get(offer.listingKey),
       buyerClerkUserId: profileIdByKey.get(offer.buyerKey),
@@ -1154,7 +1214,9 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       sellerClerkUserId: listing.userPublishingID,
       conversationId: conversationIdByKey.get(offer.conversationKey),
       offeredPrice: offer.offeredPrice,
-      meetupLocation: offer.meetupLocation,
+      meetupHubId: resolvedMeetup.meetupHubId,
+      meetupArea: resolvedMeetup.meetupArea,
+      meetupLocation: resolvedMeetup.meetupLocation,
       meetupWindow: offer.meetupWindow,
       paymentMethod: offer.paymentMethod,
       message: offer.message,
@@ -1167,8 +1229,17 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     offerIdByKey.set(offer.key, createdOffer._id);
 
     if (offer.status === 'accepted') {
+      const conversationId = conversationIdByKey.get(offer.conversationKey);
       await deps.models.Item.findByIdAndUpdate(itemIdByKey.get(offer.listingKey), {
         reservedOfferId: createdOffer._id,
+      });
+      await deps.models.Conversation.findByIdAndUpdate(conversationId, {
+        activePickupHubId: dataset.conversations.find((conversation) => conversation.key === offer.conversationKey)?.activePickupHubId
+          || resolvedMeetup.meetupHubId
+          || null,
+        activePickupSpecifics: dataset.conversations.find((conversation) => conversation.key === offer.conversationKey)?.activePickupSpecifics
+          || offer.acceptedPickupSpecifics
+          || '',
       });
     }
   }
