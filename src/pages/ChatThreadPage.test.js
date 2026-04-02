@@ -60,6 +60,7 @@ beforeEach(() => {
       activeListingId: 'item-1',
       activePickupHubId: 'reitz',
       activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
       lastMessageText: 'Sounds good',
       lastMessageAt: '2026-03-29T13:00:00.000Z',
       lastReadAtByUser: {
@@ -132,6 +133,7 @@ test('threads without an active negotiated hub fall back to the listing original
       activeListingId: 'item-1',
       activePickupHubId: '',
       activePickupSpecifics: '',
+      isMeetupHubLocked: false,
       lastMessageText: 'Still available?',
       lastMessageAt: '2026-03-29T13:00:00.000Z',
       lastReadAtByUser: {
@@ -178,6 +180,7 @@ test('accepted threads fall back to the listing current reserved hub when specif
       activeListingId: 'item-1',
       activePickupHubId: '',
       activePickupSpecifics: 'By the tables outside',
+      isMeetupHubLocked: true,
       lastMessageText: 'Offer accepted.',
       lastMessageAt: '2026-04-01T21:27:21.000Z',
       lastReadAtByUser: {
@@ -259,6 +262,7 @@ test('seller can update meetup specifics while the accepted hub stays locked', a
       activeListingId: 'item-1',
       activePickupHubId: 'reitz',
       activePickupSpecifics: 'I will wait by the benches.',
+      isMeetupHubLocked: true,
       lastMessageText: 'Meetup details updated to Reitz Union. Specifics: I will wait by the benches.',
       lastMessageAt: '2026-03-29T13:10:00.000Z',
       lastReadAtByUser: {
@@ -294,6 +298,39 @@ test('seller can update meetup specifics while the accepted hub stays locked', a
 
   expect(await screen.findByText('Reitz Union')).toBeInTheDocument();
   expect(screen.getByText(/meetup details updated to reitz union/i)).toBeInTheDocument();
+});
+
+test('seller can still change the meetup hub before acceptance even if specifics are already filled in', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: false,
+      lastMessageText: 'Still planning.',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'seller-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [],
+  });
+
+  render(<ChatThreadPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /edit meetup details/i }));
+
+  expect(screen.queryByText(/meetup hub is locked after acceptance/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: /reitz union/i })).not.toBeDisabled();
 });
 
 test('seller cannot submit meetup updates without required specifics', async () => {

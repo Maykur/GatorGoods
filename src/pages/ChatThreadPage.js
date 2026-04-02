@@ -75,7 +75,9 @@ export function ChatThreadPage() {
   const [listingId, setListingId] = useState('');
   const [listingName, setListingName] = useState('');
   const [listingOriginalPickupHubId, setListingOriginalPickupHubId] = useState('');
+  const [listingOriginalPickupLabel, setListingOriginalPickupLabel] = useState('');
   const [listingCurrentPickupHubId, setListingCurrentPickupHubId] = useState('');
+  const [listingCurrentPickupLabel, setListingCurrentPickupLabel] = useState('');
   const [listingSellerId, setListingSellerId] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [pickupValues, setPickupValues] = useState({
@@ -99,8 +101,13 @@ export function ChatThreadPage() {
     listingOriginalPickupHubId ||
     '';
   const activePickupHub = getPickupHubById(activePickupHubId);
+  const activePickupLabel =
+    activePickupHub?.label ||
+    (conversation?.activePickupSpecifics ? listingCurrentPickupLabel : '') ||
+    listingOriginalPickupLabel ||
+    '';
   const isSeller = Boolean(user?.id && listingSellerId && user.id === listingSellerId);
-  const isAcceptedMeetupLocked = Boolean(conversation?.activePickupSpecifics);
+  const isAcceptedMeetupLocked = Boolean(conversation?.isMeetupHubLocked);
   const buyerFirstName = getFirstName(otherParticipantName);
   const meetupHintTarget = buyerFirstName || 'the buyer';
   const pickupHubError = pickupError.toLowerCase().includes('hub') ? pickupError : '';
@@ -157,8 +164,20 @@ export function ChatThreadPage() {
             resolvePickupHub(listingData?.originalItemLocation || listingData?.itemLocation)?.id ||
             ''
         );
+        setListingOriginalPickupLabel(
+          listingData?.originalItemLocation ||
+            getPickupHubById(listingData?.originalPickupHubId || listingData?.pickupHubId)?.label ||
+            listingData?.itemLocation ||
+            ''
+        );
         setListingCurrentPickupHubId(
           listingData?.pickupHubId || resolvePickupHub(listingData?.itemLocation)?.id || ''
+        );
+        setListingCurrentPickupLabel(
+          listingData?.itemLocation ||
+            getPickupHubById(listingData?.pickupHubId)?.label ||
+            listingData?.originalItemLocation ||
+            ''
         );
         setListingSellerId(listingData?.userPublishingID || '');
         setPageError('');
@@ -254,7 +273,10 @@ export function ChatThreadPage() {
       return;
     }
 
-    if (!pickupValues.pickupHubId.trim()) {
+    const normalizedPickupHubId = pickupValues.pickupHubId.trim();
+    const canUseLockedCustomLocation = isAcceptedMeetupLocked && !normalizedPickupHubId && Boolean(activePickupLabel);
+
+    if (!normalizedPickupHubId && !canUseLockedCustomLocation) {
       setPickupError('Choose a meetup hub before updating the thread.');
       return;
     }
@@ -269,7 +291,7 @@ export function ChatThreadPage() {
       const result = await updateConversationPickup({
         conversationId,
         requesterClerkUserId: user.id,
-        pickupHubId: pickupValues.pickupHubId,
+        pickupHubId: normalizedPickupHubId,
         pickupSpecifics: pickupValues.pickupSpecifics.trim(),
       });
 
@@ -380,7 +402,7 @@ export function ChatThreadPage() {
               <span>Meetup hub</span>
             </div>
             <h2 className="ml-6 text-xl font-semibold text-white">
-              {activePickupHub?.label || 'Meetup hub not set yet'}
+              {activePickupLabel || 'Meetup hub not set yet'}
             </h2>
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">

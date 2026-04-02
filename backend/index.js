@@ -8,7 +8,6 @@ const {
   deriveListingPickupFields,
   deriveOfferPickupFields,
   getPickupHubById,
-  isApprovedPickupHubId,
   isApprovedPickupLocationLabel,
   findPickupHubByLabel,
 } = require('../src/lib/pickupHubs');
@@ -568,6 +567,17 @@ async function repairConversationPickupHub(conversation) {
   return conversation;
 }
 
+function serializeConversation(conversation, extras = {}) {
+  if (!conversation) {
+    return conversation;
+  }
+
+  return {
+    ...conversation.toObject(),
+    ...extras,
+  };
+}
+
 function buildProfileUpdatePayload(payload = {}, {allowEmptyStrings = false} = {}) {
   const nextProfile = {};
 
@@ -782,13 +792,16 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
     }
 
     await repairConversationPickupHub(conversation);
+    const {reservedOffer} = await getReservedOfferForConversation(conversation);
     conversation.lastReadAtByUser.set(participantId, new Date());
     await conversation.save();
 
     const messages = await Message.find({conversationId}).sort({createdAt: 1});
 
     resp.json({
-      conversation,
+      conversation: serializeConversation(conversation, {
+        isMeetupHubLocked: Boolean(reservedOffer),
+      }),
       messages,
     });
   } catch (e) {
@@ -860,7 +873,7 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
   try {
     const conversationId = toObjectId(req.params.id);
     const requesterClerkUserId = req.body.requesterClerkUserId?.trim();
-    const pickupHubId = req.body.pickupHubId?.trim();
+    const pickupHubId = req.body.pickupHubId?.trim() || '';
     const pickupSpecifics = normalizePickupSpecifics(req.body.pickupSpecifics);
 
     if (!conversationId) {
@@ -869,14 +882,6 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
 
     if (!requesterClerkUserId) {
       return resp.status(400).json({message: 'requesterClerkUserId is required'});
-    }
-
-    if (!pickupHubId) {
-      return resp.status(400).json({message: 'pickupHubId is required'});
-    }
-
-    if (!isApprovedPickupHubId(pickupHubId)) {
-      return resp.status(400).json({message: 'pickupHubId must be one of the approved pickup hubs'});
     }
 
     if (!pickupSpecifics) {
@@ -910,26 +915,46 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
     }
 
     const {reservedOffer} = await getReservedOfferForConversation(conversation);
+    const resolvedReservedOfferPickup = deriveOfferPickupFields({
+      meetupHubId: reservedOffer?.meetupHubId,
+      meetupLocation: reservedOffer?.meetupLocation,
+    });
     const lockedPickupHubId =
       conversation.activePickupHubId ||
       listing.pickupHubId ||
-      deriveOfferPickupFields({
-        meetupHubId: reservedOffer?.meetupHubId,
-        meetupLocation: reservedOffer?.meetupLocation,
-      }).meetupHubId ||
+      resolvedReservedOfferPickup.meetupHubId ||
       null;
+    const lockedPickupLabel =
+      getPickupHubById(lockedPickupHubId)?.label ||
+      listing.itemLocation ||
+      resolvedReservedOfferPickup.meetupLocation ||
+      '';
 
-    if (reservedOffer && lockedPickupHubId && pickupHubId !== lockedPickupHubId) {
+    if (!reservedOffer && !pickupHubId) {
+      return resp.status(400).json({message: 'pickupHubId is required'});
+    }
+
+    if (!reservedOffer && pickupHubId && !getPickupHubById(pickupHubId)) {
+      return resp.status(400).json({message: 'pickupHubId must be one of the approved pickup hubs'});
+    }
+
+    if (reservedOffer && lockedPickupHubId && pickupHubId && pickupHubId !== lockedPickupHubId) {
       return resp.status(409).json({
         message: 'The meetup hub is locked after acceptance. You can still update meetup specifics.',
       });
     }
 
-    const pickupHub = getPickupHubById(pickupHubId);
-    const systemMessageBody = `Meetup details updated to ${pickupHub.label}. Specifics: ${pickupSpecifics}`;
+    if (reservedOffer && !lockedPickupHubId && pickupHubId) {
+      return resp.status(409).json({
+        message: 'The meetup hub is locked after acceptance. You can still update meetup specifics.',
+      });
+    }
+
+    const pickupHubLabel = getPickupHubById(pickupHubId)?.label || lockedPickupLabel;
+    const systemMessageBody = `Meetup details updated to ${pickupHubLabel}. Specifics: ${pickupSpecifics}`;
 
     await syncReservedConversationListingPickup(conversation, pickupHubId);
-    conversation.activePickupHubId = pickupHubId;
+    conversation.activePickupHubId = pickupHubId || null;
     conversation.activePickupSpecifics = pickupSpecifics;
 
     const systemMessage = await Message.create({
@@ -946,7 +971,9 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
     await conversation.save();
 
     resp.json({
-      conversation,
+      conversation: serializeConversation(conversation, {
+        isMeetupHubLocked: Boolean(reservedOffer),
+      }),
       systemMessage,
     });
   } catch (e) {
@@ -984,10 +1011,6 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
 
     if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0) {
       return resp.status(400).json({message: 'A valid offeredPrice is required'});
-    }
-
-    if (typeof meetupHubId !== 'undefined' && meetupHubId !== null && !isApprovedPickupHubId(meetupHubId)) {
-      return resp.status(400).json({message: 'meetupHubId must be one of the approved pickup hubs'});
     }
 
     const resolvedMeetupFields = deriveOfferPickupFields({
@@ -1227,14 +1250,14 @@ app.post('/create-item', async (req, resp) => {
       itemCat,
     } = req.body;
 
-    if (typeof pickupHubId !== 'undefined' && pickupHubId !== null && !isApprovedPickupHubId(pickupHubId)) {
-      return resp.status(400).json({message: 'pickupHubId must be one of the approved pickup hubs'});
-    }
-
     const resolvedPickupFields = deriveListingPickupFields({
       pickupHubId,
       itemLocation,
     });
+
+    if (!resolvedPickupFields.itemLocation) {
+      return resp.status(400).json({message: 'itemLocation is required'});
+    }
 
     const result = await Item.create({
       itemName,
@@ -1316,8 +1339,14 @@ app.get('/items', async (req, resp) => {
         {itemName: {$regex: escapedSearch, $options: 'i'}},
         {originalItemLocation: {$regex: escapedSearch, $options: 'i'}},
         {originalPickupArea: {$regex: escapedSearch, $options: 'i'}},
-        {itemLocation: {$regex: escapedSearch, $options: 'i'}},
-        {pickupArea: {$regex: escapedSearch, $options: 'i'}},
+        {
+          originalItemLocation: {$in: [null, '']},
+          itemLocation: {$regex: escapedSearch, $options: 'i'},
+        },
+        {
+          originalPickupArea: {$in: [null, '']},
+          pickupArea: {$regex: escapedSearch, $options: 'i'},
+        },
         {userPublishingName: {$regex: escapedSearch, $options: 'i'}},
         {itemCat: {$regex: escapedSearch, $options: 'i'}},
         ],
