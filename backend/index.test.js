@@ -115,6 +115,54 @@ test('GET /items supports paginated query mode', async () => {
   assert.equal(response.body.meta.totalPages, 1);
 });
 
+test('GET /items filters listings by approved pickup location', async () => {
+  await seedProfileAndItem({
+    item: {
+      pickupHubId: 'library-west',
+      pickupArea: 'Historic Core',
+    },
+  });
+  await seedProfileAndItem({
+    profile: {
+      profileID: 'user_2',
+      profileName: 'Seller Two',
+    },
+    item: {
+      itemName: 'Marston Whiteboard',
+      itemLocation: 'Marston Science Library',
+      pickupHubId: 'marston',
+      pickupArea: 'East Core',
+    },
+  });
+
+  const response = await request(app)
+    .get('/items')
+    .query({
+      page: 1,
+      limit: 9,
+      pickupLocation: 'Library West',
+      sort: 'newest',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.items.length, 1);
+  assert.equal(response.body.items[0].itemName, 'Desk Lamp');
+  assert.equal(response.body.meta.totalItems, 1);
+});
+
+test('GET /items rejects unknown pickup locations', async () => {
+  const response = await request(app)
+    .get('/items')
+    .query({
+      page: 1,
+      limit: 9,
+      pickupLocation: 'Midtown',
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'pickupLocation must match an approved pickup hub');
+});
+
 test('GET /items/:id returns an item', async () => {
   const {item} = await seedProfileAndItem();
 
@@ -247,7 +295,7 @@ test('POST /create-item derives canonical pickup fields from an approved hub id'
 
   assert.equal(response.status, 201);
   assert.equal(response.body.pickupHubId, 'library-west');
-  assert.equal(response.body.pickupArea, 'Central Campus');
+  assert.equal(response.body.pickupArea, 'Historic Core');
   assert.equal(response.body.itemLocation, 'Library West');
 });
 
@@ -364,7 +412,7 @@ test('POST /api/listings/:id/offers derives canonical meetup fields from an appr
 
   assert.equal(response.status, 201);
   assert.equal(response.body.meetupHubId, 'plaza-americas');
-  assert.equal(response.body.meetupArea, 'Central Campus');
+  assert.equal(response.body.meetupArea, 'Historic Core');
   assert.equal(response.body.meetupLocation, 'Plaza of the Americas');
 });
 

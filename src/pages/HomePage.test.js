@@ -52,10 +52,12 @@ function buildPaginatedItemsResponse(url, items) {
   const limit = Number(parsedUrl.searchParams.get("limit") || "9");
   const search = (parsedUrl.searchParams.get("search") || "").toLowerCase();
   const category = parsedUrl.searchParams.get("category") || "All";
+  const pickupLocation = parsedUrl.searchParams.get("pickupLocation") || "All";
   const sort = parsedUrl.searchParams.get("sort") || "newest";
 
   let filteredItems = items.filter((item) => {
     const matchesCategory = category === "All" || item.itemCat === category;
+    const matchesPickupLocation = pickupLocation === "All" || item.itemLocation === pickupLocation;
     const haystack = [
       item.itemName,
       item.itemLocation,
@@ -66,7 +68,7 @@ function buildPaginatedItemsResponse(url, items) {
       .join(" ")
       .toLowerCase();
 
-    return matchesCategory && (!search || haystack.includes(search));
+    return matchesCategory && matchesPickupLocation && (!search || haystack.includes(search));
   });
 
   if (sort === "title") {
@@ -160,6 +162,36 @@ test("signed-out users can browse the listings feed, category chips, and cards",
   expect(screen.getByText("Bike Helmet")).toBeInTheDocument();
   expect(global.fetch).toHaveBeenCalledWith(
     expect.stringContaining("/items?page=1&limit=9&sort=newest")
+  );
+});
+
+test("browse users can filter listings by pickup location", async () => {
+  mockItems = [
+    {
+      _id: "item-1",
+      itemName: "Desk Lamp",
+      itemCat: "Electronics & Computers",
+      itemLocation: "Library West",
+    },
+    {
+      _id: "item-2",
+      itemName: "Dorm Rug",
+      itemCat: "Home & Garden",
+      itemLocation: "Reitz Union",
+    },
+  ];
+
+  render(<HomePage />);
+
+  const locationSelect = await screen.findByLabelText(/pickup location/i);
+  fireEvent.change(locationSelect, {
+    target: {value: "Reitz Union"},
+  });
+
+  expect(await screen.findByText("Dorm Rug")).toBeInTheDocument();
+  expect(screen.queryByText("Desk Lamp")).not.toBeInTheDocument();
+  expect(global.fetch).toHaveBeenLastCalledWith(
+    expect.stringContaining("pickupLocation=Reitz+Union")
   );
 });
 

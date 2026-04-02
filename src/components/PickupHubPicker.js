@@ -163,7 +163,7 @@ export function PickupHubPicker({
                 Approved public meetup hubs
               </p>
               <p className="mt-1 text-sm leading-6 text-app-soft">
-                Choose a pin or pick from the list below.
+                Choose a pin on the map, you can determine an exact location with buyers later.
               </p>
             </div>
           </div>

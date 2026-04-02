@@ -27,7 +27,7 @@ test('toListingCardViewModel normalizes core listing fields', () => {
       itemCost: '20',
       itemCondition: 'Good',
       pickupHubId: 'library-west',
-      pickupArea: 'Central Campus',
+      pickupArea: 'Historic Core',
       itemLocation: 'Old Label',
       itemPicture: 'lamp.png',
       itemCat: '',
@@ -40,7 +40,7 @@ test('toListingCardViewModel normalizes core listing fields', () => {
     condition: 'Good',
     location: 'Library West',
     pickupHubId: 'library-west',
-    pickupArea: 'Central Campus',
+    pickupArea: 'Historic Core',
     imageUrl: 'lamp.png',
     category: 'Miscellaneous',
     sellerName: 'GatorGoods Seller',
@@ -151,7 +151,7 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
         sellerClerkUserId: 'seller-1',
         offeredPrice: 45,
         meetupHubId: 'reitz',
-        meetupArea: 'Central Campus',
+        meetupArea: 'South Core',
         meetupLocation: 'Old Reitz Label',
         meetupWindow: 'Fri 2:00 PM - 3:00 PM',
         paymentMethod: 'cash',
@@ -202,7 +202,7 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     offeredPriceLabel: '$45',
     meetupLocation: 'Reitz Union',
     meetupHubId: 'reitz',
-    meetupArea: 'Central Campus',
+    meetupArea: 'South Core',
     meetupWindow: 'Fri 2:00 PM - 3:00 PM',
     paymentMethod: 'cash',
     paymentMethodLabel: 'Cash',
@@ -229,11 +229,11 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
 });
 
 test('pickup hub helpers expose approved hubs and derive compatibility fields', () => {
-  expect(APPROVED_PICKUP_HUBS).toHaveLength(10);
+  expect(APPROVED_PICKUP_HUBS).toHaveLength(9);
   expect(getPickupHubById('turlington-hall')).toEqual(
     expect.objectContaining({
       label: 'Turlington Hall',
-      area: 'Central Campus',
+      area: 'Historic Core',
       publicSafe: true,
     })
   );
@@ -243,7 +243,7 @@ test('pickup hub helpers expose approved hubs and derive compatibility fields', 
     })
   ).toEqual({
     pickupHubId: 'marston',
-    pickupArea: 'Central Campus',
+    pickupArea: 'East Core',
     itemLocation: 'Marston Science Library',
   });
   expect(
@@ -252,7 +252,7 @@ test('pickup hub helpers expose approved hubs and derive compatibility fields', 
     })
   ).toEqual({
     meetupHubId: 'plaza-americas',
-    meetupArea: 'Central Campus',
+    meetupArea: 'Historic Core',
     meetupLocation: 'Plaza of the Americas',
   });
 });

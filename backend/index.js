@@ -8,6 +8,8 @@ const {
   deriveListingPickupFields,
   deriveOfferPickupFields,
   isApprovedPickupHubId,
+  isApprovedPickupLocationLabel,
+  findPickupHubByLabel,
 } = require('../src/lib/pickupHubs');
 
 const app = express();
@@ -942,7 +944,7 @@ app.post('/create-item', async (req, resp) => {
 // Get entire listing
 app.get('/items', async (req, resp) => {
   try {
-    const hasQueryMode = ['page', 'limit', 'search', 'category', 'sort'].some(
+    const hasQueryMode = ['page', 'limit', 'search', 'category', 'pickupLocation', 'sort'].some(
       (key) => typeof req.query[key] !== 'undefined'
     );
 
@@ -956,22 +958,43 @@ app.get('/items', async (req, resp) => {
     const limit = clampPositiveInteger(req.query.limit, 9, 24);
     const search = req.query.search?.trim() || '';
     const category = req.query.category?.trim() || '';
+    const pickupLocation = req.query.pickupLocation?.trim() || '';
     const sort = req.query.sort?.trim() || 'newest';
-    const filter = {};
+    const filterClauses = [];
 
     if (category && category !== 'All') {
-      filter.itemCat = category;
+      filterClauses.push({itemCat: category});
+    }
+
+    if (pickupLocation && pickupLocation !== 'All') {
+      if (!isApprovedPickupLocationLabel(pickupLocation)) {
+        return resp.status(400).json({message: 'pickupLocation must match an approved pickup hub'});
+      }
+
+      const pickupHub = findPickupHubByLabel(pickupLocation);
+      filterClauses.push({
+        $or: [
+          {pickupHubId: pickupHub?.id || null},
+          {itemLocation: pickupHub?.label || pickupLocation},
+        ],
+      });
     }
 
     if (search) {
       const escapedSearch = escapeRegex(search);
-      filter.$or = [
+      filterClauses.push({
+        $or: [
         {itemName: {$regex: escapedSearch, $options: 'i'}},
         {itemLocation: {$regex: escapedSearch, $options: 'i'}},
+        {pickupArea: {$regex: escapedSearch, $options: 'i'}},
         {userPublishingName: {$regex: escapedSearch, $options: 'i'}},
         {itemCat: {$regex: escapedSearch, $options: 'i'}},
-      ];
+        ],
+      });
     }
+
+    const filter =
+      filterClauses.length === 0 ? {} : filterClauses.length === 1 ? filterClauses[0] : {$and: filterClauses};
 
     const totalItems = await Item.countDocuments(filter);
     const totalPages = Math.max(1, Math.ceil(totalItems / limit));

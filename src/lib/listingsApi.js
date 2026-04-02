@@ -7,6 +7,7 @@ export function buildListingsQuery({
   limit = 9,
   search = '',
   category = 'All',
+  pickupLocation = 'All',
   sort = 'newest',
 }) {
   const params = new URLSearchParams();
@@ -20,6 +21,10 @@ export function buildListingsQuery({
 
   if (category && category !== 'All') {
     params.set('category', category);
+  }
+
+  if (pickupLocation && pickupLocation !== 'All') {
+    params.set('pickupLocation', pickupLocation);
   }
 
   return params.toString();

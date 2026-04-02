@@ -93,6 +93,12 @@ const APPROVED_PICKUP_HUBS = Object.freeze([
 
 const PICKUP_HUBS_BY_ID = new Map(APPROVED_PICKUP_HUBS.map((hub) => [hub.id, hub]));
 const PICKUP_HUB_ALIASES = new Map();
+const PICKUP_AREAS = Object.freeze(
+  Array.from(new Set(APPROVED_PICKUP_HUBS.map((hub) => hub.area)))
+);
+const PICKUP_LOCATION_LABELS = Object.freeze(
+  APPROVED_PICKUP_HUBS.map((hub) => hub.label)
+);
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -144,6 +150,14 @@ function isApprovedPickupHubId(value) {
   return Boolean(getPickupHubById(value));
 }
 
+function isApprovedPickupArea(value) {
+  return PICKUP_AREAS.includes(normalizeText(value));
+}
+
+function isApprovedPickupLocationLabel(value) {
+  return Boolean(findPickupHubByLabel(value));
+}
+
 function resolvePickupHub(value) {
   return getPickupHubById(value) || findPickupHubByLabel(value);
 }
@@ -178,15 +192,33 @@ function getPickupHubArea(value, fallback = '') {
   return resolvePickupHub(value)?.area || fallback;
 }
 
+function getPickupAreas() {
+  return [...PICKUP_AREAS];
+}
+
+function getPickupLocationLabels() {
+  return [...PICKUP_LOCATION_LABELS];
+}
+
+function getPickupHubsForArea(value) {
+  const normalizedArea = normalizeText(value);
+  return APPROVED_PICKUP_HUBS.filter((hub) => hub.area === normalizedArea);
+}
+
 const exported = {
   APPROVED_PICKUP_HUBS,
   deriveListingPickupFields,
   deriveOfferPickupFields,
   findPickupHubByLabel,
+  getPickupAreas,
   getPickupHubArea,
   getPickupHubById,
   getPickupHubLabel,
+  getPickupLocationLabels,
+  getPickupHubsForArea,
   isApprovedPickupHubId,
+  isApprovedPickupArea,
+  isApprovedPickupLocationLabel,
   normalizePickupHubId,
   resolvePickupHub,
 };
