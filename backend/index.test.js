@@ -438,6 +438,114 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   assert.equal(linkedConversation.activeListingId.toString(), item.id);
 });
 
+test('POST /api/conversations reuses the same participant thread across different listings', async () => {
+  const {profile} = await seedProfileAndItem();
+  const secondItem = await Item.create({
+    itemName: 'Mini Fridge',
+    itemCost: '75',
+    itemCondition: 'Fair',
+    itemLocation: 'Reitz Union',
+    itemPicture: 'data:image/png;base64,def456',
+    itemDescription: 'Works well',
+    itemDetails: 'A few scratches',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+
+  const firstResponse = await request(app)
+    .post('/api/conversations')
+    .send({
+      participantIds: ['buyer_1', profile.profileID],
+      activeListingId: secondItem._id.toString(),
+    });
+
+  assert.equal(firstResponse.status, 201);
+
+  const secondResponse = await request(app)
+    .post('/api/conversations')
+    .send({
+      participantIds: ['buyer_1', profile.profileID],
+      activeListingId: secondItem._id.toString(),
+    });
+
+  assert.equal(secondResponse.status, 200);
+  assert.equal(secondResponse.body._id, firstResponse.body._id);
+
+  const thirdItem = await Item.create({
+    itemName: 'Bike Helmet',
+    itemCost: '12',
+    itemCondition: 'Like New',
+    itemLocation: 'Marston Science Library',
+    itemPicture: 'data:image/png;base64,ghi789',
+    itemDescription: 'Barely used',
+    itemDetails: 'Medium size',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+
+  const thirdResponse = await request(app)
+    .post('/api/conversations')
+    .send({
+      participantIds: ['buyer_1', profile.profileID],
+      activeListingId: thirdItem._id.toString(),
+    });
+
+  assert.equal(thirdResponse.status, 200);
+  assert.equal(thirdResponse.body._id, firstResponse.body._id);
+
+  const storedConversation = await Conversation.findById(firstResponse.body._id);
+  assert.deepEqual(
+    storedConversation.linkedListingIds.map((listingId) => listingId.toString()),
+    [secondItem.id, thirdItem.id]
+  );
+  assert.equal(storedConversation.activeListingId.toString(), thirdItem.id);
+  assert.equal(
+    await Conversation.countDocuments({
+      participantIds: ['buyer_1', profile.profileID].sort(),
+    }),
+    1
+  );
+});
+
+test('POST /api/listings/:id/offers reuses an existing participant thread for a new listing', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const firstConversationResponse = await request(app)
+    .post('/api/conversations')
+    .send({
+      participantIds: ['buyer_1', profile.profileID],
+      activeListingId: item._id.toString(),
+    });
+  const secondItem = await Item.create({
+    itemName: 'Standing Lamp',
+    itemCost: '28',
+    itemCondition: 'Good',
+    itemLocation: 'Turlington Plaza',
+    itemPicture: 'data:image/png;base64,jkl012',
+    itemDescription: 'Tall lamp',
+    itemDetails: 'Includes shade',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+
+  const response = await createOffer(secondItem.id);
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.conversationId, firstConversationResponse.body._id);
+
+  const reusedConversation = await Conversation.findById(response.body.conversationId);
+  assert.deepEqual(
+    reusedConversation.linkedListingIds.map((listingId) => listingId.toString()),
+    [item.id, secondItem.id]
+  );
+  assert.equal(reusedConversation.activeListingId.toString(), secondItem.id);
+  assert.equal(
+    await Conversation.countDocuments({
+      participantIds: ['buyer_1', profile.profileID].sort(),
+    }),
+    1
+  );
+});
+
 test('POST /api/listings/:id/offers derives canonical meetup fields from an approved hub id', async () => {
   const {item} = await seedProfileAndItem();
 

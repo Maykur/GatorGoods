@@ -419,6 +419,18 @@ function normalizeParticipantIds(participantIds = []) {
   return [...new Set(participantIds.map((participantId) => participantId?.trim()).filter(Boolean))].sort();
 }
 
+async function findConversationByParticipantIds(participantIds = []) {
+  const normalizedParticipantIds = normalizeParticipantIds(participantIds);
+
+  if (normalizedParticipantIds.length !== 2) {
+    return null;
+  }
+
+  return Conversation.findOne({
+    participantIds: normalizedParticipantIds,
+  }).sort({lastMessageAt: -1, updatedAt: -1, _id: -1});
+}
+
 function toObjectId(value) {
   if (!value || !mongoose.Types.ObjectId.isValid(value)) {
     return null;
@@ -650,10 +662,7 @@ async function findOrCreateConversation({participantIds, activeListingId = null}
     throw new Error('Exactly two unique participantIds are required');
   }
 
-  let conversation = await Conversation.findOne({
-    participantIds: normalizedParticipantIds,
-    ...(normalizedListingId ? {linkedListingIds: normalizedListingId} : {}),
-  });
+  let conversation = await findConversationByParticipantIds(normalizedParticipantIds);
 
   if (conversation) {
     if (
@@ -753,10 +762,7 @@ app.post('/api/conversations', async (req, resp) => {
       });
     }
 
-    const existingConversation = await Conversation.findOne({
-      participantIds: normalizedParticipantIds,
-      ...(activeListingId ? {linkedListingIds: activeListingId} : {}),
-    });
+    const existingConversation = await findConversationByParticipantIds(normalizedParticipantIds);
     const conversation = await findOrCreateConversation({
       participantIds,
       activeListingId,
@@ -1164,10 +1170,7 @@ app.patch('/api/offers/:id', async (req, resp) => {
       });
       const conversation =
         (offer.conversationId ? await Conversation.findById(offer.conversationId) : null) ||
-        (await Conversation.findOne({
-          participantIds: normalizeParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]),
-          linkedListingIds: offer.listingId,
-        }));
+        (await findConversationByParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]));
       let systemMessage = null;
 
       if (conversation) {
