@@ -244,7 +244,7 @@ test('sending a message appends it to the thread', async () => {
   expect(await screen.findByText('I can pick it up today.')).toBeInTheDocument();
 });
 
-test('seller can update the active meetup details from the thread header', async () => {
+test('seller can update meetup specifics while the accepted hub stays locked', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -257,9 +257,9 @@ test('seller can update the active meetup details from the thread header', async
       _id: 'conversation-1',
       participantIds: ['buyer-1', 'seller-1'],
       activeListingId: 'item-1',
-      activePickupHubId: 'plaza-americas',
+      activePickupHubId: 'reitz',
       activePickupSpecifics: 'I will wait by the benches.',
-      lastMessageText: 'Meetup details updated to Plaza of the Americas. Specifics: I will wait by the benches.',
+      lastMessageText: 'Meetup details updated to Reitz Union. Specifics: I will wait by the benches.',
       lastMessageAt: '2026-03-29T13:10:00.000Z',
       lastReadAtByUser: {
         'seller-1': '2026-03-29T13:10:00.000Z',
@@ -268,7 +268,7 @@ test('seller can update the active meetup details from the thread header', async
     systemMessage: {
       _id: 'message-2',
       senderClerkUserId: 'system',
-      body: 'Meetup details updated to Plaza of the Americas. Specifics: I will wait by the benches.',
+      body: 'Meetup details updated to Reitz Union. Specifics: I will wait by the benches.',
       createdAt: '2026-03-29T13:10:00.000Z',
     },
   });
@@ -276,7 +276,8 @@ test('seller can update the active meetup details from the thread header', async
   render(<ChatThreadPage />);
 
   fireEvent.click(await screen.findByRole('button', { name: /edit meetup details/i }));
-  fireEvent.click(screen.getByRole('radio', { name: /plaza of the americas/i }));
+  expect(screen.getByText(/meetup hub is locked after acceptance/i)).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: /reitz union/i })).toBeDisabled();
   fireEvent.change(screen.getByLabelText(/meetup specifics/i), {
     target: { value: 'I will wait by the benches.' },
   });
@@ -286,13 +287,13 @@ test('seller can update the active meetup details from the thread header', async
     expect(mockUpdateConversationPickup).toHaveBeenCalledWith({
       conversationId: 'conversation-1',
       requesterClerkUserId: 'seller-1',
-      pickupHubId: 'plaza-americas',
+      pickupHubId: 'reitz',
       pickupSpecifics: 'I will wait by the benches.',
     });
   });
 
-  expect(await screen.findByText('Plaza of the Americas')).toBeInTheDocument();
-  expect(screen.getByText(/meetup details updated to plaza of the americas/i)).toBeInTheDocument();
+  expect(await screen.findByText('Reitz Union')).toBeInTheDocument();
+  expect(screen.getByText(/meetup details updated to reitz union/i)).toBeInTheDocument();
 });
 
 test('seller cannot submit meetup updates without required specifics', async () => {

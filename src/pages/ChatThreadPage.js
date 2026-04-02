@@ -53,6 +53,16 @@ async function fetchOptionalJson(url) {
   }
 }
 
+function getFirstName(name) {
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+
+  if (!trimmedName) {
+    return '';
+  }
+
+  return trimmedName.split(/\s+/)[0];
+}
+
 export function ChatThreadPage() {
   const { conversationId } = useParams();
   const { user } = useUser();
@@ -90,6 +100,9 @@ export function ChatThreadPage() {
     '';
   const activePickupHub = getPickupHubById(activePickupHubId);
   const isSeller = Boolean(user?.id && listingSellerId && user.id === listingSellerId);
+  const isAcceptedMeetupLocked = Boolean(conversation?.activePickupSpecifics);
+  const buyerFirstName = getFirstName(otherParticipantName);
+  const meetupHintTarget = buyerFirstName || 'the buyer';
   const pickupHubError = pickupError.toLowerCase().includes('hub') ? pickupError : '';
   const pickupSpecificsError =
     pickupError && !pickupHubError ? pickupError : '';
@@ -179,10 +192,10 @@ export function ChatThreadPage() {
     }
 
     setPickupValues({
-      pickupHubId: conversation?.activePickupHubId || listingOriginalPickupHubId || '',
+      pickupHubId: activePickupHubId,
       pickupSpecifics: conversation?.activePickupSpecifics || '',
     });
-  }, [conversation?.activePickupHubId, conversation?.activePickupSpecifics, isPickupEditorOpen, listingOriginalPickupHubId]);
+  }, [activePickupHubId, conversation?.activePickupSpecifics, isPickupEditorOpen]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -386,7 +399,7 @@ export function ChatThreadPage() {
               leadingIcon="location"
               onClick={() => {
                 setPickupValues({
-                  pickupHubId: conversation?.activePickupHubId || listingOriginalPickupHubId || '',
+                  pickupHubId: activePickupHubId,
                   pickupSpecifics: conversation?.activePickupSpecifics || '',
                 });
                 setPickupError('');
@@ -409,12 +422,22 @@ export function ChatThreadPage() {
             <PickupHubPicker
               id="conversation-pickup-hub"
               label="Meetup hub"
-              description="Choose the approved campus meetup hub for this handoff."
+              description={
+                isAcceptedMeetupLocked
+                  ? 'The meetup hub is locked after offer acceptance. You can still review it here.'
+                  : 'Choose the approved campus meetup hub for this handoff.'
+              }
               selectedHubId={pickupValues.pickupHubId}
               onChange={handlePickupHubChange}
               error={pickupHubError}
               required
+              disabled={isAcceptedMeetupLocked}
             />
+            {isAcceptedMeetupLocked ? (
+              <p className="rounded-[1rem] border border-app-danger/30 bg-app-danger/15 px-4 py-3 text-sm leading-6 text-red-100">
+                The meetup hub is locked after acceptance so both sides keep one consistent pickup plan. You can still update the meetup specifics below.
+              </p>
+            ) : null}
             <Textarea
               id="conversation-pickup-specifics"
               label="Meetup specifics"
@@ -430,7 +453,7 @@ export function ChatThreadPage() {
                 setPickupError('');
               }}
               error={pickupSpecificsError}
-              hint="Required. Add the exact landmark, entrance, or side of the building the buyer should use."
+              hint={`Add the exact entrance, room, or side of the building ${meetupHintTarget} should use.`}
               placeholder="Outside the north entrance by the benches..."
             />
             <div className="flex flex-wrap gap-3">

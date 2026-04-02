@@ -909,6 +909,22 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
       return resp.status(403).json({message: 'Only the seller can update meetup details'});
     }
 
+    const {reservedOffer} = await getReservedOfferForConversation(conversation);
+    const lockedPickupHubId =
+      conversation.activePickupHubId ||
+      listing.pickupHubId ||
+      deriveOfferPickupFields({
+        meetupHubId: reservedOffer?.meetupHubId,
+        meetupLocation: reservedOffer?.meetupLocation,
+      }).meetupHubId ||
+      null;
+
+    if (reservedOffer && lockedPickupHubId && pickupHubId !== lockedPickupHubId) {
+      return resp.status(409).json({
+        message: 'The meetup hub is locked after acceptance. You can still update meetup specifics.',
+      });
+    }
+
     const pickupHub = getPickupHubById(pickupHubId);
     const systemMessageBody = `Meetup details updated to ${pickupHub.label}. Specifics: ${pickupSpecifics}`;
 

@@ -23,12 +23,13 @@ function MapBackground() {
   );
 }
 
-function MapPin({ hub, isSelected, onSelect }) {
+function MapPin({ hub, isSelected, onSelect, disabled = false }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       className={cn(
-        'group absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none',
+        'group absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none disabled:cursor-not-allowed',
         isSelected ? 'z-20' : 'z-10 hover:z-20 focus-visible:z-20'
       )}
       style={{
@@ -44,7 +45,9 @@ function MapPin({ hub, isSelected, onSelect }) {
           'flex h-8 w-8 items-center justify-center rounded-full border shadow-lg transition-all duration-200',
           isSelected
             ? 'scale-105 border-gatorOrange bg-gatorOrange text-white shadow-[0_10px_24px_rgba(250,112,10,0.34)]'
-            : 'border-white/15 bg-app-surface/90 text-app-soft group-hover:border-gatorOrange/45 group-hover:text-white'
+            : disabled
+              ? 'border-white/10 bg-app-surface/80 text-app-muted'
+              : 'border-white/15 bg-app-surface/90 text-app-soft group-hover:border-gatorOrange/45 group-hover:text-white'
         )}
       >
         <AppIcon icon="location" className="text-sm" />
@@ -54,7 +57,9 @@ function MapPin({ hub, isSelected, onSelect }) {
           'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200',
           isSelected
             ? 'border-gatorOrange/35 bg-gatorOrange/16 text-white'
-            : 'border-white/10 bg-app-surface/90 text-app-soft opacity-0 shadow-lg group-hover:opacity-100'
+            : disabled
+              ? 'border-white/10 bg-app-surface/85 text-app-muted opacity-100'
+              : 'border-white/10 bg-app-surface/90 text-app-soft opacity-0 shadow-lg group-hover:opacity-100'
         )}
       >
         {hub.shortLabel}
@@ -63,18 +68,21 @@ function MapPin({ hub, isSelected, onSelect }) {
   );
 }
 
-function HubOptionCard({ hub, index, isSelected, onSelect }) {
+function HubOptionCard({ hub, index, isSelected, onSelect, disabled = false }) {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={isSelected}
+      disabled={disabled}
       onClick={() => onSelect(hub.id, { userInitiated: true })}
       className={cn(
-        'focus-ring flex w-full items-start gap-3 rounded-[1.2rem] border px-3.5 py-3.5 text-left transition-all duration-200 sm:gap-4 sm:rounded-[1.4rem] sm:px-4 sm:py-4',
+        'focus-ring flex w-full items-start gap-3 rounded-[1.2rem] border px-3.5 py-3.5 text-left transition-all duration-200 disabled:cursor-not-allowed sm:gap-4 sm:rounded-[1.4rem] sm:px-4 sm:py-4',
         isSelected
           ? 'border-gatorOrange/45 bg-gatorOrange/10'
-          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8'
+          : disabled
+            ? 'border-white/10 bg-white/5 text-app-muted'
+            : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8'
       )}
     >
       <span
@@ -113,6 +121,7 @@ export function PickupHubPicker({
   required = false,
   selectedHubId = '',
   onChange,
+  disabled = false,
 }) {
   const selectedHub = getPickupHubById(selectedHubId);
   const [showMapHint, setShowMapHint] = useState(true);
@@ -131,6 +140,10 @@ export function PickupHubPicker({
   }, []);
 
   const handleSelect = (hubId, { userInitiated = false } = {}) => {
+    if (disabled) {
+      return;
+    }
+
     if (userInitiated) {
       setShowMapHint(false);
     }
@@ -161,6 +174,7 @@ export function PickupHubPicker({
                   hub={hub}
                   isSelected={hub.id === selectedHubId}
                   onSelect={handleSelect}
+                  disabled={disabled}
                 />
               ))}
             </div>
@@ -212,6 +226,7 @@ export function PickupHubPicker({
               index={index}
               isSelected={hub.id === selectedHubId}
               onSelect={handleSelect}
+              disabled={disabled}
             />
           ))}
         </div>

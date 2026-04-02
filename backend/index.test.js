@@ -554,7 +554,48 @@ test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines
   assert.match(acceptanceMessage.body, /Meetup specifics: Outside Library West by the front benches\./);
 });
 
-test('PATCH /api/conversations/:id/pickup updates the active meetup details and appends a system message', async () => {
+test('PATCH /api/conversations/:id/pickup lets the seller update meetup specifics while keeping the accepted hub locked', async () => {
+  const {item} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id, {
+    buyerClerkUserId: 'buyer_1',
+    meetupHubId: 'reitz',
+    meetupLocation: '',
+  });
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      status: 'accepted',
+      pickupSpecifics: 'Meet outside the food court doors.',
+    });
+
+  const response = await request(app)
+    .patch(`/api/conversations/${offerResponse.body.conversationId}/pickup`)
+    .send({
+      requesterClerkUserId: 'user_1',
+      pickupHubId: 'reitz',
+      pickupSpecifics: 'Meet near the main benches.',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.activePickupHubId, 'reitz');
+  assert.equal(response.body.conversation.activePickupSpecifics, 'Meet near the main benches.');
+  assert.equal(response.body.systemMessage.senderClerkUserId, 'system');
+  assert.match(response.body.systemMessage.body, /Meetup details updated to Reitz Union/);
+
+  const updatedConversation = await Conversation.findById(offerResponse.body.conversationId);
+  assert.equal(updatedConversation.activePickupHubId, 'reitz');
+  assert.equal(updatedConversation.activePickupSpecifics, 'Meet near the main benches.');
+
+  const updatedListing = await Item.findById(item.id);
+  assert.equal(updatedListing.pickupHubId, 'reitz');
+  assert.equal(updatedListing.itemLocation, 'Reitz Union');
+  assert.equal(updatedListing.originalPickupHubId, 'library-west');
+  assert.equal(updatedListing.originalItemLocation, 'Library West');
+});
+
+test('PATCH /api/conversations/:id/pickup rejects meetup hub changes after acceptance', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id, {
     buyerClerkUserId: 'buyer_1',
@@ -578,21 +619,11 @@ test('PATCH /api/conversations/:id/pickup updates the active meetup details and 
       pickupSpecifics: 'Meet near the main benches.',
     });
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.conversation.activePickupHubId, 'plaza-americas');
-  assert.equal(response.body.conversation.activePickupSpecifics, 'Meet near the main benches.');
-  assert.equal(response.body.systemMessage.senderClerkUserId, 'system');
-  assert.match(response.body.systemMessage.body, /Meetup details updated to Plaza of the Americas/);
-
-  const updatedConversation = await Conversation.findById(offerResponse.body.conversationId);
-  assert.equal(updatedConversation.activePickupHubId, 'plaza-americas');
-  assert.equal(updatedConversation.activePickupSpecifics, 'Meet near the main benches.');
-
-  const updatedListing = await Item.findById(item.id);
-  assert.equal(updatedListing.pickupHubId, 'plaza-americas');
-  assert.equal(updatedListing.itemLocation, 'Plaza of the Americas');
-  assert.equal(updatedListing.originalPickupHubId, 'library-west');
-  assert.equal(updatedListing.originalItemLocation, 'Library West');
+  assert.equal(response.status, 409);
+  assert.equal(
+    response.body.message,
+    'The meetup hub is locked after acceptance. You can still update meetup specifics.'
+  );
 });
 
 test('PATCH /api/conversations/:id/pickup requires seller-authored meetup specifics updates', async () => {
