@@ -7,7 +7,7 @@ Use this runbook for the final implementation video, class demo, and fallback li
 - Verify `.env.local` contains the correct Clerk publishable key
 - Verify backend `.env` contains a working MongoDB connection string
 - Start frontend and backend successfully
-- Run `npm run seed:demo` and confirm the 12 listings, 9 offers, and 8 conversation threads appear
+- Run `npm run seed:demo` and confirm the 13 live listings, 14 offers, and 7 conversation threads appear
 - Confirm all demo accounts can sign in
 
 ## Required Demo Roles

@@ -300,9 +300,10 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
 
   assert.equal(dataset.presenterProfile.profileID, 'presenter_demo_user');
   assert.equal(dataset.communityProfiles.length, 7);
-  assert.equal(dataset.listings.length, 12);
-  assert.equal(dataset.offers.length, 9);
-  assert.equal(dataset.conversations.length, 8);
+  assert.equal(dataset.listings.length, 14);
+  assert.equal(dataset.offers.length, 14);
+  assert.equal(dataset.conversations.length, 7);
+  assert.deepEqual(dataset.deletedListingKeys, ['shoe-rack']);
 
   const presenterListings = dataset.listings.filter((listing) => listing.ownerKey === 'presenter');
   assert.equal(presenterListings.length, 2);
@@ -324,13 +325,35 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
   );
   assert.equal(
     dataset.offers.filter((offer) => offer.listingKey === reservedListing.key && offer.status === 'declined').length,
-    2
+    3
   );
   assert.equal(reservedListing.originalPickupHubId, 'library-west');
   assert.equal(reservedListing.pickupHubId, 'reitz');
   assert.equal(
     dataset.conversations.find((conversation) => conversation.key === 'conv-desk-lamp-ethan').activePickupHubId,
     'reitz'
+  );
+  assert.deepEqual(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-presenter-jasmine').linkedListingKeys,
+    ['mini-fridge', 'sublease-room', 'storage-drawers', 'standing-desk', 'shoe-rack']
+  );
+  assert.deepEqual(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-mini-fridge-noah').linkedListingKeys,
+    ['desk-lamp', 'mini-fridge']
+  );
+  assert.deepEqual(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-backpack-presenter').linkedListingKeys,
+    ['textbook-bundle', 'backpack']
+  );
+  assert.deepEqual(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-stroller-ava').linkedListingKeys,
+    ['board-game', 'stroller-organizer']
+  );
+  assert.equal(
+    dataset.conversations
+      .find((conversation) => conversation.key === 'conv-presenter-jasmine')
+      .messages.some((message) => message.attachedListingKey === 'shoe-rack'),
+    true
   );
   assert.ok(dataset.offers.some((offer) => offer.buyerKey === 'presenter'));
 });
@@ -351,6 +374,22 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
   const conversations = await Conversation.find().lean();
   const items = await Item.find().lean();
   const profiles = await Profile.find().lean();
+  const presenterJasmineConversation = await Conversation.findOne({
+    participantIds: [dataset.presenterProfile.profileID, dataset.profilesByKey.jasmine.profileID].sort(),
+  }).lean();
+  const presenterNoahConversation = await Conversation.findOne({
+    participantIds: [dataset.presenterProfile.profileID, dataset.profilesByKey.noah.profileID].sort(),
+  }).lean();
+  const presenterMateoConversation = await Conversation.findOne({
+    participantIds: [dataset.presenterProfile.profileID, dataset.profilesByKey.mateo.profileID].sort(),
+  }).lean();
+  const avaPriyaConversation = await Conversation.findOne({
+    participantIds: [dataset.profilesByKey.ava.profileID, dataset.profilesByKey.priya.profileID].sort(),
+  }).lean();
+  const deletedItemMessage = await Message.findOne({
+    conversationId: presenterJasmineConversation._id,
+    attachedListingTitle: 'Narrow Shoe Rack',
+  }).lean();
 
   assert.equal(String(reservedListing.reservedOfferId), String(acceptedOffer._id));
   assert.equal(reservedListing.originalPickupHubId, 'library-west');
@@ -363,6 +402,14 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
   assert.equal(acceptedConversation.activePickupSpecifics, 'Ground floor entrance by the benches.');
   assert.equal(offers.every((offer) => Boolean(offer.conversationId)), true);
   assert.equal(conversations.every((conversation) => conversation.participantIds.length === 2), true);
+  assert.equal(items.some((item) => item.itemName === 'Narrow Shoe Rack'), false);
+  assert.equal(presenterJasmineConversation.linkedListingIds.length, 5);
+  assert.equal(presenterNoahConversation.linkedListingIds.length, 2);
+  assert.equal(presenterMateoConversation.linkedListingIds.length, 2);
+  assert.equal(avaPriyaConversation.linkedListingIds.length, 2);
+  assert.ok(deletedItemMessage);
+  assert.equal(deletedItemMessage.attachedListingImageUrl.length > 0, true);
+  assert.equal(await Item.countDocuments({_id: deletedItemMessage.attachedListingId}), 0);
 
   const systemMessages = await Message.find({
     conversationId: acceptedConversation._id,
@@ -408,10 +455,10 @@ test('running tag-only cleanup and seed twice does not duplicate tagged data and
   await insertSeedDataset(secondDataset, config);
 
   assert.equal(await Profile.countDocuments({seedTag: config.seedTag}), 7);
-  assert.equal(await Item.countDocuments({seedTag: config.seedTag}), 12);
-  assert.equal(await Offer.countDocuments({seedTag: config.seedTag}), 9);
-  assert.equal(await Conversation.countDocuments({seedTag: config.seedTag}), 8);
-  assert.equal(await Message.countDocuments({seedTag: config.seedTag}), 29);
+  assert.equal(await Item.countDocuments({seedTag: config.seedTag}), 13);
+  assert.equal(await Offer.countDocuments({seedTag: config.seedTag}), 14);
+  assert.equal(await Conversation.countDocuments({seedTag: config.seedTag}), 7);
+  assert.equal(await Message.countDocuments({seedTag: config.seedTag}), 37);
 
   assert.equal(await Item.countDocuments({_id: unrelatedItem._id}), 1);
   assert.equal(await Profile.countDocuments({profileID: unrelatedProfile.profileID}), 1);
