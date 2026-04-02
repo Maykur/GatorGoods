@@ -45,6 +45,7 @@ export function Layout() {
     { to: '/listings', label: 'Browse', icon: 'browse' },
     { to: '/messages', label: 'Messages', icon: 'messages' },
     { to: '/offers', label: 'Offers', icon: 'offers' },
+    { to: '/favorites', label: 'Favorites', icon: 'favorite' },
     { to: '/profile/me', label: 'Profile', icon: 'profile' },
   ] : [];
 
@@ -201,6 +202,10 @@ export function Layout() {
               <Link to="/messages" className="inline-flex items-center gap-2 hover:text-white">
                 <AppIcon icon="messages" className="text-[0.9em]" />
                 <span>Messages</span>
+              </Link>
+              <Link to="/favorites" className="inline-flex items-center gap-2 hover:text-white">
+                <AppIcon icon="favorite" className="text-[0.9em]" />
+                <span>Favorites</span>
               </Link>
             </Show>
           </div>

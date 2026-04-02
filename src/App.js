@@ -11,6 +11,7 @@ import { CreateListingPage } from './pages/CreateListingPage';
 import { OffersPage } from './pages/OffersPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { ChatThreadPage } from './pages/ChatThreadPage';
+import { FavoritesPage } from './pages/FavoritesPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ItemPage } from './pages/ItemPage';
@@ -66,6 +67,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ChatThreadPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/favorites"
+                  element={
+                    <ProtectedRoute>
+                      <FavoritesPage />
                     </ProtectedRoute>
                   }
                 />
