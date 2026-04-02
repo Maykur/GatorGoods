@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useUser } from '@clerk/react';
 import { useNavigate } from 'react-router-dom';
+import { PickupHubPicker } from '../components/PickupHubPicker';
 import {
   AppIcon,
   Button,
@@ -13,6 +14,7 @@ import {
   Textarea,
   useToast,
 } from '../components/ui';
+import { getPickupHubById } from '../lib/pickupHubs';
 import { LISTING_CATEGORIES } from '../lib/viewModels';
 
 const CONDITION_OPTIONS = ['Perfect', 'Good', 'Fair', 'Poor'];
@@ -29,8 +31,8 @@ function validateListingForm(values, userPublishingID) {
   if (!values.itemCondition.trim()) {
     errors.itemCondition = 'Condition is required.';
   }
-  if (!values.itemLocation.trim()) {
-    errors.itemLocation = 'Pickup location is required.';
+  if (!values.pickupHubId.trim()) {
+    errors.pickupHubId = 'Pickup hub is required.';
   }
   if (!values.itemPicture) {
     errors.itemPicture = 'A listing photo is required.';
@@ -59,7 +61,7 @@ export function CreateListingPage() {
     itemName: '',
     itemCost: '',
     itemCondition: '',
-    itemLocation: '',
+    pickupHubId: '',
     itemPicture: null,
     itemDescription: '',
     itemDetails: '',
@@ -81,6 +83,8 @@ export function CreateListingPage() {
     fallbackName ||
     'GatorGoods User';
   const previewCategoryIcon = getCategoryIcon(values.itemCat || 'Miscellaneous');
+  const selectedPickupHub = getPickupHubById(values.pickupHubId);
+  const previewPickupLabel = selectedPickupHub?.label || '';
 
   const handleChange = (field) => (event) => {
     setValues((currentValues) => ({
@@ -90,6 +94,17 @@ export function CreateListingPage() {
     setFieldErrors((currentErrors) => ({
       ...currentErrors,
       [field]: '',
+    }));
+  };
+
+  const handlePickupHubChange = (pickupHubId) => {
+    setValues((currentValues) => ({
+      ...currentValues,
+      pickupHubId,
+    }));
+    setFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      pickupHubId: '',
     }));
   };
 
@@ -151,7 +166,8 @@ export function CreateListingPage() {
           itemName: values.itemName,
           itemCost: values.itemCost,
           itemCondition: values.itemCondition,
-          itemLocation: values.itemLocation,
+          pickupHubId: values.pickupHubId,
+          itemLocation: previewPickupLabel,
           itemPicture: values.itemPicture,
           itemDescription: values.itemDescription,
           itemDetails: values.itemDetails,
@@ -265,14 +281,13 @@ export function CreateListingPage() {
               </Select>
             </div>
 
-            <Input
-              id="item-location"
-              label="Pickup location"
-              leadingIcon="location"
-              placeholder="Library West"
-              value={values.itemLocation}
-              onChange={handleChange('itemLocation')}
-              error={fieldErrors.itemLocation}
+            <PickupHubPicker
+              id="item-pickup-hub"
+              label="Public campus pickup hub"
+              description="Choose one approved UF meetup hub. Buyers will see this as the default public pickup spot for your listing."
+              selectedHubId={values.pickupHubId}
+              onChange={handlePickupHubChange}
+              error={fieldErrors.pickupHubId}
               required
             />
 
@@ -381,7 +396,7 @@ export function CreateListingPage() {
               </div>
               <p className="flex items-center gap-2 text-sm text-app-soft">
                 <AppIcon icon="location" className="text-[0.95em]" />
-                <span>{values.itemLocation || 'Pickup location appears here'}</span>
+                <span>{previewPickupLabel || 'Public campus pickup hub appears here'}</span>
               </p>
               <p className="text-sm leading-7 text-app-soft">
                 {values.itemDescription || 'Add a short description so people know what you are selling.'}
