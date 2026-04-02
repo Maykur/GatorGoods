@@ -196,6 +196,54 @@ const conversationSchema = new mongoose.Schema(
       ref: 'items',
       default: null,
     },
+    linkedItems: {
+      type: [
+        new mongoose.Schema(
+          {
+            listingId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'items',
+              required: true,
+            },
+            title: {
+              type: String,
+              default: '',
+              trim: true,
+            },
+            imageUrl: {
+              type: String,
+              default: '',
+              trim: true,
+            },
+            firstLinkedAt: {
+              type: Date,
+              default: null,
+            },
+            lastContextAt: {
+              type: Date,
+              default: null,
+            },
+            firstContextMessageId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'messages',
+              default: null,
+            },
+            latestContextMessageId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'messages',
+              default: null,
+            },
+            lastKnownStatus: {
+              type: String,
+              default: '',
+              trim: true,
+            },
+          },
+          {_id: false}
+        ),
+      ],
+      default: [],
+    },
     activePickupHubId: {
       type: String,
       default: null,
@@ -252,6 +300,16 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'items',
       default: null,
+    },
+    attachedListingTitle: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    attachedListingImageUrl: {
+      type: String,
+      default: '',
+      trim: true,
     },
     seedTag: {
       type: String,
@@ -431,6 +489,18 @@ async function findConversationByParticipantIds(participantIds = []) {
   }).sort({lastMessageAt: -1, updatedAt: -1, _id: -1});
 }
 
+function toIdString(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value.toString();
+}
+
 function toObjectId(value) {
   if (!value || !mongoose.Types.ObjectId.isValid(value)) {
     return null;
@@ -441,6 +511,261 @@ function toObjectId(value) {
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function dedupeIdStrings(values = []) {
+  const seen = new Set();
+  const dedupedValues = [];
+
+  values.forEach((value) => {
+    const id = toIdString(value);
+
+    if (!id || seen.has(id)) {
+      return;
+    }
+
+    seen.add(id);
+    dedupedValues.push(id);
+  });
+
+  return dedupedValues;
+}
+
+function normalizeDateValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+}
+
+function normalizeLinkedItemForComparison(linkedItem = {}) {
+  return {
+    listingId: toIdString(linkedItem.listingId),
+    title: linkedItem.title || '',
+    imageUrl: linkedItem.imageUrl || '',
+    firstLinkedAt: normalizeDateValue(linkedItem.firstLinkedAt)?.toISOString() || null,
+    lastContextAt: normalizeDateValue(linkedItem.lastContextAt)?.toISOString() || null,
+    firstContextMessageId: toIdString(linkedItem.firstContextMessageId) || null,
+    latestContextMessageId: toIdString(linkedItem.latestContextMessageId) || null,
+    lastKnownStatus: linkedItem.lastKnownStatus || '',
+  };
+}
+
+function areIdListsEqual(currentValues = [], nextValues = []) {
+  if (currentValues.length !== nextValues.length) {
+    return false;
+  }
+
+  return currentValues.every((value, index) => value === nextValues[index]);
+}
+
+function areLinkedItemListsEqual(currentValues = [], nextValues = []) {
+  if (currentValues.length !== nextValues.length) {
+    return false;
+  }
+
+  return currentValues.every((linkedItem, index) => {
+    const currentValue = JSON.stringify(normalizeLinkedItemForComparison(linkedItem));
+    const nextValue = JSON.stringify(normalizeLinkedItemForComparison(nextValues[index]));
+    return currentValue === nextValue;
+  });
+}
+
+async function fetchListingsByIds(listingIds = []) {
+  const normalizedListingIds = dedupeIdStrings(listingIds)
+    .map((listingId) => toObjectId(listingId))
+    .filter(Boolean);
+
+  if (normalizedListingIds.length === 0) {
+    return new Map();
+  }
+
+  const listings = await Item.find({
+    _id: {$in: normalizedListingIds},
+  });
+
+  return new Map(listings.map((listing) => [listing.id, listing]));
+}
+
+function buildAttachedListingSnapshot(listing, fallback = {}) {
+  return {
+    attachedListingTitle: listing?.itemName || normalizeOptionalString(fallback.title) || '',
+    attachedListingImageUrl: listing?.itemPicture || normalizeOptionalString(fallback.imageUrl) || '',
+  };
+}
+
+async function buildAttachedListingMessageFields(attachedListingId, fallback = {}) {
+  const normalizedListingId = toObjectId(attachedListingId);
+
+  if (!normalizedListingId) {
+    return {
+      attachedListingId: null,
+      attachedListingTitle: '',
+      attachedListingImageUrl: '',
+      listing: null,
+    };
+  }
+
+  const listing = await Item.findById(normalizedListingId);
+
+  return {
+    attachedListingId: normalizedListingId,
+    ...buildAttachedListingSnapshot(listing, fallback),
+    listing,
+  };
+}
+
+async function repairConversationLinkedItems(
+  conversation,
+  {
+    messages = null,
+    touchedListingId = null,
+    contextAt = null,
+    contextMessageId = null,
+    fallbackTitle = '',
+    fallbackImageUrl = '',
+    fallbackStatus = '',
+  } = {}
+) {
+  if (!conversation?._id) {
+    return {changed: false, messages: Array.isArray(messages) ? messages : []};
+  }
+
+  const normalizedTouchedListingId = toIdString(touchedListingId);
+  const normalizedContextAt = normalizeDateValue(contextAt);
+  const normalizedContextMessageId = toObjectId(contextMessageId);
+  const orderedMessages = Array.isArray(messages)
+    ? [...messages].sort((firstMessage, secondMessage) => firstMessage.createdAt - secondMessage.createdAt)
+    : await Message.find({conversationId: conversation._id}).sort({createdAt: 1});
+  const existingLinkedItems = Array.isArray(conversation.linkedItems)
+    ? conversation.linkedItems.map((linkedItem) => (linkedItem?.toObject ? linkedItem.toObject() : linkedItem))
+    : [];
+  const existingLinkedItemsById = new Map(
+    existingLinkedItems
+      .map((linkedItem) => [toIdString(linkedItem.listingId), linkedItem])
+      .filter(([listingId]) => Boolean(listingId))
+  );
+  const messageContextByListingId = new Map();
+
+  orderedMessages.forEach((message) => {
+    const listingId = toIdString(message.attachedListingId);
+
+    if (!listingId) {
+      return;
+    }
+
+    const existingContext = messageContextByListingId.get(listingId);
+
+    if (!existingContext) {
+      messageContextByListingId.set(listingId, {
+        firstLinkedAt: message.createdAt,
+        lastContextAt: message.createdAt,
+        firstContextMessageId: message._id,
+        latestContextMessageId: message._id,
+        title: message.attachedListingTitle || '',
+        imageUrl: message.attachedListingImageUrl || '',
+      });
+      return;
+    }
+
+    existingContext.lastContextAt = message.createdAt;
+    existingContext.latestContextMessageId = message._id;
+    existingContext.title = message.attachedListingTitle || existingContext.title || '';
+    existingContext.imageUrl = message.attachedListingImageUrl || existingContext.imageUrl || '';
+  });
+
+  const canonicalListingIds = dedupeIdStrings([
+    ...(conversation.linkedListingIds || []),
+    conversation.activeListingId,
+    ...existingLinkedItems.map((linkedItem) => linkedItem.listingId),
+    ...messageContextByListingId.keys(),
+    normalizedTouchedListingId,
+  ]);
+  const liveListingsById = await fetchListingsByIds(canonicalListingIds);
+  const fallbackLinkedAt = conversation.createdAt || new Date();
+  const fallbackContextAt = normalizeDateValue(conversation.updatedAt) || fallbackLinkedAt;
+
+  const nextLinkedItems = canonicalListingIds
+    .map((listingId) => {
+      const existingLinkedItem = existingLinkedItemsById.get(listingId) || {};
+      const messageContext = messageContextByListingId.get(listingId);
+      const liveListing = liveListingsById.get(listingId);
+      const firstLinkedAt =
+        normalizeDateValue(existingLinkedItem.firstLinkedAt) ||
+        normalizeDateValue(messageContext?.firstLinkedAt) ||
+        fallbackLinkedAt;
+      let lastContextAt =
+        normalizeDateValue(messageContext?.lastContextAt) ||
+        normalizeDateValue(existingLinkedItem.lastContextAt) ||
+        firstLinkedAt ||
+        fallbackContextAt;
+
+      if (listingId === normalizedTouchedListingId && normalizedContextAt && normalizedContextAt > lastContextAt) {
+        lastContextAt = normalizedContextAt;
+      }
+
+      const firstContextMessageId =
+        toObjectId(messageContext?.firstContextMessageId) ||
+        toObjectId(existingLinkedItem.firstContextMessageId) ||
+        (listingId === normalizedTouchedListingId ? normalizedContextMessageId : null);
+      const latestContextMessageId =
+        (listingId === normalizedTouchedListingId && normalizedContextMessageId) ||
+        toObjectId(messageContext?.latestContextMessageId) ||
+        toObjectId(existingLinkedItem.latestContextMessageId) ||
+        null;
+
+      return {
+        listingId: toObjectId(listingId),
+        title:
+          liveListing?.itemName ||
+          existingLinkedItem.title ||
+          messageContext?.title ||
+          (listingId === normalizedTouchedListingId ? fallbackTitle : '') ||
+          '',
+        imageUrl:
+          liveListing?.itemPicture ||
+          existingLinkedItem.imageUrl ||
+          messageContext?.imageUrl ||
+          (listingId === normalizedTouchedListingId ? fallbackImageUrl : '') ||
+          '',
+        firstLinkedAt,
+        lastContextAt,
+        firstContextMessageId,
+        latestContextMessageId,
+        lastKnownStatus:
+          liveListing?.status ||
+          (listingId === normalizedTouchedListingId ? fallbackStatus : '') ||
+          existingLinkedItem.lastKnownStatus ||
+          'deleted',
+      };
+    })
+    .sort((firstItem, secondItem) => {
+      const firstTimestamp = normalizeDateValue(firstItem.firstLinkedAt)?.getTime() || 0;
+      const secondTimestamp = normalizeDateValue(secondItem.firstLinkedAt)?.getTime() || 0;
+      return firstTimestamp - secondTimestamp;
+    });
+  const nextLinkedListingIds = canonicalListingIds;
+  const currentLinkedListingIds = dedupeIdStrings(conversation.linkedListingIds || []);
+  const currentLinkedItems = existingLinkedItems;
+  const linkedListingIdsChanged = !areIdListsEqual(currentLinkedListingIds, nextLinkedListingIds);
+  const linkedItemsChanged = !areLinkedItemListsEqual(currentLinkedItems, nextLinkedItems);
+
+  if (linkedListingIdsChanged) {
+    conversation.linkedListingIds = nextLinkedListingIds
+      .map((listingId) => toObjectId(listingId))
+      .filter(Boolean);
+  }
+
+  if (linkedItemsChanged) {
+    conversation.linkedItems = nextLinkedItems;
+  }
+
+  return {
+    changed: linkedListingIdsChanged || linkedItemsChanged,
+    messages: orderedMessages,
+  };
 }
 
 function normalizePickupSpecifics(value) {
@@ -676,6 +1001,13 @@ async function findOrCreateConversation({participantIds, activeListingId = null}
       conversation.activeListingId = normalizedListingId;
     }
 
+    if (normalizedListingId) {
+      await repairConversationLinkedItems(conversation, {
+        touchedListingId: normalizedListingId,
+        contextAt: new Date(),
+      });
+    }
+
     await conversation.save();
     return conversation;
   }
@@ -685,6 +1017,14 @@ async function findOrCreateConversation({participantIds, activeListingId = null}
     linkedListingIds: normalizedListingId ? [normalizedListingId] : [],
     activeListingId: normalizedListingId,
   });
+
+  if (normalizedListingId) {
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: normalizedListingId,
+      contextAt: conversation.createdAt || new Date(),
+    });
+    await conversation.save();
+  }
 
   return conversation;
 }
@@ -745,6 +1085,13 @@ app.get('/api/conversations', async (req, resp) => {
       participantIds: participantId,
     }).sort({lastMessageAt: -1, updatedAt: -1});
 
+    await Promise.all(
+      conversations.map(async (conversation) => {
+        await repairConversationLinkedItems(conversation);
+        await conversation.save();
+      })
+    );
+
     resp.json(conversations);
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch conversations', error: e.message});
@@ -798,6 +1145,7 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
     }
 
     await repairConversationPickupHub(conversation);
+    await repairConversationLinkedItems(conversation);
     const {reservedOffer} = await getReservedOfferForConversation(conversation);
     conversation.lastReadAtByUser.set(participantId, new Date());
     await conversation.save();
@@ -844,26 +1192,29 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
       return resp.status(403).json({message: 'You are not a participant in this conversation'});
     }
 
+    const attachedListingFields = await buildAttachedListingMessageFields(attachedListingId);
     const message = await Message.create({
       conversationId,
       senderClerkUserId: trimmedSenderId,
       body: trimmedBody,
-      attachedListingId: toObjectId(attachedListingId),
+      attachedListingId: attachedListingFields.attachedListingId,
+      attachedListingTitle: attachedListingFields.attachedListingTitle,
+      attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
     });
 
     conversation.lastMessageText = trimmedBody;
     conversation.lastMessageAt = message.createdAt;
     conversation.lastReadAtByUser.set(trimmedSenderId, message.createdAt);
 
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: message.attachedListingId,
+      contextAt: message.createdAt,
+      contextMessageId: message._id,
+      fallbackTitle: message.attachedListingTitle,
+      fallbackImageUrl: message.attachedListingImageUrl,
+    });
+
     if (message.attachedListingId) {
-      const alreadyLinked = conversation.linkedListingIds.some(
-        (listingId) => listingId.toString() === message.attachedListingId.toString()
-      );
-
-      if (!alreadyLinked) {
-        conversation.linkedListingIds.push(message.attachedListingId);
-      }
-
       conversation.activeListingId = message.attachedListingId;
     }
 
@@ -963,16 +1314,26 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
     conversation.activePickupHubId = pickupHubId || null;
     conversation.activePickupSpecifics = pickupSpecifics;
 
+    const attachedListingFields = await buildAttachedListingMessageFields(conversation.activeListingId || null);
     const systemMessage = await Message.create({
       conversationId,
       senderClerkUserId: 'system',
       body: systemMessageBody,
-      attachedListingId: conversation.activeListingId || null,
+      attachedListingId: attachedListingFields.attachedListingId,
+      attachedListingTitle: attachedListingFields.attachedListingTitle,
+      attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
     });
 
     conversation.lastMessageText = systemMessage.body;
     conversation.lastMessageAt = systemMessage.createdAt;
     conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: systemMessage.attachedListingId,
+      contextAt: systemMessage.createdAt,
+      contextMessageId: systemMessage._id,
+      fallbackTitle: systemMessage.attachedListingTitle,
+      fallbackImageUrl: systemMessage.attachedListingImageUrl,
+    });
 
     await conversation.save();
 
@@ -1069,6 +1430,13 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       paymentMethod,
       message: normalizedMessage,
     });
+
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: listingId,
+      contextAt: offer.createdAt,
+      fallbackStatus: listing.status,
+    });
+    await conversation.save();
 
     resp.status(201).json(offer);
   } catch (e) {
@@ -1174,6 +1542,7 @@ app.patch('/api/offers/:id', async (req, resp) => {
       let systemMessage = null;
 
       if (conversation) {
+        conversation.activeListingId = offer.listingId;
         ensureListingOriginalPickupFields(listing);
         applyCurrentListingPickupFields(
           listing,
@@ -1187,16 +1556,27 @@ app.patch('/api/offers/:id', async (req, resp) => {
 
         const pickupHubLabel =
           getPickupHubById(resolvedAcceptedPickup.meetupHubId)?.label || resolvedAcceptedPickup.meetupLocation;
+        const attachedListingFields = await buildAttachedListingMessageFields(offer.listingId);
         systemMessage = await Message.create({
           conversationId: conversation._id,
           senderClerkUserId: 'system',
           body: `Offer accepted. Meetup hub: ${pickupHubLabel}. Meetup specifics: ${pickupSpecifics}`,
-          attachedListingId: conversation.activeListingId || offer.listingId,
+          attachedListingId: attachedListingFields.attachedListingId,
+          attachedListingTitle: attachedListingFields.attachedListingTitle,
+          attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
         });
 
         conversation.lastMessageText = systemMessage.body;
         conversation.lastMessageAt = systemMessage.createdAt;
         conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+        await repairConversationLinkedItems(conversation, {
+          touchedListingId: offer.listingId,
+          contextAt: systemMessage.createdAt,
+          contextMessageId: systemMessage._id,
+          fallbackTitle: systemMessage.attachedListingTitle,
+          fallbackImageUrl: systemMessage.attachedListingImageUrl,
+          fallbackStatus: listing.status,
+        });
       }
 
       const saveOperations = [

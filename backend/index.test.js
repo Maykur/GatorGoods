@@ -546,6 +546,76 @@ test('POST /api/listings/:id/offers reuses an existing participant thread for a 
   );
 });
 
+test('POST /api/conversations stores linked item metadata for the active listing', async () => {
+  const {item, profile} = await seedProfileAndItem();
+
+  const response = await request(app)
+    .post('/api/conversations')
+    .send({
+      participantIds: ['buyer_1', profile.profileID],
+      activeListingId: item._id.toString(),
+    });
+
+  assert.equal(response.status, 201);
+
+  const storedConversation = await Conversation.findById(response.body._id);
+  assert.equal(storedConversation.linkedItems.length, 1);
+  assert.equal(storedConversation.linkedItems[0].listingId.toString(), item.id);
+  assert.equal(storedConversation.linkedItems[0].title, item.itemName);
+  assert.equal(storedConversation.linkedItems[0].imageUrl, item.itemPicture);
+  assert.ok(storedConversation.linkedItems[0].firstLinkedAt);
+  assert.ok(storedConversation.linkedItems[0].lastContextAt);
+  assert.equal(storedConversation.linkedItems[0].firstContextMessageId, null);
+  assert.equal(storedConversation.linkedItems[0].latestContextMessageId, null);
+  assert.equal(storedConversation.linkedItems[0].lastKnownStatus, item.status);
+});
+
+test('POST /api/conversations/:id/messages stores attached item snapshots and updates linked item metadata', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const secondItem = await Item.create({
+    itemName: 'Mini Fridge',
+    itemCost: '75',
+    itemCondition: 'Fair',
+    itemLocation: 'Reitz Union',
+    itemPicture: 'https://example.com/fridge.png',
+    itemDescription: 'Works well',
+    itemDetails: 'A few scratches',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+  const conversationResponse = await request(app)
+    .post('/api/conversations')
+    .send({
+      participantIds: ['buyer_1', profile.profileID],
+      activeListingId: item._id.toString(),
+    });
+
+  const response = await request(app)
+    .post(`/api/conversations/${conversationResponse.body._id}/messages`)
+    .send({
+      senderClerkUserId: 'buyer_1',
+      body: 'Can I bundle this with the fridge too?',
+      attachedListingId: secondItem._id.toString(),
+    });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.attachedListingId.toString(), secondItem.id);
+  assert.equal(response.body.attachedListingTitle, secondItem.itemName);
+  assert.equal(response.body.attachedListingImageUrl, secondItem.itemPicture);
+
+  const storedConversation = await Conversation.findById(conversationResponse.body._id);
+  const fridgeLinkedItem = storedConversation.linkedItems.find(
+    (linkedItem) => linkedItem.listingId.toString() === secondItem.id
+  );
+
+  assert.ok(fridgeLinkedItem);
+  assert.equal(storedConversation.activeListingId.toString(), secondItem.id);
+  assert.equal(fridgeLinkedItem.title, secondItem.itemName);
+  assert.equal(fridgeLinkedItem.imageUrl, secondItem.itemPicture);
+  assert.equal(fridgeLinkedItem.latestContextMessageId.toString(), response.body._id);
+  assert.equal(fridgeLinkedItem.lastKnownStatus, secondItem.status);
+});
+
 test('POST /api/listings/:id/offers derives canonical meetup fields from an approved hub id', async () => {
   const {item} = await seedProfileAndItem();
 
@@ -903,6 +973,111 @@ test('GET /api/conversations/:id/messages repairs a legacy accepted conversation
 
   const repairedConversation = await Conversation.findById(conversation._id);
   assert.equal(repairedConversation.activePickupHubId, 'marston');
+});
+
+test('POST /api/conversations/:id/messages lazily repairs linked item history for a legacy conversation on write', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id],
+    activeListingId: item._id,
+  });
+  const taggedMessage = await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'Still interested in the lamp.',
+    attachedListingId: item._id,
+    attachedListingTitle: 'Desk Lamp',
+    attachedListingImageUrl: 'https://example.com/lamp-snapshot.png',
+  });
+
+  const response = await request(app)
+    .post(`/api/conversations/${conversation._id}/messages`)
+    .send({
+      senderClerkUserId: 'buyer_1',
+      body: 'Following up in the same thread.',
+    });
+
+  assert.equal(response.status, 201);
+
+  const repairedConversation = await Conversation.findById(conversation._id);
+  assert.equal(repairedConversation.linkedItems.length, 1);
+  assert.equal(repairedConversation.linkedItems[0].listingId.toString(), item.id);
+  assert.equal(repairedConversation.linkedItems[0].firstContextMessageId.toString(), taggedMessage.id);
+  assert.equal(repairedConversation.linkedItems[0].latestContextMessageId.toString(), taggedMessage.id);
+  assert.equal(repairedConversation.linkedItems[0].title, item.itemName);
+});
+
+test('GET /api/conversations/:id/messages repairs legacy linked items from live listings and message snapshots', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const deletedItem = await Item.create({
+    itemName: 'Old Backpack',
+    itemCost: '10',
+    itemCondition: 'Used',
+    itemLocation: 'Marston Science Library',
+    itemPicture: 'https://example.com/backpack.png',
+    itemDescription: 'Still usable',
+    itemDetails: 'One zipper sticks',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id, deletedItem._id],
+    activeListingId: item._id,
+  });
+  const deletedItemMessage = await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'Is the backpack still around?',
+    attachedListingId: deletedItem._id,
+    attachedListingTitle: 'Old Backpack Snapshot',
+    attachedListingImageUrl: 'https://example.com/backpack-snapshot.png',
+  });
+  const liveItemMessage = await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: profile.profileID,
+    body: 'The lamp is still available.',
+    attachedListingId: item._id,
+    attachedListingTitle: '',
+    attachedListingImageUrl: '',
+  });
+
+  await Item.deleteOne({_id: deletedItem._id});
+
+  const response = await request(app)
+    .get(`/api/conversations/${conversation._id}/messages`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.linkedItems.length, 2);
+
+  const repairedDeletedLinkedItem = response.body.conversation.linkedItems.find(
+    (linkedItem) => linkedItem.listingId.toString() === deletedItem.id
+  );
+  const repairedLiveLinkedItem = response.body.conversation.linkedItems.find(
+    (linkedItem) => linkedItem.listingId.toString() === item.id
+  );
+
+  assert.ok(repairedDeletedLinkedItem);
+  assert.equal(repairedDeletedLinkedItem.title, 'Old Backpack Snapshot');
+  assert.equal(repairedDeletedLinkedItem.imageUrl, 'https://example.com/backpack-snapshot.png');
+  assert.equal(repairedDeletedLinkedItem.firstContextMessageId.toString(), deletedItemMessage.id);
+  assert.equal(repairedDeletedLinkedItem.latestContextMessageId.toString(), deletedItemMessage.id);
+  assert.equal(repairedDeletedLinkedItem.lastKnownStatus, 'deleted');
+
+  assert.ok(repairedLiveLinkedItem);
+  assert.equal(repairedLiveLinkedItem.title, item.itemName);
+  assert.equal(repairedLiveLinkedItem.latestContextMessageId.toString(), liveItemMessage.id);
+
+  const storedConversation = await Conversation.findById(conversation._id);
+  const storedDeletedLinkedItem = storedConversation.linkedItems.find(
+    (linkedItem) => linkedItem.listingId.toString() === deletedItem.id
+  );
+  assert.ok(storedDeletedLinkedItem);
+  assert.equal(storedDeletedLinkedItem.title, 'Old Backpack Snapshot');
 });
 
 test('POST /api/listings/:id/offers rejects new offers once a listing is reserved', async () => {
