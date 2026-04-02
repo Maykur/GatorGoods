@@ -67,6 +67,7 @@ function buildItemPayload(overrides = {}) {
     itemName: 'Desk Lamp',
     itemCost: '20',
     itemCondition: 'Good',
+    pickupHubId: 'library-west',
     itemLocation: 'Library West',
     itemPicture: 'lamp.png',
     itemDescription: 'Lamp for studying',
@@ -176,6 +177,7 @@ test('signed-in non-owners can open and submit the structured offer form', async
         buyerClerkUserId: 'buyer-1',
         buyerDisplayName: 'Buyer One',
         offeredPrice: 18,
+        meetupHubId: 'library-west',
         meetupLocation: 'Library West',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',
@@ -216,6 +218,42 @@ test('offer submission validates the structured fields before sending', async ()
 
   expect(await screen.findByText(/please complete the offer details before sending it/i)).toBeInTheDocument();
   expect(mockCreateOffer).not.toHaveBeenCalled();
+});
+
+test('buyers can choose a different approved meetup hub before sending an offer', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+      fullName: 'Buyer One',
+    },
+  });
+  mockCreateOffer.mockResolvedValue({
+    _id: 'offer-2',
+    conversationId: 'conversation-2',
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+  fireEvent.click(screen.getByRole('radio', { name: /reitz union/i }));
+  fireEvent.change(screen.getByLabelText(/your offer/i), {
+    target: { value: '19' },
+  });
+  fireEvent.change(screen.getByLabelText(/meetup window/i), {
+    target: { value: 'Wed 3:00 PM - 4:00 PM' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
+
+  await waitFor(() => {
+    expect(mockCreateOffer).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({
+        meetupHubId: 'reitz',
+        meetupLocation: 'Reitz Union',
+      })
+    );
+  });
 });
 
 test('signed-in owners still see the delete control', async () => {

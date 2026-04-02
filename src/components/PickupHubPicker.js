@@ -27,12 +27,15 @@ function MapPin({ hub, isSelected, onSelect }) {
   return (
     <button
       type="button"
-      className="group absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none"
+      className={cn(
+        'group absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none',
+        isSelected ? 'z-20' : 'z-10 hover:z-20 focus-visible:z-20'
+      )}
       style={{
         left: `${hub.mapX}%`,
         top: `${hub.mapY}%`,
       }}
-      onClick={() => onSelect(hub.id)}
+      onClick={() => onSelect(hub.id, { userInitiated: true })}
       aria-label={`Select ${hub.label}`}
       aria-pressed={isSelected}
     >
@@ -66,7 +69,7 @@ function HubOptionCard({ hub, index, isSelected, onSelect }) {
       type="button"
       role="radio"
       aria-checked={isSelected}
-      onClick={() => onSelect(hub.id)}
+      onClick={() => onSelect(hub.id, { userInitiated: true })}
       className={cn(
         'focus-ring flex w-full items-start gap-3 rounded-[1.2rem] border px-3.5 py-3.5 text-left transition-all duration-200 sm:gap-4 sm:rounded-[1.4rem] sm:px-4 sm:py-4',
         isSelected
@@ -127,6 +130,14 @@ export function PickupHubPicker({
     };
   }, []);
 
+  const handleSelect = (hubId, { userInitiated = false } = {}) => {
+    if (userInitiated) {
+      setShowMapHint(false);
+    }
+
+    onChange?.(hubId);
+  };
+
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -143,19 +154,19 @@ export function PickupHubPicker({
         <div className="hidden sm:block">
           <div className="relative aspect-[16/10] overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-surface/80">
             <MapBackground />
-            <div className="absolute inset-0">
+            <div className="absolute inset-0 z-10">
               {APPROVED_PICKUP_HUBS.map((hub) => (
                 <MapPin
                   key={hub.id}
                   hub={hub}
                   isSelected={hub.id === selectedHubId}
-                  onSelect={onChange}
+                  onSelect={handleSelect}
                 />
               ))}
             </div>
             <div
               className={cn(
-                'absolute bottom-4 left-4 max-w-[16rem] rounded-[1.25rem] border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-sm transition-opacity duration-700',
+                'absolute bottom-4 left-4 z-30 max-w-[16rem] rounded-[1.25rem] border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-sm transition-opacity duration-700',
                 showMapHint ? 'opacity-100' : 'pointer-events-none opacity-0'
               )}
             >
@@ -163,7 +174,7 @@ export function PickupHubPicker({
                 Approved public meetup hubs
               </p>
               <p className="mt-1 text-sm leading-6 text-app-soft">
-                Choose a pin on the map, you can determine an exact location with buyers later.
+                Choose a pin on the map, you can coordinate an exact location later.
               </p>
             </div>
           </div>
@@ -200,7 +211,7 @@ export function PickupHubPicker({
               hub={hub}
               index={index}
               isSelected={hub.id === selectedHubId}
-              onSelect={onChange}
+              onSelect={handleSelect}
             />
           ))}
         </div>

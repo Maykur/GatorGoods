@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/react';
+import { PickupHubPicker } from '../components/PickupHubPicker';
 import { createConversation } from '../lib/messagesApi';
 import { createOffer } from '../lib/offersApi';
+import { getPickupHubById, resolvePickupHub } from '../lib/pickupHubs';
 import { toListingDetailViewModel, toTrustMetricsViewModel } from '../lib/viewModels';
 import {
   AppIcon,
@@ -48,8 +50,8 @@ function validateOfferForm(values) {
     errors.offeredPrice = 'Offer amount must be zero or greater.';
   }
 
-  if (!values.meetupLocation.trim()) {
-    errors.meetupLocation = 'Meetup location is required.';
+  if (!values.meetupHubId.trim()) {
+    errors.meetupHubId = 'Meetup hub is required.';
   }
 
   if (!values.meetupWindow.trim()) {
@@ -111,7 +113,7 @@ export function ItemPage() {
   const [isOfferComposerOpen, setIsOfferComposerOpen] = useState(false);
   const [offerValues, setOfferValues] = useState({
     offeredPrice: '',
-    meetupLocation: '',
+    meetupHubId: '',
     meetupWindow: '',
     paymentMethod: 'cash',
     message: '',
@@ -128,6 +130,8 @@ export function ItemPage() {
   const isOwner = Boolean(itemView?.isOwner);
   const trustMetrics = useMemo(() => toTrustMetricsViewModel(sellerProfile), [sellerProfile]);
   const categoryIcon = itemView ? getCategoryIcon(itemView.category) : null;
+  const selectedMeetupHub = getPickupHubById(offerValues.meetupHubId);
+  const selectedMeetupLabel = selectedMeetupHub?.label || '';
 
   useEffect(() => {
     let isMounted = true;
@@ -151,9 +155,10 @@ export function ItemPage() {
         }
 
         setItem(data);
+        const defaultMeetupHubId = data.pickupHubId || resolvePickupHub(data.itemLocation)?.id || '';
         setOfferValues((currentValues) => ({
           ...currentValues,
-          meetupLocation: data.itemLocation || '',
+          meetupHubId: defaultMeetupHubId,
         }));
         setError('');
       } catch (fetchError) {
@@ -355,6 +360,17 @@ export function ItemPage() {
     }));
   };
 
+  const handleMeetupHubChange = (meetupHubId) => {
+    setOfferValues((currentValues) => ({
+      ...currentValues,
+      meetupHubId,
+    }));
+    setOfferFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      meetupHubId: '',
+    }));
+  };
+
   const handleOfferSubmit = async (event) => {
     event.preventDefault();
 
@@ -386,7 +402,8 @@ export function ItemPage() {
           user.primaryEmailAddress?.emailAddress?.split('@')[0] ||
           'Buyer',
         offeredPrice: Number(offerValues.offeredPrice),
-        meetupLocation: offerValues.meetupLocation,
+        meetupHubId: offerValues.meetupHubId,
+        meetupLocation: selectedMeetupLabel,
         meetupWindow: offerValues.meetupWindow,
         paymentMethod: offerValues.paymentMethod,
         message: offerValues.message,
@@ -515,7 +532,7 @@ export function ItemPage() {
                       </p>
                       <h2 className="text-2xl font-semibold text-white">Share your offer</h2>
                       <p className="text-sm leading-7 text-app-soft">
-                        Add your price, payment method, and a good time and place to meet.
+                        Add your price, payment method, and a campus meetup hub that works for you.
                       </p>
                     </div>
 
@@ -533,14 +550,13 @@ export function ItemPage() {
                         placeholder="18"
                         required
                       />
-                      <Input
-                        id="offer-meetup-location"
-                        label="Meetup location"
-                        leadingIcon="location"
-                        value={offerValues.meetupLocation}
-                        onChange={handleOfferFieldChange('meetupLocation')}
-                        error={offerFieldErrors.meetupLocation}
-                        placeholder="Plaza of the Americas"
+                      <PickupHubPicker
+                        id="offer-meetup-hub"
+                        label="Proposed meetup hub"
+                        description="Start from the seller's selected pickup hub or suggest another approved campus meetup spot."
+                        selectedHubId={offerValues.meetupHubId}
+                        onChange={handleMeetupHubChange}
+                        error={offerFieldErrors.meetupHubId}
                         required
                       />
                       <Input

@@ -133,6 +133,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
       buyerClerkUserId: 'buyer-1',
       sellerClerkUserId: 'seller-1',
       offeredPrice: 18,
+      meetupHubId: 'plaza-americas',
       meetupLocation: 'Plaza of the Americas',
       meetupWindow: 'Tue 1:00 PM - 2:00 PM',
       paymentMethod: 'cash',
@@ -146,6 +147,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
       buyerClerkUserId: 'buyer-2',
       sellerClerkUserId: 'seller-1',
       offeredPrice: 20,
+      meetupHubId: 'library-west',
       meetupLocation: 'Library West',
       meetupWindow: 'Wed 3:00 PM - 4:00 PM',
       paymentMethod: 'externalApp',
@@ -162,6 +164,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
   expect(screen.getByText('Buyer Two')).toBeInTheDocument();
   expect(screen.getByText('$18')).toBeInTheDocument();
   expect(screen.getByText('External app')).toBeInTheDocument();
+  expect(screen.getAllByText('Proposed meetup hub')).toHaveLength(2);
   expect(screen.getAllByRole('button', { name: /accept/i })).toHaveLength(2);
 });
 
@@ -174,6 +177,7 @@ test('seller mode can accept an offer and refresh the inbox', async () => {
         buyerClerkUserId: 'buyer-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',
@@ -189,6 +193,7 @@ test('seller mode can accept an offer and refresh the inbox', async () => {
         buyerClerkUserId: 'buyer-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',
@@ -228,6 +233,7 @@ test('buyer mode shows sent offers and seller context', async () => {
         buyerClerkUserId: 'seller-1',
         sellerClerkUserId: 'seller-1',
         offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
         meetupWindow: 'Tue 1:00 PM - 2:00 PM',
         paymentMethod: 'cash',

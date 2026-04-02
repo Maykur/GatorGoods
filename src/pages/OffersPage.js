@@ -370,7 +370,7 @@ export function OffersPage() {
                       <OfferMetaCard icon="payment" label="Offer" value={offer.offeredPriceLabel} emphasis />
                       <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
                       <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
-                      <OfferMetaCard icon="location" label="Meetup location" value={offer.meetupLocation} />
+                      <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
                     </div>
 
                     {offer.buyerTrust ? (
@@ -445,7 +445,7 @@ export function OffersPage() {
                 <OfferMetaCard icon="payment" label="Your offer" value={offer.offeredPriceLabel} emphasis />
                 <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
                 <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
-                <OfferMetaCard icon="location" label="Meetup location" value={offer.meetupLocation} />
+                <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
               </div>
 
               <p className="text-sm leading-7 text-app-soft">
