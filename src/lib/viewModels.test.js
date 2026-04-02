@@ -93,6 +93,10 @@ test('toConversationPreviewViewModel marks conversations unread when last messag
   const preview = toConversationPreviewViewModel(
     {
       _id: 'conversation-1',
+      activeItem: {
+        title: 'Desk Lamp',
+      },
+      linkedItemCount: 3,
       lastMessageText: 'Still available?',
       lastMessageAt: '2026-03-30T10:00:00.000Z',
       lastReadAtByUser: {
@@ -113,6 +117,9 @@ test('toConversationPreviewViewModel marks conversations unread when last messag
 
   expect(preview.participantName).toBe('Seller One');
   expect(preview.listingName).toBe('Desk Lamp');
+  expect(preview.activeItemTitle).toBe('Desk Lamp');
+  expect(preview.linkedItemCount).toBe(3);
+  expect(preview.extraItemCount).toBe(2);
   expect(preview.lastMessageText).toBe('Still available?');
   expect(preview.isUnread).toBe(true);
 });

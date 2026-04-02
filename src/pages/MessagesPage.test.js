@@ -55,13 +55,6 @@ beforeEach(() => {
       });
     }
 
-    if (url === 'http://localhost:5000/items/item-1') {
-      return jsonResponse({
-        _id: 'item-1',
-        itemName: 'Desk Lamp',
-      });
-    }
-
     throw new Error(`Unhandled fetch request: ${url}`);
   });
 });
@@ -76,6 +69,11 @@ test('conversation previews include seller and listing context', async () => {
       _id: 'conversation-1',
       participantIds: ['buyer-1', 'seller-1'],
       activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+      },
+      linkedItemCount: 1,
       lastMessageText: 'Is this still available?',
       lastMessageAt: '2026-03-29T12:00:00.000Z',
       lastReadAtByUser: {
@@ -90,6 +88,32 @@ test('conversation previews include seller and listing context', async () => {
   expect(screen.getByText(/about desk lamp/i)).toBeInTheDocument();
   expect(screen.getByText('Is this still available?')).toBeInTheDocument();
   expect(screen.getByText('Unread')).toBeInTheDocument();
+});
+
+test('conversation previews show compact extra-item counts for multi-item threads', async () => {
+  mockGetConversations.mockResolvedValue([
+    {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+      },
+      linkedItemCount: 3,
+      lastMessageText: 'Could bundle the lamp and fridge.',
+      lastMessageAt: '2026-03-29T12:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T12:00:00.000Z',
+      },
+    },
+  ]);
+
+  render(<MessagesPage />);
+
+  expect(await screen.findByRole('heading', { name: 'Seller One' })).toBeInTheDocument();
+  expect(screen.getByText('+2 more')).toBeInTheDocument();
+  expect(screen.getByText(/about desk lamp/i)).toBeInTheDocument();
 });
 
 test('empty inbox shows the designed empty state', async () => {

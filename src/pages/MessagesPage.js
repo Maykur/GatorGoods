@@ -56,8 +56,6 @@ export function MessagesPage() {
       }
 
       const profileCache = new Map();
-      const listingCache = new Map();
-
       try {
         if (showLoadingState) {
           setIsLoading(true);
@@ -75,31 +73,23 @@ export function MessagesPage() {
               ? profileCache.get(otherParticipantId) ||
                 fetchOptionalJson(`${API_BASE_URL}/profile/${otherParticipantId}`)
               : Promise.resolve(null);
-            const listingKey = conversation.activeListingId?.toString?.() || '';
-            const listingPromise = listingKey
-              ? listingCache.get(listingKey) || fetchOptionalJson(`${API_BASE_URL}/items/${listingKey}`)
-              : Promise.resolve(null);
 
             if (otherParticipantId && !profileCache.has(otherParticipantId)) {
               profileCache.set(otherParticipantId, profilePromise);
             }
 
-            if (listingKey && !listingCache.has(listingKey)) {
-              listingCache.set(listingKey, listingPromise);
-            }
-
-            const [profileData, listingData] = await Promise.all([profilePromise, listingPromise]);
+            const profileData = await profilePromise;
             const preview = toConversationPreviewViewModel(
               conversation,
               profileData,
-              listingData,
+              null,
               user.id
             );
 
             return {
               ...preview,
               participantId: otherParticipantId || '',
-              listingId: listingData?._id || listingKey,
+              listingId: conversation.activeItem?.listingId?.toString?.() || conversation.activeListingId?.toString?.() || '',
             };
           })
         );
@@ -219,6 +209,11 @@ export function MessagesPage() {
                           ? `About ${conversation.listingName}`
                           : conversation.listingName}
                       </span>
+                      {conversation.extraItemCount > 0 ? (
+                        <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-app-muted">
+                          +{conversation.extraItemCount} more
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                 </div>

@@ -181,12 +181,18 @@ export function toConversationPreviewViewModel(raw, profile, listing, viewerId) 
   const lastReadAt =
     raw?.lastReadAtByUser?.[viewerId] ||
     (typeof raw?.lastReadAtByUser?.get === 'function' ? raw.lastReadAtByUser.get(viewerId) : null);
+  const activeItemTitle = normalizeText(raw?.activeItem?.title, normalizeText(listing?.itemName, 'General conversation'));
+  const linkedItemCount = Math.max(0, Number(raw?.linkedItemCount) || 0);
+  const extraItemCount = linkedItemCount > 1 ? linkedItemCount - 1 : 0;
 
   return {
     id: raw?._id || '',
     participantName: normalizeText(profile?.profile?.profileName, raw?.otherParticipantId || 'Conversation'),
     participantAvatarUrl: normalizeText(profile?.profile?.profilePicture, ''),
-    listingName: normalizeText(listing?.itemName, 'General conversation'),
+    listingName: activeItemTitle,
+    activeItemTitle,
+    linkedItemCount,
+    extraItemCount,
     lastMessageText: normalizeText(raw?.lastMessageText, 'No messages yet'),
     lastMessageAtLabel: formatDateLabel(raw?.lastMessageAt),
     isUnread: Boolean(
