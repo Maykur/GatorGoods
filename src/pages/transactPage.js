@@ -5,6 +5,7 @@ import { getIndividualOffer } from '../lib/offersApi';
 import { toOfferCardViewModel } from '../lib/viewModels';
 import {
   AppIcon,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -102,7 +103,7 @@ function getStatusMessage(status) {
 
 function ReadOnlyPickupMap({ selectedHubId }) {
   return (
-    <div className="relative aspect-[16/10] overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-surface/80">
+    <div className="relative aspect-square w-full max-w-xs overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-surface/80">
       <div
         aria-hidden="true"
         className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(145deg,rgba(13,38,76,0.96),rgba(8,20,43,0.92))]"
@@ -220,11 +221,18 @@ export function TransactPage() {
                 Back to offers
               </Button>
             </Link>
-            <Link to="/messages" className="no-underline">
-              <Button variant="ghost" size="sm" leadingIcon="messages">
-                Open messages
-              </Button>
-            </Link>
+            {offer?.conversationId ? (
+              <Link to={`/messages/${offer.conversationId}`} className="no-underline">
+                <Button size="sm" leadingIcon="messages">
+                  Message {offer?.sellerId === user?.id ? 'buyer' : 'seller'}
+                </Button>
+              </Link>
+            ) : null}
+            {offer?.listingId ? (
+              <Link to={`/items/${offer.listingId}`} className="no-underline">
+                <Button variant="secondary" size="sm" leadingIcon="listing">View listing</Button>
+              </Link>
+            ) : null}
           </div>
         }
       />
@@ -264,123 +272,74 @@ export function TransactPage() {
             </div>
           </Card>
 
-          {/* Item photo & meetup map */}
-          {(offer.listingImageUrl || offer.meetupHubId) ? (
-            <Card className="space-y-5">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                <AppIcon icon="listing" className="text-[0.95em]" />
-                <span>Item &amp; Meetup Location</span>
-              </div>
-              <div className={cn('grid gap-5', offer.listingImageUrl && offer.meetupHubId ? 'sm:grid-cols-2' : '')}>
-                {offer.listingImageUrl ? (
-                  <div className="overflow-hidden rounded-[1.5rem] border border-white/10">
-                    <img
-                      src={offer.listingImageUrl}
-                      alt={offer.listingTitle}
-                      className="aspect-[4/3] h-full w-full object-cover"
-                    />
-                  </div>
-                ) : null}
-                {offer.meetupHubId ? (
-                  <ReadOnlyPickupMap selectedHubId={offer.meetupHubId} />
-                ) : null}
-              </div>
-            </Card>
-          ) : null}
-
-          {/* Order details */}
+          {/* Order details — item, meetup, summary, and counterpart combined */}
           <Card className="space-y-5">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                <AppIcon icon="payment" className="text-[0.95em]" />
-                <span>Order Summary</span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <OrderMetaCard icon="payment" label="Amount due" value={offer.offeredPriceLabel} emphasis />
-              <OrderMetaCard icon="payment" label="Payment method" value={offer.paymentMethodLabel} />
-              <OrderMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
-              <OrderMetaCard icon="location" label="Meetup hub" value={offer.meetupLocation} />
-            </div>
-
-            {offer.message ? (
-              <div className="space-y-1 border-t border-white/10 pt-4">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">
-                  <AppIcon icon="message" className="text-[0.95em]" />
-                  <span>Note from {isSeller ? 'buyer' : 'you'}</span>
-                </div>
-                <p className="text-sm leading-7 text-app-soft">{offer.message}</p>
-              </div>
-            ) : null}
-          </Card>
-
-          {/* Counterpart info */}
-          <Card className="space-y-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-xl font-semibold text-white">{counterpartName}</h3>
-                  <Badge variant="info">{counterpartLabel}</Badge>
-                  {counterpartTrust ? (
-                    <Badge variant="orange" icon="rating">{counterpartTrust.overallRatingLabel}</Badge>
-                  ) : null}
-                </div>
-                <p className="text-sm text-app-soft">
-                  {isSeller
-                    ? 'This is the buyer you will be meeting for the transaction.'
-                    : 'This is the seller you will be meeting for the transaction.'}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {counterpartId ? (
-                  <Link to={`/profile/${counterpartId}`} className="no-underline">
-                    <Button variant="ghost" size="sm" leadingIcon="seller">
-                      {counterpartLabel} profile
-                    </Button>
-                  </Link>
-                ) : null}
-                {offer.conversationId ? (
-                  <Link to={`/messages/${offer.conversationId}`} className="no-underline">
-                    <Button variant="ghost" size="sm" leadingIcon="messages">
-                      Conversation
-                    </Button>
-                  </Link>
-                ) : null}
-              </div>
-            </div>
-
-            {counterpartTrust ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <OrderMetaCard icon="reliability" label="Reliability" value={counterpartTrust.reliabilityLabel} />
-                <OrderMetaCard icon="accuracy" label="Accuracy" value={counterpartTrust.accuracyLabel} />
-                <OrderMetaCard icon="responsiveness" label="Responsiveness" value={counterpartTrust.responsivenessLabel} />
-                <OrderMetaCard icon="safety" label="Safety" value={counterpartTrust.safetyLabel} />
-              </div>
-            ) : null}
-          </Card>
-
-          {/* Quick actions */}
-          <Card className="space-y-4">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              <AppIcon icon="browse" className="text-[0.95em]" />
-              <span>Quick actions</span>
+              <AppIcon icon="listing" className="text-[0.95em]" />
+              <span>Order Details</span>
             </div>
-            <div className="flex flex-wrap gap-3">
-              {offer.conversationId ? (
-                <Link to={`/messages/${offer.conversationId}`} className="no-underline">
-                  <Button leadingIcon="messages">Message {counterpartLabel.toLowerCase()}</Button>
-                </Link>
-              ) : null}
-              <Link to={`/items/${offer.listingId}`} className="no-underline">
-                <Button variant="secondary" leadingIcon="listing">View listing</Button>
-              </Link>
-              <Link to="/offers" className="no-underline">
-                <Button variant="ghost" leadingIcon="offers">All offers</Button>
-              </Link>
+
+            {/* Item photo — centered at top, uncropped */}
+            {offer.listingImageUrl ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="overflow-hidden rounded-2xl bg-app-surface/60 w-48 h-48 flex items-center justify-center">
+                  <img
+                    src={offer.listingImageUrl}
+                    alt={offer.listingTitle}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+
+                {/* Seller row */}
+                <div className="w-full max-w-sm space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Link to={`/profile/${offer.sellerId}`} className="no-underline flex-shrink-0">
+                        <Avatar src={offer.sellerAvatarUrl} name={offer.sellerName} size="sm" />
+                      </Link>
+                      <p className="text-sm text-app-soft truncate">
+                        <Link to={`/profile/${offer.sellerId}`} className="font-semibold text-white no-underline hover:underline">
+                          {offer.sellerName}
+                        </Link>
+                        {'\u2019s '}{offer.listingTitle}
+                      </p>
+                    </div>
+                    <span className="flex items-center gap-1.5 text-sm font-bold text-white flex-shrink-0">
+                      <AppIcon icon="payment" className="text-gatorOrange text-[0.9em]" />
+                      {offer.offeredPriceLabel}
+                    </span>
+                  </div>
+
+                  {/* Location & time row */}
+                  <div className="flex items-center justify-between text-xs text-app-muted">
+                    <span className="flex items-center gap-1.5">
+                      <AppIcon icon="location" className="text-gatorOrange text-[0.85em]" />
+                      {offer.meetupLocation}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <AppIcon icon="time" className="text-gatorOrange text-[0.85em]" />
+                      {offer.meetupWindow}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Meetup map */}
+            {offer.meetupHubId ? (
+              <div className="flex justify-center">
+                <ReadOnlyPickupMap selectedHubId={offer.meetupHubId} />
+              </div>
+            ) : null}
+
+            {/* Exchange actions */}
+            <div className="flex justify-center gap-3 pt-1">
+              <Button leadingIcon="verified">Confirm Exchange</Button>
+              <Button variant="danger" className="bg-red-600 hover:bg-red-500">Cancel Exchange</Button>
             </div>
           </Card>
+
+
         </div>
       ) : null}
     </section>

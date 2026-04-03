@@ -257,6 +257,10 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
       sellerProfile?.profile?.profileName || sellerProfile?.profileName || listing?.userPublishingName,
       DEFAULT_SELLER_NAME
     ),
+    sellerAvatarUrl: normalizeText(
+      sellerProfile?.profile?.profilePicture || sellerProfile?.profilePicture,
+      ''
+    ),
     offeredPrice: Number(rawOffer?.offeredPrice) || 0,
     offeredPriceLabel: formatPriceLabel(rawOffer?.offeredPrice),
     meetupLocation: getPickupHubLabel(meetupHubId, normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION)),
