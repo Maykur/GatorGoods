@@ -23,6 +23,7 @@ import {
   toProfileHeaderViewModel,
   toTrustMetricsViewModel,
 } from '../lib/viewModels';
+import { getOffers } from '../lib/offersApi';
 
 const API_BASE_URL = 'http://localhost:5000';
 const REVIEW_OPTIONS = ['0', '1', '2', '3', '4', '5'];
@@ -137,6 +138,10 @@ function TrustMetricSurface({ icon, label, value, description }) {
   );
 }
 
+function isLegacyOfferScheduledToday(offer) {
+  return offer?.status === 'accepted' && /\btoday\b/i.test(offer?.meetupWindow || '');
+}
+
 export function ProfilePage({ ownerView = false }) {
   const { user, isSignedIn } = useUser();
   const { id } = useParams();
@@ -147,6 +152,7 @@ export function ProfilePage({ ownerView = false }) {
   const [error, setError] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [reviewScore, setReviewScore] = useState('');
+  const [ownerTodayTransactionOfferIdsByListingId, setOwnerTodayTransactionOfferIdsByListingId] = useState({});
   const [profileForm, setProfileForm] = useState(getEditableProfileValues(null));
   const [profileFormError, setProfileFormError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -169,6 +175,7 @@ export function ProfilePage({ ownerView = false }) {
 
     if (!profileId) {
       setInfo(null);
+      setOwnerTodayTransactionOfferIdsByListingId({});
       setError(ownerView ? 'Sign in to manage your profile.' : 'Profile not found');
       setIsLoading(false);
       return undefined;
@@ -178,16 +185,44 @@ export function ProfilePage({ ownerView = false }) {
       try {
         setIsLoading(true);
         const profileData = await loadProfile();
+        let todayTransactionOfferIdsByListingId = {};
+
+        if (ownerView && user?.id) {
+          try {
+            const sellerOffers = await getOffers({
+              participantId: user.id,
+              role: 'seller',
+            });
+
+            todayTransactionOfferIdsByListingId = sellerOffers.reduce((accumulator, offer) => {
+              const listingId = offer?.listingId?.toString?.() || offer?.listingId || '';
+
+              if (
+                listingId &&
+                offer?.sellerClerkUserId === user.id &&
+                isLegacyOfferScheduledToday(offer)
+              ) {
+                accumulator[listingId] = offer?._id || offer?.id || '';
+              }
+
+              return accumulator;
+            }, {});
+          } catch {
+            todayTransactionOfferIdsByListingId = {};
+          }
+        }
 
         if (!isMounted) {
           return;
         }
 
         setInfo(profileData);
+        setOwnerTodayTransactionOfferIdsByListingId(todayTransactionOfferIdsByListingId);
         setError('');
       } catch (loadError) {
         if (isMounted) {
           setInfo(null);
+          setOwnerTodayTransactionOfferIdsByListingId({});
           setError(loadError.message || 'Failed to load profile');
         }
       } finally {
@@ -202,14 +237,27 @@ export function ProfilePage({ ownerView = false }) {
     return () => {
       isMounted = false;
     };
-  }, [loadProfile, ownerView, profileId]);
+  }, [loadProfile, ownerView, profileId, user?.id]);
 
   const profileHeader = useMemo(
     () => (info ? toProfileHeaderViewModel(info, info.listings, ownerView ? user?.id : null) : null),
     [info, ownerView, user?.id]
   );
   const trustMetrics = useMemo(() => toTrustMetricsViewModel(info), [info]);
-  const listingItems = useMemo(() => (info?.listings || []).map(toListingCardViewModel), [info]);
+  const listingItems = useMemo(
+    () =>
+      (info?.listings || []).map((listing) => {
+        const listingView = toListingCardViewModel(listing);
+
+        return {
+          ...listingView,
+          transactionOfferId: ownerView
+            ? ownerTodayTransactionOfferIdsByListingId[listingView.id] || ''
+            : '',
+        };
+      }),
+    [info, ownerTodayTransactionOfferIdsByListingId, ownerView]
+  );
   const canReview = Boolean(
     !ownerView &&
       isSignedIn &&

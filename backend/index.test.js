@@ -985,6 +985,72 @@ test('GET /api/offers returns offers for both seller and buyer views', async () 
   assert.equal(buyerResponse.body[0].buyerClerkUserId, 'buyer_1');
 });
 
+test('GET /api/offers/:id blocks unrelated users from reading an accepted offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
+    });
+
+  const response = await request(app)
+    .get(`/api/offers/${offerResponse.body._id}`)
+    .query({
+      participantId: 'random_user',
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'You are not authorized to view this offer');
+});
+
+test('GET /api/offers/:id allows the seller to read an accepted offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
+    });
+
+  const response = await request(app)
+    .get(`/api/offers/${offerResponse.body._id}`)
+    .query({
+      participantId: profile.profileID,
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body._id, offerResponse.body._id);
+});
+
+test('GET /api/offers/:id allows the accepted buyer to read an accepted offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
+    });
+
+  const response = await request(app)
+    .get(`/api/offers/${offerResponse.body._id}`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body._id, offerResponse.body._id);
+});
+
 test('PATCH /api/offers/:id only allows the seller to update a pending offer', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id);

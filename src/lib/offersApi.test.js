@@ -1,4 +1,4 @@
-import {createOffer, getOffers, updateOfferStatus} from './offersApi';
+import {createOffer, getIndividualOffer, getOffers, updateOfferStatus} from './offersApi';
 
 function jsonResponse(body, status = 200) {
   return Promise.resolve({
@@ -46,6 +46,19 @@ test('getOffers requests offers using the buyer or seller query parameters', asy
 
   expect(global.fetch).toHaveBeenCalledWith(
     'http://localhost:5000/api/offers?participantId=seller-1&role=seller',
+    undefined
+  );
+});
+
+test('getIndividualOffer includes the participant query parameter for protected reads', async () => {
+  global.fetch.mockImplementation(() => jsonResponse({_id: 'offer-1'}));
+
+  await getIndividualOffer('offer-1', {
+    participantId: 'seller-1',
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:5000/api/offers/offer-1?participantId=seller-1',
     undefined
   );
 });

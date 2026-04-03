@@ -94,9 +94,11 @@ function ItemCard({
               <Button variant="secondary" leadingIcon="open">View details</Button>
             </Link>
 
-            <Link to={`/transact/${item.offerId}`} className="no-underline">
-              <Button variant="secondary" leadingIcon="offers">Transact View</Button>
-            </Link>
+            {item.transactionOfferId ? (
+              <Link to={`/transact/${item.transactionOfferId}`} className="no-underline">
+                <Button leadingIcon="offers">Open transaction</Button>
+              </Link>
+            ) : null}
 
             {isOwner ? (
               <Button

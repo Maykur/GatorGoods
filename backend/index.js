@@ -668,6 +668,19 @@ function getFirstName(value) {
   return trimmedValue.split(/\s+/)[0];
 }
 
+function isOfferParticipant(offer, participantId) {
+  const normalizedParticipantId = normalizeOptionalString(participantId);
+
+  if (!offer || !normalizedParticipantId) {
+    return false;
+  }
+
+  return [
+    normalizeOptionalString(offer.buyerClerkUserId),
+    normalizeOptionalString(offer.sellerClerkUserId),
+  ].includes(normalizedParticipantId);
+}
+
 function normalizeLinkedItemForComparison(linkedItem = {}) {
   return {
     listingId: toIdString(linkedItem.listingId),
@@ -2258,15 +2271,24 @@ app.get('/api/offers', async (req, resp) => {
 app.get('/api/offers/:id', async (req, resp) => {
   try {
     const offerId = toObjectId(req.params.id);
+    const participantId = normalizeOptionalString(req.query.participantId);
 
     if (!offerId) {
       return resp.status(400).json({ message: 'Valid offer id is required' });
+    }
+
+    if (!participantId) {
+      return resp.status(400).json({message: 'participantId is required'});
     }
 
     const offer = await Offer.findById(offerId);
 
     if (!offer) {
       return resp.status(404).json({ message: 'Offer not found' });
+    }
+
+    if (!isOfferParticipant(offer, participantId)) {
+      return resp.status(403).json({message: 'You are not authorized to view this offer'});
     }
 
     resp.json(offer);

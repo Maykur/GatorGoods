@@ -152,7 +152,7 @@ function ReadOnlyPickupMap({ selectedHubId }) {
 
 export function TransactPage() {
   const { orderId } = useParams();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [offer, setOffer] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -164,11 +164,24 @@ export function TransactPage() {
       return;
     }
 
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!user?.id) {
+      setOffer(null);
+      setError('Sign in to view this transaction.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError('');
 
-      const rawOffer = await getIndividualOffer(orderId);
+      const rawOffer = await getIndividualOffer(orderId, {
+        participantId: user.id,
+      });
 
       const listingId = rawOffer.listingId?.toString?.() || rawOffer.listingId || '';
       const counterpartId =
@@ -195,7 +208,7 @@ export function TransactPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [orderId, user?.id]);
+  }, [isLoaded, orderId, user?.id]);
 
   useEffect(() => {
     loadOrder();

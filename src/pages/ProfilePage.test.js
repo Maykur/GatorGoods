@@ -5,6 +5,8 @@ import { resetClerkState, setClerkState } from '../testUtils/mockClerk';
 const mockShowToast = jest.fn();
 const mockConfirm = jest.fn(() => Promise.resolve(true));
 let mockRouteParams = { id: 'seller-1' };
+let mockProfileResponse;
+let mockSellerOffers;
 
 jest.mock('@clerk/react', () => {
   const { getClerkState } = require('../testUtils/mockClerk');
@@ -49,7 +51,7 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-function buildProfileResponse() {
+function buildProfileResponse(overrides = {}) {
   return {
     profile: {
       profileID: 'seller-1',
@@ -69,20 +71,23 @@ function buildProfileResponse() {
         responsiveness: 100,
         safety: 81,
       },
+      ...overrides.profile,
     },
-    listings: [
-      {
-        _id: 'item-1',
-        itemName: 'Desk Lamp',
-        itemCost: '20',
-        itemCondition: 'Good',
-        itemLocation: 'Library West',
-        itemPicture: 'lamp.png',
-        itemCat: 'Electronics & Computers',
-        userPublishingName: 'Seller One',
-        status: 'active',
-      },
-    ],
+    listings:
+      overrides.listings ||
+      [
+        {
+          _id: 'item-1',
+          itemName: 'Desk Lamp',
+          itemCost: '20',
+          itemCondition: 'Good',
+          itemLocation: 'Library West',
+          itemPicture: 'lamp.png',
+          itemCat: 'Electronics & Computers',
+          userPublishingName: 'Seller One',
+          status: 'active',
+        },
+      ],
   };
 }
 
@@ -92,10 +97,16 @@ beforeEach(() => {
   mockConfirm.mockReset();
   mockConfirm.mockResolvedValue(true);
   mockRouteParams = { id: 'seller-1' };
+  mockProfileResponse = buildProfileResponse();
+  mockSellerOffers = [];
 
   global.fetch = jest.fn((url, options = {}) => {
     if (url === 'http://localhost:5000/profile/seller-1') {
-      return jsonResponse(buildProfileResponse());
+      return jsonResponse(mockProfileResponse);
+    }
+
+    if (url === 'http://localhost:5000/api/offers?participantId=seller-1&role=seller') {
+      return jsonResponse(mockSellerOffers);
     }
 
     if (url === 'http://localhost:5000/items/item-2') {
@@ -115,14 +126,14 @@ beforeEach(() => {
 
     if (url === 'http://localhost:5000/update_score/seller-1' && options.method === 'POST') {
       return jsonResponse({
-        ...buildProfileResponse().profile,
+        ...mockProfileResponse.profile,
         profileRating: 4.7,
       });
     }
 
     if (url === 'http://localhost:5000/user/seller-1' && options.method === 'PATCH') {
       return jsonResponse({
-        ...buildProfileResponse().profile,
+        ...mockProfileResponse.profile,
         profileName: 'Updated Seller',
         profileBio: 'Updated bio',
       });
@@ -156,6 +167,7 @@ test('signed-out users can view a public seller profile with trust metrics and c
   );
   expect(screen.getByText('Desk Lamp')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /save profile changes/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /open transaction/i })).not.toBeInTheDocument();
 });
 
 test('signed-in owners see their listings dashboard, edit form, and favorites shortcut', async () => {
@@ -175,7 +187,7 @@ test('signed-in owners see their listings dashboard, edit form, and favorites sh
   });
   expect(screen.getByLabelText(/short bio/i)).toHaveValue('Selling a few trusted dorm essentials.');
   expect(screen.getByRole('link', { name: /open favorites/i })).toHaveAttribute('href', '/favorites');
-  expect(screen.getByText(/your saved items now live in the main favorites page/i)).toBeInTheDocument();
+  expect(screen.getByText(/manage your current listings/i)).toBeInTheDocument();
 });
 
 test('signed-in owners can save lightweight public profile edits', async () => {
@@ -250,4 +262,62 @@ test('signed-in non-owners can submit a seller review', async () => {
       variant: 'success',
     })
   );
+});
+
+test('owner view shows a transaction CTA only for the seller item scheduled today', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+  mockProfileResponse = buildProfileResponse({
+    listings: [
+      {
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        itemCost: '20',
+        itemCondition: 'Good',
+        itemLocation: 'Library West',
+        itemPicture: 'lamp.png',
+        itemCat: 'Electronics & Computers',
+        userPublishingName: 'Seller One',
+        status: 'reserved',
+      },
+      {
+        _id: 'item-2',
+        itemName: 'Mini Fridge',
+        itemCost: '80',
+        itemCondition: 'Fair',
+        itemLocation: 'Broward Hall',
+        itemPicture: 'fridge.png',
+        itemCat: 'Home & Garden',
+        userPublishingName: 'Seller One',
+        status: 'reserved',
+      },
+    ],
+  });
+  mockSellerOffers = [
+    {
+      _id: 'offer-today',
+      listingId: 'item-1',
+      sellerClerkUserId: 'seller-1',
+      status: 'accepted',
+      meetupWindow: 'Today 4:30 PM - 5:00 PM',
+    },
+    {
+      _id: 'offer-tomorrow',
+      listingId: 'item-2',
+      sellerClerkUserId: 'seller-1',
+      status: 'accepted',
+      meetupWindow: 'Tomorrow 12:15 PM - 12:45 PM',
+    },
+  ];
+
+  render(<ProfilePage ownerView />);
+
+  const transactionLinks = await screen.findAllByRole('link', { name: /open transaction/i });
+  expect(transactionLinks).toHaveLength(1);
+  expect(transactionLinks[0]).toHaveAttribute('href', '/transact/offer-today');
+  expect(screen.queryByRole('link', { name: /transact view/i })).not.toBeInTheDocument();
 });

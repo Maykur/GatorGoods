@@ -50,9 +50,15 @@ export async function getOffers({participantId, role}) {
   );
 }
 
-export async function getIndividualOffer(offerId) {
+export async function getIndividualOffer(offerId, {participantId} = {}) {
+  const params = new URLSearchParams();
+
+  if (participantId) {
+    params.set('participantId', participantId);
+  }
+
   return fetchFromApi(
-    `${API_BASE_URL}/api/offers/${encodeURIComponent(offerId)}`,
+    `${API_BASE_URL}/api/offers/${encodeURIComponent(offerId)}${params.toString() ? `?${params.toString()}` : ''}`,
     undefined,
     'Failed to load offer'
   );
