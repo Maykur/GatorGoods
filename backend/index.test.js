@@ -436,6 +436,38 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   const linkedConversation = await Conversation.findById(response.body.conversationId);
   assert.deepEqual(linkedConversation.participantIds, ['buyer_1', 'user_1']);
   assert.equal(linkedConversation.activeListingId.toString(), item.id);
+  assert.equal(linkedConversation.lastMessageText, 'Buyer One sent an offer.');
+
+  const sentMessage = await Message.findOne({
+    conversationId: response.body.conversationId,
+    senderClerkUserId: 'system',
+  }).sort({createdAt: -1});
+  assert.equal(sentMessage.body, 'Buyer One sent an offer.');
+  assert.equal(sentMessage.offerSnapshot.eventType, 'sent');
+  assert.equal(sentMessage.offerSnapshot.offeredPrice, 18);
+  assert.equal(sentMessage.offerSnapshot.paymentMethod, 'cash');
+});
+
+test('GET /api/conversations/:id/messages resolves sent-offer titles to the buyer profile name when the snapshot is generic', async () => {
+  const {item} = await seedProfileAndItem();
+  await Profile.create({
+    profileID: 'buyer_1',
+    profileName: 'Avery Buyer',
+    profilePicture: 'https://example.com/buyer.png',
+  });
+
+  const offerResponse = await createOffer(item.id, {
+    buyerDisplayName: 'Buyer',
+  });
+
+  const response = await request(app)
+    .get(`/api/conversations/${offerResponse.body.conversationId}/messages`)
+    .query({
+      participantId: 'user_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.messages[0].offerContext.title, 'Avery sent an offer');
 });
 
 test('POST /api/conversations reuses the same participant thread across different listings', async () => {
@@ -825,8 +857,128 @@ test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines
     conversationId: firstOffer.conversationId,
     senderClerkUserId: 'system',
   }).sort({createdAt: -1});
-  assert.match(acceptanceMessage.body, /Offer accepted\./);
-  assert.match(acceptanceMessage.body, /Meetup specifics: Outside Library West by the front benches\./);
+  assert.equal(acceptanceMessage.body, 'Seller accepted your offer.');
+  assert.equal(acceptanceMessage.offerSnapshot.eventType, 'accepted');
+  assert.equal(acceptanceMessage.offerSnapshot.offeredPrice, 18);
+  assert.equal(acceptanceMessage.offerSnapshot.paymentMethod, 'cash');
+
+  const declinedConversation = await Conversation.findById(secondOffer.conversationId);
+  const declineMessage = await Message.findOne({
+    conversationId: declinedConversation._id,
+    senderClerkUserId: 'system',
+  }).sort({createdAt: -1});
+  assert.equal(declineMessage.body, 'Seller rejected your offer.');
+  assert.equal(declineMessage.offerSnapshot.eventType, 'declined');
+});
+
+test('GET /api/conversations/:id/messages makes accepted and rejected offer titles viewer-aware', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id, {
+    buyerDisplayName: 'Jasmine Patel',
+  });
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Meet by the front benches.',
+    });
+
+  const sellerViewResponse = await request(app)
+    .get(`/api/conversations/${offerResponse.body.conversationId}/messages`)
+    .query({
+      participantId: profile.profileID,
+    });
+
+  const buyerViewResponse = await request(app)
+    .get(`/api/conversations/${offerResponse.body.conversationId}/messages`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  const acceptedSellerMessage = sellerViewResponse.body.messages.find(
+    (message) => message.offerContext?.eventType === 'accepted'
+  );
+  const acceptedBuyerMessage = buyerViewResponse.body.messages.find(
+    (message) => message.offerContext?.eventType === 'accepted'
+  );
+
+  assert.equal(acceptedSellerMessage.offerContext.title, "You accepted Jasmine's offer");
+  assert.equal(acceptedBuyerMessage.offerContext.title, 'Seller accepted your offer');
+
+  const secondItem = await Item.create({
+    itemName: 'Mini Fridge',
+    itemCost: '50',
+    itemCondition: 'Good',
+    itemLocation: 'Reitz Union',
+    itemPicture: 'https://example.com/fridge.png',
+    itemDescription: 'Still cold',
+    itemDetails: 'Works well',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+  const declinedOfferResponse = await createOffer(secondItem.id, {
+    buyerClerkUserId: 'buyer_2',
+    buyerDisplayName: 'Mateo Cruz',
+  });
+
+  await Profile.create({
+    profileID: 'buyer_2',
+    profileName: 'Mateo Cruz',
+    profilePicture: 'https://example.com/buyer-two.png',
+  });
+
+  await request(app)
+    .patch(`/api/offers/${declinedOfferResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'declined',
+    });
+
+  const rejectedSellerViewResponse = await request(app)
+    .get(`/api/conversations/${declinedOfferResponse.body.conversationId}/messages`)
+    .query({
+      participantId: profile.profileID,
+    });
+
+  const rejectedBuyerViewResponse = await request(app)
+    .get(`/api/conversations/${declinedOfferResponse.body.conversationId}/messages`)
+    .query({
+      participantId: 'buyer_2',
+    });
+
+  const rejectedSellerMessage = rejectedSellerViewResponse.body.messages.find(
+    (message) => message.offerContext?.eventType === 'declined'
+  );
+  const rejectedBuyerMessage = rejectedBuyerViewResponse.body.messages.find(
+    (message) => message.offerContext?.eventType === 'declined'
+  );
+
+  assert.equal(rejectedSellerMessage.offerContext.title, "You rejected Mateo's offer");
+  assert.equal(rejectedBuyerMessage.offerContext.title, 'Seller rejected your offer');
+});
+
+test('PATCH /api/offers/:id decline adds a brief rejection message to the thread', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  const response = await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'declined',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, 'declined');
+
+  const declineMessage = await Message.findOne({
+    conversationId: response.body.conversationId,
+    senderClerkUserId: 'system',
+  }).sort({createdAt: -1});
+  assert.equal(declineMessage.body, 'Seller rejected your offer.');
+  assert.equal(declineMessage.offerSnapshot.eventType, 'declined');
 });
 
 test('PATCH /api/conversations/:id/pickup lets the seller update meetup specifics while keeping the accepted hub locked', async () => {
@@ -1190,6 +1342,11 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
   assert.deepEqual(
     response.body.conversation.linkedItems.map((linkedItem) => linkedItem.state),
     ['unavailable', 'completedHere', 'pending', 'active']
+  );
+  assert.equal(response.body.conversation.linkedItems[2].currentOffer.title, 'Offer accepted');
+  assert.equal(
+    response.body.conversation.linkedItems[2].currentOffer.detailLine,
+    '$68 • Cash • Reitz Union'
   );
   assert.equal(response.body.messages[3].attachedItem.listingId.toString(), archivedItem.id);
   assert.equal(response.body.messages[3].attachedItem.title, archivedItem.itemName);

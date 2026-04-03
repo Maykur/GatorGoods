@@ -452,6 +452,102 @@ test('message item pills render for tagged messages only when the thread has mul
   expect(screen.getByTestId('composer-item-context').querySelector('a')).toBeNull();
 });
 
+test('offer system messages render compact summaries and the focused item card shows the current offer summary', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'active',
+        latestContextMessageId: 'message-1',
+        currentOffer: {
+          status: 'pending',
+          title: 'Offer pending',
+          detailLine: '$45 • Cash • Reitz Union',
+        },
+      },
+      linkedItemCount: 2,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+          latestContextMessageId: 'message-1',
+          currentOffer: {
+            status: 'pending',
+            title: 'Offer pending',
+            detailLine: '$45 • Cash • Reitz Union',
+          },
+        },
+        {
+          listingId: 'item-2',
+          title: 'Study Chair',
+          imageUrl: 'chair.png',
+          state: 'active',
+          latestContextMessageId: 'message-2',
+          currentOffer: null,
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: false,
+      lastMessageText: 'Offer sent.',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-1',
+        senderClerkUserId: 'system',
+        body: 'Offer sent.',
+        createdAt: '2026-03-29T12:00:00.000Z',
+        attachedItem: {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+        },
+        offerContext: {
+          eventType: 'sent',
+          title: 'You sent an offer',
+          detailLine: '$45 • Cash • Reitz Union',
+        },
+      },
+      {
+        _id: 'message-2',
+        senderClerkUserId: 'system',
+        body: 'Offer rejected.',
+        createdAt: '2026-03-29T12:10:00.000Z',
+        attachedItem: {
+          listingId: 'item-2',
+          title: 'Study Chair',
+          imageUrl: 'chair.png',
+          state: 'active',
+        },
+        offerContext: {
+          eventType: 'declined',
+          title: 'Offer rejected',
+          detailLine: '',
+        },
+      },
+    ],
+  });
+
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByText('You sent an offer')).toBeInTheDocument();
+  expect(screen.getAllByText('$45 • Cash • Reitz Union').length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByText('Offer pending')).toBeInTheDocument();
+  expect(screen.getByText('Offer rejected')).toBeInTheDocument();
+});
+
 test('mixed-direction threads surface buying and selling context in the focused item card', async () => {
   mockGetConversationMessages.mockResolvedValue({
     conversation: {

@@ -15,6 +15,11 @@ const {
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const PAYMENT_METHOD_LABELS = {
+  cash: 'Cash',
+  externalApp: 'External app',
+  gatorgoodsEscrow: 'GatorGoods escrow',
+};
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -311,6 +316,64 @@ const messageSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    offerSnapshot: {
+      type: new mongoose.Schema(
+        {
+          offerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'offers',
+            default: null,
+          },
+          eventType: {
+            type: String,
+            enum: ['sent', 'accepted', 'declined'],
+            default: '',
+            trim: true,
+          },
+          status: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          offeredPrice: {
+            type: Number,
+            default: null,
+          },
+          buyerClerkUserId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          buyerDisplayName: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          sellerClerkUserId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          paymentMethod: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupHubId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupLocation: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
     seedTag: {
       type: String,
       default: null,
@@ -540,6 +603,16 @@ function normalizeDateValue(value) {
   return Number.isNaN(dateValue.getTime()) ? null : dateValue;
 }
 
+function getFirstName(value) {
+  const trimmedValue = normalizeOptionalString(value);
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  return trimmedValue.split(/\s+/)[0];
+}
+
 function normalizeLinkedItemForComparison(linkedItem = {}) {
   return {
     listingId: toIdString(linkedItem.listingId),
@@ -615,6 +688,26 @@ async function buildAttachedListingMessageFields(attachedListingId, fallback = {
     ...buildAttachedListingSnapshot(listing, fallback),
     listing,
   };
+}
+
+async function createOfferSystemMessage({
+  conversationId,
+  listingId,
+  offer,
+  eventType,
+}) {
+  const attachedListingFields = await buildAttachedListingMessageFields(listingId);
+  const offerSnapshot = buildOfferSnapshot(offer, {eventType});
+
+  return Message.create({
+    conversationId,
+    senderClerkUserId: 'system',
+    body: `${getOfferEventTitle(eventType, offerSnapshot)}.`,
+    attachedListingId: attachedListingFields.attachedListingId,
+    attachedListingTitle: attachedListingFields.attachedListingTitle,
+    attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
+    offerSnapshot,
+  });
 }
 
 async function repairConversationLinkedItems(
@@ -919,6 +1012,14 @@ async function buildLinkedItemStateMaps(linkedItems = [], conversationId) {
     : [];
   const reservedOffersById = new Map(reservedOffers.map((offer) => [offer.id, offer]));
   const reservedOffersByListingId = new Map();
+  const threadOffers = listingIds.length > 0
+    ? await Offer.find({
+      listingId: {$in: listingIds.map((listingId) => toObjectId(listingId)).filter(Boolean)},
+      conversationId: toObjectId(conversationId),
+      status: {$in: ['pending', 'accepted']},
+    }).sort({createdAt: -1, _id: -1})
+    : [];
+  const threadOffersByListingId = new Map();
 
   listingIds.forEach((listingId) => {
     const listing = liveListingsById.get(listingId);
@@ -929,9 +1030,19 @@ async function buildLinkedItemStateMaps(linkedItems = [], conversationId) {
     reservedOffersByListingId.set(listingId, reservedOffer);
   });
 
+  threadOffers.forEach((offer) => {
+    const listingId = toIdString(offer.listingId);
+    const existingOffer = threadOffersByListingId.get(listingId);
+
+    if (!existingOffer || (offer.status === 'accepted' && existingOffer.status !== 'accepted')) {
+      threadOffersByListingId.set(listingId, offer);
+    }
+  });
+
   return {
     liveListingsById,
     reservedOffersByListingId,
+    threadOffersByListingId,
     conversationId: toIdString(conversationId),
   };
 }
@@ -974,10 +1085,180 @@ function deriveLinkedItemRelationshipRole({listing, reservedOffer, viewerPartici
   return normalizedSellerId === normalizedViewerId ? 'selling' : 'buying';
 }
 
+function formatOfferPriceLabel(value) {
+  if (!Number.isFinite(Number(value))) {
+    return '';
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function formatPaymentMethodLabel(paymentMethod) {
+  return PAYMENT_METHOD_LABELS[paymentMethod] || '';
+}
+
+function getOfferMeetupLabel(offer = {}) {
+  return getPickupHubById(offer.meetupHubId)?.label || offer.meetupLocation || '';
+}
+
+function buildOfferDetailLine(offer = {}) {
+  const parts = [
+    formatOfferPriceLabel(offer.offeredPrice),
+    formatPaymentMethodLabel(offer.paymentMethod),
+    getOfferMeetupLabel(offer),
+  ].filter(Boolean);
+
+  return parts.join(' • ');
+}
+
+function getOfferEventTitle(eventType, offerSnapshot = {}, viewerParticipantId = '') {
+  if (eventType === 'sent') {
+    const normalizedViewerId = toIdString(viewerParticipantId);
+    const normalizedBuyerId = toIdString(offerSnapshot.buyerClerkUserId);
+
+    if (normalizedViewerId && normalizedViewerId === normalizedBuyerId) {
+      return 'You sent an offer';
+    }
+
+    return `${offerSnapshot.buyerDisplayName || 'Buyer'} sent an offer`;
+  }
+
+  if (eventType === 'accepted') {
+    const normalizedViewerId = toIdString(viewerParticipantId);
+    const normalizedSellerId = toIdString(offerSnapshot.sellerClerkUserId);
+    const buyerName = getFirstName(offerSnapshot.buyerDisplayName) || 'the buyer';
+    const sellerName = getFirstName(offerSnapshot.sellerDisplayName) || 'Seller';
+
+    if (normalizedViewerId && normalizedViewerId === normalizedSellerId) {
+      return `You accepted ${buyerName}'s offer`;
+    }
+
+    return `${sellerName} accepted your offer`;
+  }
+
+  if (eventType === 'declined') {
+    const normalizedViewerId = toIdString(viewerParticipantId);
+    const normalizedSellerId = toIdString(offerSnapshot.sellerClerkUserId);
+    const buyerName = getFirstName(offerSnapshot.buyerDisplayName) || 'the buyer';
+    const sellerName = getFirstName(offerSnapshot.sellerDisplayName) || 'Seller';
+
+    if (normalizedViewerId && normalizedViewerId === normalizedSellerId) {
+      return `You rejected ${buyerName}'s offer`;
+    }
+
+    return `${sellerName} rejected your offer`;
+  }
+
+  return 'Offer sent';
+}
+
+function resolveBuyerDisplayName(offerSnapshot = {}, participantNamesById = new Map()) {
+  const storedName = normalizeOptionalString(offerSnapshot.buyerDisplayName);
+
+  if (storedName && storedName.toLowerCase() !== 'buyer') {
+    return storedName;
+  }
+
+  return getFirstName(participantNamesById.get(toIdString(offerSnapshot.buyerClerkUserId))) || getFirstName(storedName) || 'Buyer';
+}
+
+function resolveSellerDisplayName(offerSnapshot = {}, participantNamesById = new Map()) {
+  return getFirstName(participantNamesById.get(toIdString(offerSnapshot.sellerClerkUserId))) || 'Seller';
+}
+
+function buildOfferSnapshot(offer, {eventType = ''} = {}) {
+  if (!offer) {
+    return null;
+  }
+
+  return {
+    offerId: offer._id || offer.offerId || null,
+    eventType,
+    status: offer.status || '',
+    offeredPrice: Number.isFinite(Number(offer.offeredPrice)) ? Number(offer.offeredPrice) : null,
+    buyerClerkUserId: offer.buyerClerkUserId || '',
+    buyerDisplayName: offer.buyerDisplayName || '',
+    sellerClerkUserId: offer.sellerClerkUserId || '',
+    paymentMethod: offer.paymentMethod || '',
+    meetupHubId: offer.meetupHubId || '',
+    meetupLocation: offer.meetupLocation || '',
+  };
+}
+
+function buildOfferApiSummary(
+  offerSnapshot,
+  {
+    includeEventTitle = false,
+    viewerParticipantId = '',
+    participantNamesById = new Map(),
+  } = {}
+) {
+  if (!offerSnapshot) {
+    return null;
+  }
+
+  const buyerDisplayName = resolveBuyerDisplayName(offerSnapshot, participantNamesById);
+  const sellerDisplayName = resolveSellerDisplayName(offerSnapshot, participantNamesById);
+
+  const detailLine =
+    offerSnapshot.eventType === 'declined'
+      ? ''
+      : buildOfferDetailLine(offerSnapshot);
+
+  return {
+    offerId: toIdString(offerSnapshot.offerId),
+    eventType: offerSnapshot.eventType || '',
+    status: offerSnapshot.status || '',
+    offeredPrice: Number.isFinite(Number(offerSnapshot.offeredPrice))
+      ? Number(offerSnapshot.offeredPrice)
+      : null,
+    buyerDisplayName,
+    sellerDisplayName,
+    paymentMethod: offerSnapshot.paymentMethod || '',
+    paymentMethodLabel: formatPaymentMethodLabel(offerSnapshot.paymentMethod),
+    meetupHubId: offerSnapshot.meetupHubId || '',
+    meetupLocation: offerSnapshot.meetupLocation || '',
+    meetupLabel: getOfferMeetupLabel(offerSnapshot),
+    detailLine,
+    ...(includeEventTitle
+      ? {
+          title: getOfferEventTitle(
+            offerSnapshot.eventType,
+            {
+              ...offerSnapshot,
+              buyerDisplayName,
+              sellerDisplayName,
+            },
+            viewerParticipantId
+          ),
+        }
+      : {}),
+  };
+}
+
+function buildLinkedItemCurrentOfferSummary(offer) {
+  if (!offer || !['pending', 'accepted'].includes(offer.status)) {
+    return null;
+  }
+
+  return {
+    status: offer.status,
+    title: offer.status === 'accepted' ? 'Offer accepted' : 'Offer pending',
+    ...buildOfferApiSummary(buildOfferSnapshot(offer), {
+      includeEventTitle: false,
+    }),
+  };
+}
+
 function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false, viewerParticipantId = ''} = {}) {
   const listingId = toIdString(linkedItem.listingId);
   const liveListing = stateMaps.liveListingsById.get(listingId) || null;
   const reservedOffer = stateMaps.reservedOffersByListingId.get(listingId) || null;
+  const threadOffer = stateMaps.threadOffersByListingId.get(listingId) || null;
   const lastKnownStatus = liveListing?.status || linkedItem.lastKnownStatus || 'deleted';
 
   return {
@@ -999,6 +1280,7 @@ function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false
       reservedOffer,
       viewerParticipantId,
     }),
+    currentOffer: buildLinkedItemCurrentOfferSummary(threadOffer),
     isSelected: selected,
   };
 }
@@ -1080,6 +1362,20 @@ async function serializeMessages(messages = [], conversation, options = {}) {
   const linkedItemsById = new Map(
     linkedItems.map((linkedItem) => [toIdString(linkedItem.listingId), linkedItem])
   );
+  const offerParticipantIds = dedupeIdStrings(
+    messages.flatMap((message) => ([
+      message?.offerSnapshot?.buyerClerkUserId,
+      message?.offerSnapshot?.sellerClerkUserId,
+    ])).filter(Boolean)
+  );
+  const participantProfiles = offerParticipantIds.length > 0
+    ? await Profile.find({
+      profileID: {$in: offerParticipantIds},
+    })
+    : [];
+  const participantNamesById = new Map(
+    participantProfiles.map((profile) => [profile.profileID, profile.profileName])
+  );
 
   return messages.map((message) => {
     const messageObject = message?.toObject ? message.toObject() : message;
@@ -1087,6 +1383,11 @@ async function serializeMessages(messages = [], conversation, options = {}) {
     return {
       ...messageObject,
       attachedItem: buildMessageAttachedItemSummary(messageObject, stateMaps, linkedItemsById, options),
+      offerContext: buildOfferApiSummary(messageObject.offerSnapshot, {
+        includeEventTitle: true,
+        viewerParticipantId: options.viewerParticipantId,
+        participantNamesById,
+      }),
     };
   });
 }
@@ -1624,9 +1925,21 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       message: normalizedMessage,
     });
 
+    const systemMessage = await createOfferSystemMessage({
+      conversationId: conversation._id,
+      listingId,
+      offer,
+      eventType: 'sent',
+    });
+    conversation.lastMessageText = systemMessage.body;
+    conversation.lastMessageAt = systemMessage.createdAt;
+    conversation.lastReadAtByUser.set(trimmedBuyerId, systemMessage.createdAt);
     await repairConversationLinkedItems(conversation, {
       touchedListingId: listingId,
-      contextAt: offer.createdAt,
+      contextAt: systemMessage.createdAt,
+      contextMessageId: systemMessage._id,
+      fallbackTitle: systemMessage.attachedListingTitle,
+      fallbackImageUrl: systemMessage.attachedListingImageUrl,
       fallbackStatus: listing.status,
     });
     await conversation.save();
@@ -1749,14 +2062,15 @@ app.patch('/api/offers/:id', async (req, resp) => {
 
         const pickupHubLabel =
           getPickupHubById(resolvedAcceptedPickup.meetupHubId)?.label || resolvedAcceptedPickup.meetupLocation;
-        const attachedListingFields = await buildAttachedListingMessageFields(offer.listingId);
-        systemMessage = await Message.create({
+        systemMessage = await createOfferSystemMessage({
           conversationId: conversation._id,
-          senderClerkUserId: 'system',
-          body: `Offer accepted. Meetup hub: ${pickupHubLabel}. Meetup specifics: ${pickupSpecifics}`,
-          attachedListingId: attachedListingFields.attachedListingId,
-          attachedListingTitle: attachedListingFields.attachedListingTitle,
-          attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
+          listingId: offer.listingId,
+          offer: {
+            ...offer.toObject(),
+            meetupHubId: resolvedAcceptedPickup.meetupHubId || offer.meetupHubId,
+            meetupLocation: pickupHubLabel,
+          },
+          eventType: 'accepted',
         });
 
         conversation.lastMessageText = systemMessage.body;
@@ -1783,25 +2097,80 @@ app.patch('/api/offers/:id', async (req, resp) => {
 
       await Promise.all([
         ...saveOperations,
-        Offer.updateMany(
-          {
-            listingId: offer.listingId,
-            _id: {$ne: offer._id},
-            status: 'pending',
-          },
-          {
-            $set: {
-              status: 'declined',
-            },
-          }
-        ),
       ]);
+
+      const competingOffers = await Offer.find({
+        listingId: offer.listingId,
+        _id: {$ne: offer._id},
+        status: 'pending',
+      });
+
+      await Promise.all(
+        competingOffers.map(async (competingOffer) => {
+          competingOffer.status = 'declined';
+          await competingOffer.save();
+
+          const competingConversation =
+            (competingOffer.conversationId ? await Conversation.findById(competingOffer.conversationId) : null) ||
+            (await findConversationByParticipantIds([competingOffer.buyerClerkUserId, competingOffer.sellerClerkUserId]));
+
+          if (!competingConversation) {
+            return;
+          }
+
+          const declineMessage = await createOfferSystemMessage({
+            conversationId: competingConversation._id,
+            listingId: competingOffer.listingId,
+            offer: competingOffer,
+            eventType: 'declined',
+          });
+
+          competingConversation.lastMessageText = declineMessage.body;
+          competingConversation.lastMessageAt = declineMessage.createdAt;
+          competingConversation.lastReadAtByUser.set(requesterClerkUserId, declineMessage.createdAt);
+          await repairConversationLinkedItems(competingConversation, {
+            touchedListingId: competingOffer.listingId,
+            contextAt: declineMessage.createdAt,
+            contextMessageId: declineMessage._id,
+            fallbackTitle: declineMessage.attachedListingTitle,
+            fallbackImageUrl: declineMessage.attachedListingImageUrl,
+            fallbackStatus: listing.status,
+          });
+          await competingConversation.save();
+        })
+      );
 
       return resp.json(offer);
     }
 
     offer.status = 'declined';
     await offer.save();
+
+    const conversation =
+      (offer.conversationId ? await Conversation.findById(offer.conversationId) : null) ||
+      (await findConversationByParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]));
+
+    if (conversation) {
+      const declineMessage = await createOfferSystemMessage({
+        conversationId: conversation._id,
+        listingId: offer.listingId,
+        offer,
+        eventType: 'declined',
+      });
+
+      conversation.lastMessageText = declineMessage.body;
+      conversation.lastMessageAt = declineMessage.createdAt;
+      conversation.lastReadAtByUser.set(requesterClerkUserId, declineMessage.createdAt);
+      await repairConversationLinkedItems(conversation, {
+        touchedListingId: offer.listingId,
+        contextAt: declineMessage.createdAt,
+        contextMessageId: declineMessage._id,
+        fallbackTitle: declineMessage.attachedListingTitle,
+        fallbackImageUrl: declineMessage.attachedListingImageUrl,
+        fallbackStatus: listing.status,
+      });
+      await conversation.save();
+    }
 
     resp.json(offer);
   } catch (e) {

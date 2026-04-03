@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
 import { PickupHubPicker } from '../components/PickupHubPicker';
@@ -181,6 +181,59 @@ function getRelationshipRoleTooltip(role) {
   return '';
 }
 
+function getOfferEventStyle(eventType) {
+  if (eventType === 'accepted') {
+    return {
+      container: 'border-brand-blue/25 bg-brand-blue/12',
+      title: 'text-white',
+      detail: 'text-blue-100/85',
+      timestamp: 'text-blue-100/75',
+    };
+  }
+
+  if (eventType === 'declined') {
+    return {
+      container: 'border-app-danger/30 bg-app-danger/15',
+      title: 'text-white',
+      detail: 'text-red-100/80',
+      timestamp: 'text-red-100/70',
+    };
+  }
+
+  return {
+    container: 'border-white/12 bg-white/6',
+    title: 'text-white',
+    detail: 'text-app-soft',
+    timestamp: 'text-app-muted',
+  };
+}
+
+function getCompletedSaleMessageStyle() {
+  return {
+    container: 'border-app-success/30 bg-app-success/15',
+    title: 'text-white',
+    detail: 'text-green-100/85',
+    timestamp: 'text-green-100/75',
+  };
+}
+
+function getSystemMessageStyle(message) {
+  if (message.offerContext?.eventType) {
+    return getOfferEventStyle(message.offerContext.eventType);
+  }
+
+  if (/sale completed/i.test(message.body || '')) {
+    return getCompletedSaleMessageStyle();
+  }
+
+  return {
+    container: 'border-gatorOrange/20 bg-gatorOrange/10',
+    title: 'text-white',
+    detail: 'text-app-soft',
+    timestamp: 'text-app-muted',
+  };
+}
+
 function RelationshipRoleMarker({role, className = '', onShowTooltip, onHideTooltip, focusable = false}) {
   const icon = getRelationshipRoleIcon(role);
   const tooltip = getRelationshipRoleTooltip(role);
@@ -250,6 +303,17 @@ function truncateText(value, maxLength) {
   }
 
   return `${trimmedValue.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
+}
+
+function splitDetailLine(detailLine) {
+  if (typeof detailLine !== 'string') {
+    return [];
+  }
+
+  return detailLine
+    .split('•')
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function sortLinkedItemsForRail(linkedItems = []) {
@@ -873,6 +937,20 @@ export function ChatThreadPage() {
                       </span>
                       <h2 className="truncate text-xl font-semibold text-white">{focusedItem.title}</h2>
                       <p className="text-sm text-app-soft">{focusedItemDescription}</p>
+                      {focusedItem.currentOffer ? (
+                        <p className="inline-flex flex-wrap items-center gap-2 text-sm text-app-soft">
+                          <span className="inline-flex items-center gap-2 font-semibold text-app-soft">
+                            <AppIcon icon="offers" className="text-[0.9em]" />
+                            <span>{focusedItem.currentOffer.title}</span>
+                          </span>
+                          {splitDetailLine(focusedItem.currentOffer.detailLine).map((detailPart) => (
+                            <Fragment key={`${focusedItem.listingId}-${detailPart}`}>
+                              <span aria-hidden="true" className="text-app-muted/70">•</span>
+                              <span>{detailPart}</span>
+                            </Fragment>
+                          ))}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <Link
@@ -1018,13 +1096,7 @@ export function ChatThreadPage() {
               const isOwnMessage = message.senderClerkUserId === user.id;
 
               if (isSystemMessage) {
-                const isAcceptedOfferMessage = message.body.startsWith('Offer accepted.');
-                const systemMessageClassName = isAcceptedOfferMessage
-                  ? 'border-app-success/30 bg-app-success/15'
-                  : 'border-gatorOrange/20 bg-gatorOrange/10';
-                const systemTimestampClassName = isAcceptedOfferMessage
-                  ? 'text-green-100/75'
-                  : 'text-app-muted';
+                const systemMessageStyle = getSystemMessageStyle(message);
                 const attachedItemHref = normalizeId(message.attachedItem?.listingId)
                   ? `/items/${normalizeId(message.attachedItem.listingId)}`
                   : '';
@@ -1047,7 +1119,7 @@ export function ChatThreadPage() {
                         highlightedMessageId === normalizeId(message._id)
                           ? 'ring-2 ring-gatorOrange/60 ring-offset-2 ring-offset-app-bg'
                           : ''
-                      } ${systemMessageClassName}`}
+                      } ${systemMessageStyle.container}`}
                     >
                       {shouldShowMessageItemPill && message.attachedItem ? (
                         attachedItemHref ? (
@@ -1085,8 +1157,17 @@ export function ChatThreadPage() {
                           </div>
                         )
                       ) : null}
-                      <p className="text-sm font-medium text-white">{message.body}</p>
-                      <p className={`mt-1 text-xs ${systemTimestampClassName}`}>{formatMessageTime(message.createdAt)}</p>
+                      <p className={`text-sm font-semibold ${systemMessageStyle.title}`}>
+                        {message.offerContext?.title || message.body}
+                      </p>
+                      {message.offerContext?.detailLine ? (
+                        <p className={`mt-1 text-sm ${systemMessageStyle.detail}`}>
+                          {message.offerContext.detailLine}
+                        </p>
+                      ) : null}
+                      <p className={`mt-1 text-xs ${systemMessageStyle.timestamp}`}>
+                        {formatMessageTime(message.createdAt)}
+                      </p>
                     </div>
                   </div>
                 );
