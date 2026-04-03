@@ -111,9 +111,38 @@ test('GET /items supports paginated query mode', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.items.length, 1);
   assert.equal(response.body.items[0].itemName, 'Bike Helmet');
+  assert.match(response.body.items[0].itemPictureUrl, /\/items\/.*\/image$/);
+  assert.equal(response.body.items[0].itemPicture, undefined);
+  assert.equal(response.body.items[0].itemDescription, undefined);
+  assert.equal(response.body.items[0].itemDetails, undefined);
   assert.equal(response.body.meta.totalItems, 1);
   assert.equal(response.body.meta.page, 1);
   assert.equal(response.body.meta.totalPages, 1);
+});
+
+test('GET /items/:id/image serves stored data-url images', async () => {
+  const profile = await Profile.create({
+    profileID: 'user_svg',
+    profileName: 'Seller SVG',
+    profilePicture: '',
+  });
+  const item = await Item.create({
+    itemName: 'Poster',
+    itemCost: '10',
+    itemCondition: 'Good',
+    itemLocation: 'Library West',
+    itemPicture: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"></svg>')}`,
+    itemDescription: 'Poster description',
+    itemDetails: 'Poster details',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+  });
+
+  const response = await request(app).get(`/items/${item.id}/image`);
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers['content-type'], /^image\/svg\+xml/);
+  assert.match(Buffer.from(response.body).toString('utf8'), /<svg/);
 });
 
 test('GET /items filters listings by approved pickup location', async () => {
@@ -653,7 +682,7 @@ test('POST /api/conversations/:id/messages stores attached item snapshots and up
   assert.equal(fridgeLinkedItem.lastKnownStatus, secondItem.status);
 });
 
-test('GET /api/conversations returns active item summaries and linked item counts', async () => {
+test('GET /api/conversations returns paginated preview context with participant summaries', async () => {
   const {item, profile} = await seedProfileAndItem();
   const secondItem = await Item.create({
     itemName: 'Mini Fridge',
@@ -699,15 +728,106 @@ test('GET /api/conversations returns active item summaries and linked item count
     .get('/api/conversations')
     .query({
       participantId: 'buyer_1',
+      page: 1,
+      pageSize: 10,
     });
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.length, 1);
-  assert.equal(response.body[0].linkedItemCount, 2);
-  assert.equal(response.body[0].activeItem.listingId.toString(), secondItem.id);
-  assert.equal(response.body[0].activeItem.title, secondItem.itemName);
-  assert.equal(response.body[0].activeItem.imageUrl, secondItem.itemPicture);
-  assert.equal(response.body[0].activeItem.state, 'active');
+  assert.equal(response.body.totalCount, 1);
+  assert.equal(response.body.page, 1);
+  assert.equal(response.body.pageSize, 10);
+  assert.equal(response.body.totalPages, 1);
+  assert.equal(response.body.conversations.length, 1);
+  assert.equal(response.body.conversations[0].linkedItemCount, 2);
+  assert.equal(response.body.conversations[0].activeItem.listingId.toString(), secondItem.id);
+  assert.equal(response.body.conversations[0].activeItem.title, secondItem.itemName);
+  assert.equal(response.body.conversations[0].activeItem.state, 'active');
+  assert.equal(response.body.conversations[0].activeItem.imageUrl, undefined);
+  assert.equal(response.body.conversations[0].linkedItems[0].imageUrl, undefined);
+  assert.equal(response.body.conversations[0].otherParticipant.id, profile.profileID);
+  assert.equal(response.body.conversations[0].otherParticipant.name, profile.profileName);
+  assert.equal(response.body.conversations[0].otherParticipant.avatarUrl, profile.profilePicture);
+  assert.equal(response.body.conversations[0].lastMessageSenderClerkUserId, 'buyer_1');
+});
+
+test('GET /api/conversations derives preview items without eagerly repairing legacy threads', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id],
+    linkedItems: [],
+    activeListingId: item._id,
+    lastMessageText: 'Still available?',
+    lastMessageAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: profile.profileID,
+    body: 'Still available?',
+    attachedListingId: item._id,
+    attachedListingTitle: item.itemName,
+    attachedListingImageUrl: item.itemPicture,
+    createdAt: new Date('2026-04-02T15:00:00.000Z'),
+    updatedAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  const response = await request(app)
+    .get('/api/conversations')
+    .query({
+      participantId: 'buyer_1',
+      page: 1,
+      pageSize: 10,
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversations.length, 1);
+  assert.equal(response.body.conversations[0].linkedItemCount, 1);
+  assert.equal(response.body.conversations[0].activeItem.title, item.itemName);
+
+  const storedConversation = await Conversation.findById(conversation._id);
+  assert.equal(storedConversation.linkedItems.length, 0);
+});
+
+test('GET /api/conversations keeps pending preview state for reserved listings', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id],
+    linkedItems: [],
+    activeListingId: item._id,
+    lastMessageText: 'Offer is still pending.',
+    lastMessageAt: new Date('2026-04-02T16:00:00.000Z'),
+  });
+
+  const offer = await Offer.create({
+    listingId: item._id,
+    buyerClerkUserId: 'buyer_1',
+    buyerDisplayName: 'Buyer One',
+    sellerClerkUserId: profile.profileID,
+    conversationId: conversation._id,
+    offeredPrice: 18,
+    meetupLocation: 'Plaza of the Americas',
+    meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+    paymentMethod: 'cash',
+    status: 'pending',
+  });
+
+  item.status = 'reserved';
+  item.reservedOfferId = offer._id;
+  await item.save();
+
+  const response = await request(app)
+    .get('/api/conversations')
+    .query({
+      participantId: 'buyer_1',
+      page: 1,
+      pageSize: 10,
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversations[0].linkedItems[0].state, 'pending');
+  assert.equal(response.body.conversations[0].linkedItems[0].currentOffer, undefined);
 });
 
 test('opening a thread updates the inbox read timestamp in a JSON-safe shape', async () => {
@@ -741,7 +861,7 @@ test('opening a thread updates the inbox read timestamp in a JSON-safe shape', a
     });
 
   assert.equal(beforeOpenResponse.status, 200);
-  assert.equal(beforeOpenResponse.body[0].lastReadAtByUser.buyer_1, '2026-04-02T14:00:00.000Z');
+  assert.equal(beforeOpenResponse.body.conversations[0].lastReadAtByUser.buyer_1, '2026-04-02T14:00:00.000Z');
 
   const openThreadResponse = await request(app)
     .get(`/api/conversations/${conversation._id}/messages`)
@@ -758,9 +878,9 @@ test('opening a thread updates the inbox read timestamp in a JSON-safe shape', a
     });
 
   assert.equal(afterOpenResponse.status, 200);
-  assert.equal(typeof afterOpenResponse.body[0].lastReadAtByUser, 'object');
-  assert.ok(afterOpenResponse.body[0].lastReadAtByUser.buyer_1);
-  assert.notEqual(afterOpenResponse.body[0].lastReadAtByUser.buyer_1, '2026-04-02T14:00:00.000Z');
+  assert.equal(typeof afterOpenResponse.body.conversations[0].lastReadAtByUser, 'object');
+  assert.ok(afterOpenResponse.body.conversations[0].lastReadAtByUser.buyer_1);
+  assert.notEqual(afterOpenResponse.body.conversations[0].lastReadAtByUser.buyer_1, '2026-04-02T14:00:00.000Z');
 });
 
 test('POST /api/listings/:id/offers derives canonical meetup fields from an approved hub id', async () => {

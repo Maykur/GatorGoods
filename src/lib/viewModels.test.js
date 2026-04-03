@@ -1,4 +1,5 @@
 import {
+  formatConversationTimestamp,
   formatListingStatusLabel,
   formatPaymentMethodLabel,
   formatPercentLabel,
@@ -89,39 +90,149 @@ test('toListingCardViewModel prefers original public pickup fields when actual p
   });
 });
 
+test('toListingCardViewModel prefers feed image URLs over raw stored image data', () => {
+  expect(
+    toListingCardViewModel({
+      _id: 'item-3',
+      itemName: 'Desk Lamp',
+      itemCost: '20',
+      itemCondition: 'Good',
+      originalPickupHubId: 'library-west',
+      originalPickupArea: 'Historic Core',
+      originalItemLocation: 'Library West',
+      itemPicture: 'data:image/png;base64,abc123',
+      itemPictureUrl: 'http://localhost:5000/items/item-3/image',
+      userPublishingName: 'Seller One',
+    })
+  ).toEqual(
+    expect.objectContaining({
+      imageUrl: 'http://localhost:5000/items/item-3/image',
+    })
+  );
+});
+
 test('toConversationPreviewViewModel marks conversations unread when last message is newer than last read', () => {
   const preview = toConversationPreviewViewModel(
     {
       _id: 'conversation-1',
+      otherParticipant: {
+        id: 'seller-1',
+        name: 'Seller One',
+        avatarUrl: 'seller.png',
+      },
       activeItem: {
         title: 'Desk Lamp',
       },
       linkedItemCount: 3,
+      linkedItems: [
+        {
+          title: 'Desk Lamp',
+          relationshipRole: 'buying',
+          state: 'active',
+        },
+        {
+          title: 'Mini Fridge',
+          relationshipRole: 'selling',
+          state: 'pending',
+        },
+        {
+          title: 'Poster Tube',
+          relationshipRole: 'buying',
+          state: 'unavailable',
+        },
+      ],
       lastMessageText: 'Still available?',
+      lastMessageSenderClerkUserId: 'seller-1',
       lastMessageAt: '2026-03-30T10:00:00.000Z',
       lastReadAtByUser: {
         buyer: '2026-03-30T09:00:00.000Z',
       },
       otherParticipantId: 'seller-1',
     },
-    {
-      profile: {
-        profileName: 'Seller One',
-      },
-    },
-    {
-      itemName: 'Desk Lamp',
-    },
     'buyer'
   );
 
   expect(preview.participantName).toBe('Seller One');
+  expect(preview.participantAvatarUrl).toBe('seller.png');
   expect(preview.listingName).toBe('Desk Lamp');
   expect(preview.activeItemTitle).toBe('Desk Lamp');
+  expect(preview.fullActiveItemTitle).toBe('Desk Lamp');
+  expect(preview.itemTitles).toEqual(['Desk Lamp', 'Mini Fridge', 'Poster Tube']);
+  expect(preview.itemTitlesLabel).toBe('Desk Lamp, Mini Fridge, Poster Tube');
+  expect(preview.fullItemTitlesLabel).toBe('Desk Lamp, Mini Fridge, Poster Tube');
   expect(preview.linkedItemCount).toBe(3);
-  expect(preview.extraItemCount).toBe(2);
+  expect(preview.extraItemCount).toBe(0);
   expect(preview.lastMessageText).toBe('Still available?');
+  expect(preview.lastMessagePreviewText).toBe('Seller: Still available?');
+  expect(preview.fullLastMessagePreviewText).toBe('Seller: Still available?');
+  expect(preview.hasSellingItems).toBe(true);
+  expect(preview.pendingItemCount).toBe(1);
   expect(preview.isUnread).toBe(true);
+});
+
+test('toConversationPreviewViewModel truncates item titles and long message previews for inbox cards', () => {
+  const preview = toConversationPreviewViewModel(
+    {
+      _id: 'conversation-2',
+      otherParticipant: {
+        id: 'seller-2',
+        name: 'Alexandra Seller',
+      },
+      activeItem: {
+        title: 'Extra Long Standing Lamp',
+      },
+      linkedItemCount: 3,
+      linkedItems: [
+        {
+          title: 'Extra Long Standing Lamp',
+          relationshipRole: 'buying',
+          state: 'active',
+        },
+        {
+          title: 'Ridiculously Wide Storage Ottoman',
+          relationshipRole: 'buying',
+          state: 'active',
+        },
+        {
+          title: 'Mini Fridge with Freezer Shelf',
+          relationshipRole: 'selling',
+          state: 'pending',
+        },
+      ],
+      lastMessageText: 'This is a much longer message preview than we want to show in the inbox card at once.',
+      lastMessageSenderClerkUserId: 'seller-2',
+      lastMessageAt: '2026-03-30T10:00:00.000Z',
+      lastReadAtByUser: {
+        buyer: '2026-03-30T10:00:00.000Z',
+      },
+    },
+    'buyer'
+  );
+
+  expect(preview.itemTitles).toEqual([
+    'Extra Long Standing Lamp',
+    'Ridiculously Wide Stor...',
+    'Mini Fridge with Freez...',
+  ]);
+  expect(preview.itemTitlesLabel).toBe(
+    'Extra Long Standing Lamp, Ridiculously Wide Stor..., Mini Fridge with Freez...'
+  );
+  expect(preview.fullItemTitlesLabel).toBe(
+    'Extra Long Standing Lamp, Ridiculously Wide Storage Ottoman, Mini Fridge with Freezer Shelf'
+  );
+  expect(preview.lastMessagePreviewText).toBe(
+    'Alexandra: This is a much longer message preview than we want to show in...'
+  );
+  expect(preview.fullLastMessagePreviewText).toBe(
+    'Alexandra: This is a much longer message preview than we want to show in the inbox card at once.'
+  );
+  expect(preview.lastMessagePreviewText.length).toBeLessThanOrEqual(75);
+});
+
+test('formatConversationTimestamp removes the year and seconds from inbox timestamps', () => {
+  expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).toMatch(/Mar/);
+  expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).not.toMatch(/2026/);
+  expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).not.toMatch(/:45/);
 });
 
 test('toProfileHeaderViewModel computes counts and owner state', () => {

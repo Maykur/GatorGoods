@@ -505,6 +505,61 @@ function getItemsSort(sort) {
   }
 }
 
+const ITEM_FEED_SELECT =
+  'itemName itemCost itemCondition itemLocation pickupHubId originalPickupHubId pickupArea ' +
+  'originalPickupArea originalItemLocation userPublishingName itemCat status date';
+
+function buildItemImageUrl(req, itemId) {
+  const normalizedItemId = toIdString(itemId);
+
+  if (!normalizedItemId) {
+    return '';
+  }
+
+  return `${req.protocol}://${req.get('host')}/items/${normalizedItemId}/image`;
+}
+
+function buildItemFeedSummary(rawItem, req) {
+  const item = rawItem?.toObject ? rawItem.toObject() : rawItem;
+  const itemId = toIdString(item?._id || item?.id);
+
+  return {
+    _id: itemId,
+    itemName: item?.itemName || '',
+    itemCost: item?.itemCost || '',
+    itemCondition: item?.itemCondition || '',
+    itemLocation: item?.itemLocation || '',
+    pickupHubId: item?.pickupHubId || null,
+    originalPickupHubId: item?.originalPickupHubId || null,
+    pickupArea: item?.pickupArea || '',
+    originalPickupArea: item?.originalPickupArea || '',
+    originalItemLocation: item?.originalItemLocation || '',
+    userPublishingName: item?.userPublishingName || '',
+    itemCat: item?.itemCat || '',
+    status: item?.status || 'active',
+    date: item?.date || null,
+    itemPictureUrl: buildItemImageUrl(req, itemId),
+  };
+}
+
+function parseDataUrl(value = '') {
+  const match = value.match(/^data:([^;,]+)?((?:;[^,]*)*?),(.*)$/s);
+
+  if (!match) {
+    return null;
+  }
+
+  const mimeType = match[1] || 'application/octet-stream';
+  const metadata = match[2] || '';
+  const payload = match[3] || '';
+  const isBase64 = /;base64/i.test(metadata);
+
+  return {
+    mimeType,
+    data: isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodeURIComponent(payload), 'utf8'),
+  };
+}
+
 async function connectToDatabase(uri = process.env.mongo_url) {
   if (!uri) {
     throw new Error('mongo_url is required');
@@ -646,7 +701,7 @@ function areLinkedItemListsEqual(currentValues = [], nextValues = []) {
   });
 }
 
-async function fetchListingsByIds(listingIds = []) {
+async function fetchListingsByIds(listingIds = [], {select = '', lean = false} = {}) {
   const normalizedListingIds = dedupeIdStrings(listingIds)
     .map((listingId) => toObjectId(listingId))
     .filter(Boolean);
@@ -655,11 +710,21 @@ async function fetchListingsByIds(listingIds = []) {
     return new Map();
   }
 
-  const listings = await Item.find({
+  let query = Item.find({
     _id: {$in: normalizedListingIds},
   });
 
-  return new Map(listings.map((listing) => [listing.id, listing]));
+  if (select) {
+    query = query.select(select);
+  }
+
+  if (lean) {
+    query = query.lean();
+  }
+
+  const listings = await query;
+
+  return new Map(listings.map((listing) => [toIdString(listing?._id || listing?.id), listing]));
 }
 
 function buildAttachedListingSnapshot(listing, fallback = {}) {
@@ -1254,6 +1319,60 @@ function buildLinkedItemCurrentOfferSummary(offer) {
   };
 }
 
+function buildConversationPreviewLinkedItemSeeds(conversationObject = {}) {
+  const storedLinkedItems = Array.isArray(conversationObject.linkedItems) ? conversationObject.linkedItems : [];
+  const storedLinkedItemsById = new Map(
+    storedLinkedItems
+      .map((linkedItem) => [toIdString(linkedItem?.listingId), linkedItem])
+      .filter(([listingId]) => Boolean(listingId))
+  );
+  const canonicalListingIds = dedupeIdStrings([
+    ...storedLinkedItems.map((linkedItem) => linkedItem?.listingId),
+    ...(conversationObject.linkedListingIds || []),
+    conversationObject.activeListingId,
+  ]);
+
+  return canonicalListingIds.map((listingId) => {
+    const storedLinkedItem = storedLinkedItemsById.get(listingId);
+
+    if (storedLinkedItem) {
+      return storedLinkedItem;
+    }
+
+    return {
+      listingId,
+      title: '',
+      lastContextAt: conversationObject.lastMessageAt || null,
+      lastKnownStatus: '',
+    };
+  });
+}
+
+function buildLinkedItemPreviewSummary(linkedItem = {}, stateMaps, {selected = false, viewerParticipantId = ''} = {}) {
+  const listingId = toIdString(linkedItem.listingId);
+  const liveListing = stateMaps.liveListingsById.get(listingId) || null;
+  const reservedOffer = stateMaps.reservedOffersByListingId.get(listingId) || null;
+  const lastKnownStatus = liveListing?.status || linkedItem.lastKnownStatus || 'deleted';
+
+  return {
+    listingId,
+    title: liveListing?.itemName || linkedItem.title || '',
+    lastContextAt: linkedItem.lastContextAt || null,
+    lastKnownStatus,
+    state: deriveLinkedItemState({
+      listing: liveListing,
+      reservedOffer,
+      conversationId: stateMaps.conversationId,
+    }),
+    relationshipRole: deriveLinkedItemRelationshipRole({
+      listing: liveListing,
+      reservedOffer,
+      viewerParticipantId,
+    }),
+    isSelected: selected,
+  };
+}
+
 function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false, viewerParticipantId = ''} = {}) {
   const listingId = toIdString(linkedItem.listingId);
   const liveListing = stateMaps.liveListingsById.get(listingId) || null;
@@ -1352,6 +1471,92 @@ async function serializeConversation(conversation, extras = {}) {
     activeItem,
     ...serializedExtras,
   };
+}
+
+async function serializeConversationPreviews(conversations = [], {viewerParticipantId = ''} = {}) {
+  if (!Array.isArray(conversations) || conversations.length === 0) {
+    return [];
+  }
+
+  const conversationObjects = conversations.map((conversation) =>
+    conversation?.toObject ? conversation.toObject({flattenMaps: true}) : conversation
+  );
+  const previewLinkedItemsByConversationId = new Map(
+    conversationObjects.map((conversationObject) => [
+      toIdString(conversationObject._id),
+      buildConversationPreviewLinkedItemSeeds(conversationObject),
+    ])
+  );
+  const listingIds = dedupeIdStrings(
+    conversationObjects.flatMap((conversationObject) =>
+      (previewLinkedItemsByConversationId.get(toIdString(conversationObject._id)) || []).map(
+        (linkedItem) => linkedItem.listingId
+      )
+    )
+  );
+  const liveListingsById = await fetchListingsByIds(listingIds, {
+    select: 'itemName status userPublishingID reservedOfferId',
+    lean: true,
+  });
+  const reservedOfferIds = dedupeIdStrings(
+    listingIds.map((listingId) => liveListingsById.get(listingId)?.reservedOfferId).filter(Boolean)
+  )
+    .map((offerId) => toObjectId(offerId))
+    .filter(Boolean);
+  const reservedOffers = reservedOfferIds.length > 0
+    ? await Offer.find({
+      _id: {$in: reservedOfferIds},
+    })
+      .select('conversationId sellerClerkUserId')
+      .lean()
+    : [];
+  const reservedOffersById = new Map(
+    reservedOffers.map((offer) => [toIdString(offer?._id || offer?.id), offer])
+  );
+  const reservedOffersByListingId = new Map();
+
+  listingIds.forEach((listingId) => {
+    const listing = liveListingsById.get(listingId);
+    const reservedOffer = listing?.reservedOfferId
+      ? reservedOffersById.get(toIdString(listing.reservedOfferId)) || null
+      : null;
+
+    reservedOffersByListingId.set(listingId, reservedOffer);
+  });
+
+  return conversationObjects.map((conversationObject) => {
+    const linkedItems =
+      previewLinkedItemsByConversationId.get(toIdString(conversationObject._id)) || [];
+    const stateMaps = {
+      liveListingsById,
+      reservedOffersByListingId,
+      conversationId: toIdString(conversationObject._id),
+    };
+    const linkedItemSummaries = linkedItems
+      .map((linkedItem) =>
+        buildLinkedItemPreviewSummary(linkedItem, stateMaps, {
+          selected: toIdString(linkedItem.listingId) === toIdString(conversationObject.activeListingId),
+          viewerParticipantId,
+        })
+      )
+      .sort((firstItem, secondItem) => {
+        const firstTimestamp = normalizeDateValue(firstItem.lastContextAt)?.getTime() || 0;
+        const secondTimestamp = normalizeDateValue(secondItem.lastContextAt)?.getTime() || 0;
+        return secondTimestamp - firstTimestamp;
+      });
+    const activeItem =
+      linkedItemSummaries.find(
+        (linkedItem) => linkedItem.listingId === toIdString(conversationObject.activeListingId)
+      ) || null;
+
+    return {
+      ...conversationObject,
+      linkedItems: linkedItemSummaries,
+      linkedItemCount: linkedItemSummaries.length,
+      activeItem,
+      itemPreviewTitles: linkedItemSummaries.map((linkedItem) => linkedItem.title).filter(Boolean),
+    };
+  });
 }
 
 async function serializeMessages(messages = [], conversation, options = {}) {
@@ -1553,30 +1758,93 @@ app.get('/', (req, resp) => {
 app.get('/api/conversations', async (req, resp) => {
   try {
     const participantId = req.query.participantId?.trim();
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number.parseInt(req.query.pageSize, 10) || 5));
 
     if (!participantId) {
       return resp.status(400).json({message: 'participantId is required'});
     }
 
-    const conversations = await Conversation.find({
+    const conversationQuery = {
       participantIds: participantId,
-    }).sort({lastMessageAt: -1, updatedAt: -1});
+    };
+    const totalCount = await Conversation.countDocuments(conversationQuery);
+    const conversations = await Conversation.find(conversationQuery)
+      .select(
+        'participantIds linkedListingIds activeListingId lastMessageText lastMessageAt lastReadAtByUser ' +
+        'linkedItems.listingId linkedItems.title linkedItems.lastContextAt linkedItems.lastKnownStatus'
+      )
+      .sort({lastMessageAt: -1, updatedAt: -1})
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
 
-    const serializedConversations = await Promise.all(
-      conversations.map(async (conversation) => {
-        const {changed} = await repairConversationLinkedItems(conversation);
+    const serializedConversations = await serializeConversationPreviews(conversations, {
+      viewerParticipantId: participantId,
+    });
 
-        if (changed) {
-          await conversation.save();
-        }
-
-        return serializeConversation(conversation, {
-          viewerParticipantId: participantId,
-        });
-      })
+    const otherParticipantIds = dedupeIdStrings(
+      serializedConversations.map((conversation) =>
+        conversation.participantIds.find((currentParticipantId) => currentParticipantId !== participantId)
+      )
+    );
+    const participantProfiles = otherParticipantIds.length > 0
+      ? await Profile.find({
+        profileID: {$in: otherParticipantIds},
+      }).select('profileID profileName profilePicture').lean()
+      : [];
+    const participantProfilesById = new Map(
+      participantProfiles.map((profile) => [profile.profileID, profile])
+    );
+    const latestMessages = conversations.length > 0
+      ? await Message.aggregate([
+        {
+          $match: {
+            conversationId: {$in: conversations.map((conversation) => conversation._id)},
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+            _id: -1,
+          },
+        },
+        {
+          $group: {
+            _id: '$conversationId',
+            senderClerkUserId: {$first: '$senderClerkUserId'},
+          },
+        },
+      ])
+      : [];
+    const latestMessageSenderByConversationId = new Map(
+      latestMessages.map((message) => [toIdString(message._id), message.senderClerkUserId || ''])
     );
 
-    resp.json(serializedConversations);
+    resp.json({
+      conversations: serializedConversations.map((conversation) => {
+        const otherParticipantId = conversation.participantIds.find(
+          (currentParticipantId) => currentParticipantId !== participantId
+        ) || '';
+        const otherParticipantProfile = participantProfilesById.get(otherParticipantId) || null;
+
+        return {
+          ...conversation,
+          otherParticipantId,
+          otherParticipant: otherParticipantProfile ? {
+            id: otherParticipantProfile.profileID,
+            name: otherParticipantProfile.profileName,
+            avatarUrl: otherParticipantProfile.profilePicture || '',
+          } : null,
+          lastMessageSenderClerkUserId:
+            latestMessageSenderByConversationId.get(toIdString(conversation._id)) || '',
+        };
+      }),
+      page,
+      pageSize,
+      totalCount,
+      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+    });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch conversations', error: e.message});
   }
@@ -2306,33 +2574,53 @@ app.get('/items', async (req, resp) => {
     const safePage = Math.min(page, totalPages);
     const safeSkip = (safePage - 1) * limit;
     const sortStage = getItemsSort(sort);
-
-    const items = await Item.aggregate([
-      {$match: filter},
-      {
-        $addFields: {
-          itemCostNumeric: {
-            $convert: {
-              input: '$itemCost',
-              to: 'double',
-              onError: 0,
-              onNull: 0,
+    const items =
+      sort === 'price-low' || sort === 'price-high'
+        ? await Item.aggregate([
+          {$match: filter},
+          {
+            $addFields: {
+              itemCostNumeric: {
+                $convert: {
+                  input: '$itemCost',
+                  to: 'double',
+                  onError: 0,
+                  onNull: 0,
+                },
+              },
             },
           },
-        },
-      },
-      {$sort: sortStage},
-      {$skip: safeSkip},
-      {$limit: limit},
-      {
-        $project: {
-          itemCostNumeric: 0,
-        },
-      },
-    ]);
+          {$sort: sortStage},
+          {$skip: safeSkip},
+          {$limit: limit},
+          {
+            $project: {
+              itemCostNumeric: 0,
+              itemName: 1,
+              itemCost: 1,
+              itemCondition: 1,
+              itemLocation: 1,
+              pickupHubId: 1,
+              originalPickupHubId: 1,
+              pickupArea: 1,
+              originalPickupArea: 1,
+              originalItemLocation: 1,
+              userPublishingName: 1,
+              itemCat: 1,
+              status: 1,
+              date: 1,
+            },
+          },
+        ])
+        : await Item.find(filter)
+          .select(ITEM_FEED_SELECT)
+          .sort(sortStage)
+          .skip(safeSkip)
+          .limit(limit)
+          .lean();
 
     resp.json({
-      items,
+      items: items.map((item) => buildItemFeedSummary(item, req)),
       meta: {
         page: safePage,
         limit,
@@ -2344,6 +2632,33 @@ app.get('/items', async (req, resp) => {
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch', error: e.message});
+  }
+});
+
+app.get('/items/:id/image', async (req, resp) => {
+  try {
+    const item = await Item.findById(req.params.id).select('itemPicture');
+
+    if (!item || !item.itemPicture) {
+      return resp.status(404).json({message: 'Listing image not found'});
+    }
+
+    if (/^https?:\/\//i.test(item.itemPicture)) {
+      resp.redirect(item.itemPicture);
+      return;
+    }
+
+    const parsedDataUrl = parseDataUrl(item.itemPicture);
+
+    if (!parsedDataUrl) {
+      return resp.status(404).json({message: 'Listing image not found'});
+    }
+
+    resp.set('Content-Type', parsedDataUrl.mimeType);
+    resp.set('Cache-Control', 'public, max-age=31536000, immutable');
+    resp.send(parsedDataUrl.data);
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to fetch listing image', error: e.message});
   }
 });
 

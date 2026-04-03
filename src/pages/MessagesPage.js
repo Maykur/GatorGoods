@@ -5,7 +5,38 @@ import { AppIcon, Avatar, Button, Card, EmptyState, ErrorBanner, PageHeader, Ske
 import { getConversations } from '../lib/messagesApi';
 import { toConversationPreviewViewModel } from '../lib/viewModels';
 
-const API_BASE_URL = 'http://localhost:5000';
+const PAGE_SIZE = 5;
+
+function SellingIndicator({onShowTooltip, onHideTooltip}) {
+  const tooltipText = 'You are selling an item in this conversation.';
+
+  const showTooltip = (event) => {
+    if (!onShowTooltip) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    onShowTooltip({
+      text: tooltipText,
+      left: rect.left + rect.width / 2,
+      top: rect.top - 8,
+    });
+  };
+
+  return (
+    <span
+      className="inline-flex items-center text-app-muted"
+      tabIndex={0}
+      aria-label="Selling in this thread"
+      onMouseEnter={showTooltip}
+      onFocus={showTooltip}
+      onMouseLeave={onHideTooltip}
+      onBlur={onHideTooltip}
+    >
+      <AppIcon icon="outgoing" className="text-[0.9em]" decorative={false} />
+    </span>
+  );
+}
 
 function ConversationsSkeleton() {
   return (
@@ -26,26 +57,19 @@ function ConversationsSkeleton() {
   );
 }
 
-async function fetchOptionalJson(url) {
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return response.json();
-  } catch (error) {
-    return null;
-  }
-}
-
 export function MessagesPage() {
   const { user } = useUser();
   const [conversations, setConversations] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [sellingTooltip, setSellingTooltip] = useState(null);
+  const [pagination, setPagination] = useState({
+    totalCount: 0,
+    totalPages: 1,
+    page: 1,
+    pageSize: PAGE_SIZE,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -55,50 +79,45 @@ export function MessagesPage() {
         return;
       }
 
-      const profileCache = new Map();
       try {
         if (showLoadingState) {
           setIsLoading(true);
-        } else if (isMounted) {
-          setIsRefreshing(true);
         }
 
-        const conversationData = await getConversations(user.id);
-        const enrichedConversations = await Promise.all(
-          conversationData.map(async (conversation) => {
-            const otherParticipantId = conversation.participantIds.find(
-              (participantId) => participantId !== user.id
-            );
-            const profilePromise = otherParticipantId
-              ? profileCache.get(otherParticipantId) ||
-                fetchOptionalJson(`${API_BASE_URL}/profile/${otherParticipantId}`)
-              : Promise.resolve(null);
-
-            if (otherParticipantId && !profileCache.has(otherParticipantId)) {
-              profileCache.set(otherParticipantId, profilePromise);
+        const conversationResponse = await getConversations(user.id, {
+          page,
+          pageSize: PAGE_SIZE,
+        });
+        const payload = Array.isArray(conversationResponse)
+          ? {
+              conversations: conversationResponse,
+              totalCount: conversationResponse.length,
+              totalPages: 1,
+              page: 1,
+              pageSize: PAGE_SIZE,
             }
+          : conversationResponse;
+        const nextConversations = (payload.conversations || []).map((conversation) => {
+          const preview = toConversationPreviewViewModel(conversation, user.id);
 
-            const profileData = await profilePromise;
-            const preview = toConversationPreviewViewModel(
-              conversation,
-              profileData,
-              null,
-              user.id
-            );
-
-            return {
-              ...preview,
-              participantId: otherParticipantId || '',
-              listingId: conversation.activeItem?.listingId?.toString?.() || conversation.activeListingId?.toString?.() || '',
-            };
-          })
-        );
+          return {
+            ...preview,
+            participantId: conversation.otherParticipant?.id || conversation.otherParticipantId || '',
+            listingId: conversation.activeItem?.listingId?.toString?.() || conversation.activeListingId?.toString?.() || '',
+          };
+        });
 
         if (!isMounted) {
           return;
         }
 
-        setConversations(enrichedConversations);
+        setConversations(nextConversations);
+        setPagination({
+          totalCount: payload.totalCount || nextConversations.length,
+          totalPages: Math.max(1, payload.totalPages || 1),
+          page: payload.page || page,
+          pageSize: payload.pageSize || PAGE_SIZE,
+        });
         setError('');
       } catch (loadError) {
         if (isMounted) {
@@ -107,7 +126,6 @@ export function MessagesPage() {
       } finally {
         if (isMounted) {
           setIsLoading(false);
-          setIsRefreshing(false);
         }
       }
     };
@@ -122,7 +140,17 @@ export function MessagesPage() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [user?.id]);
+  }, [page, user?.id]);
+
+  const unreadCount = conversations.filter((conversation) => conversation.isUnread).length;
+  const pendingPickupCount = conversations.reduce(
+    (count, conversation) => count + (conversation.pendingItemCount > 0 ? 1 : 0),
+    0
+  );
+  const startConversationNumber = conversations.length === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
+  const endConversationNumber = conversations.length === 0
+    ? 0
+    : startConversationNumber + conversations.length - 1;
 
   return (
     <section className="w-full space-y-8">
@@ -140,15 +168,28 @@ export function MessagesPage() {
         }
       />
 
-      <Card className="flex flex-col gap-3 border-white/10 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-app-soft">
-          {conversations.length} {conversations.length === 1 ? 'conversation' : 'conversations'}
-        </p>
-        {isRefreshing ? (
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-            Refreshing inbox...
+      <Card className="flex flex-col gap-4 border-white/10 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-2">
+          <p className="text-base font-semibold text-white">
+            {pagination.totalCount} {pagination.totalCount === 1 ? 'conversation' : 'conversations'}
           </p>
-        ) : null}
+          <div className="flex flex-wrap items-center gap-2 text-sm text-app-soft">
+            <span>{unreadCount} unread on this page</span>
+            <span aria-hidden="true" className="text-app-muted/70">•</span>
+            <span>{pendingPickupCount} pending {pendingPickupCount === 1 ? 'pickup' : 'pickups'}</span>
+            <span aria-hidden="true" className="text-app-muted/70">•</span>
+            <span>
+              Showing {startConversationNumber}-{endConversationNumber}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {pagination.totalPages > 1 ? (
+            <p className="text-sm text-app-muted">
+              Page {pagination.page} of {pagination.totalPages}
+            </p>
+          ) : null}
+        </div>
       </Card>
 
       {error ? (
@@ -156,6 +197,19 @@ export function MessagesPage() {
           title="We couldn't load your conversations"
           message={`${error}. Refresh and try again in a moment.`}
         />
+      ) : null}
+
+      {sellingTooltip ? (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[140] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-white/12 bg-app-bg/95 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-card backdrop-blur-sm"
+          style={{
+            left: `${sellingTooltip.left}px`,
+            top: `${sellingTooltip.top}px`,
+          }}
+        >
+          {sellingTooltip.text}
+        </div>
       ) : null}
 
       {isLoading ? <ConversationsSkeleton /> : null}
@@ -195,19 +249,23 @@ export function MessagesPage() {
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="text-xl font-semibold text-white">{conversation.participantName}</h2>
+                      {conversation.hasSellingItems ? (
+                        <SellingIndicator
+                          onShowTooltip={setSellingTooltip}
+                          onHideTooltip={() => setSellingTooltip(null)}
+                        />
+                      ) : null}
                       {conversation.isUnread ? (
                         <span className="inline-flex h-3 w-3 rounded-full bg-gatorOrange" aria-label="Unread conversation" />
                       ) : null}
                     </div>
-                    <p className="flex items-center gap-2 text-sm text-app-soft">
+                    <p className="flex flex-wrap items-center gap-2 text-sm text-app-soft">
                       <AppIcon
-                        icon={conversation.listingName !== 'General conversation' ? 'listing' : 'messages'}
+                        icon={conversation.itemTitles.length > 1 ? 'collection' : 'listing'}
                         className="text-[0.9em] text-app-muted"
                       />
-                      <span>
-                        {conversation.listingName !== 'General conversation'
-                          ? `About ${conversation.listingName}`
-                          : conversation.listingName}
+                      <span title={conversation.fullItemTitlesLabel || conversation.fullActiveItemTitle}>
+                        {conversation.itemTitlesLabel || conversation.activeItemTitle}
                       </span>
                       {conversation.extraItemCount > 0 ? (
                         <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-app-muted">
@@ -225,8 +283,8 @@ export function MessagesPage() {
               </div>
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <p className="line-clamp-2 text-sm leading-7 text-app-soft">
-                  {conversation.lastMessageText}
+                <p className="line-clamp-2 text-sm leading-7 text-app-soft" title={conversation.fullLastMessagePreviewText}>
+                  {conversation.lastMessagePreviewText}
                 </p>
 
                 <div className="flex flex-wrap gap-2">
@@ -241,6 +299,36 @@ export function MessagesPage() {
             </Card>
           ))}
         </div>
+      ) : null}
+
+      {!isLoading && !error && pagination.totalPages > 1 ? (
+        <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-app-soft">
+            Showing {startConversationNumber}-{endConversationNumber} of {pagination.totalCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              leadingIcon="previous"
+              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+              disabled={pagination.page <= 1}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              trailingIcon="next"
+              onClick={() => setPage((currentPage) => Math.min(pagination.totalPages, currentPage + 1))}
+              disabled={pagination.page >= pagination.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </Card>
       ) : null}
     </section>
   );
