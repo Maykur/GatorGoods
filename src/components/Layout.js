@@ -44,6 +44,7 @@ export function Layout() {
   const location = useLocation();
 
   const signedInNavItems = user ? [
+    { to: '/listings', label: 'Browse', icon: 'browse' },
     { to: '/messages', label: 'Messages', icon: 'messages' },
     { to: '/offers', label: 'Offers', icon: 'offers' },
     { to: '/favorites', label: 'Favorites', icon: 'favorite' },
