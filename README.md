@@ -86,9 +86,9 @@ From the repository root:
 
   By default this safely reseeds only demo-tagged records and leaves unrelated marketplace data alone. The presentation dataset includes:
   - 8 polished accounts
-  - 12 listings across all 8 marketplace categories
-  - 9 offers
-  - 8 conversation threads with populated seller and buyer inbox views
+  - 13 live listings across all 8 marketplace categories, plus 1 historical deleted-item thread context
+  - 14 offers
+  - 7 participant-first conversation threads with populated seller and buyer inbox views, including several multi-item relationship threads, item-history context, and compact viewer-aware sent/accepted/rejected offer events
   - presenter-owned `Desk Lamp` (`active`) and `Mini Fridge` (`reserved`) listings for the core demo flow
 
   Useful seed inputs:

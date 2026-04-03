@@ -1,5 +1,5 @@
 import { useUser } from '@clerk/react';
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/HomePage/ProductCard.js';
 import { AppIcon, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Select, Skeleton } from '../components/ui';
@@ -98,6 +98,7 @@ export function HomePage({ forceSignedOutView = false }) {
   );
   const [error, setError] = useState('');
   const [hasLoadedFeed, setHasLoadedFeed] = useState(Boolean(initialCachedResponse));
+  const hasLoadedFeedRef = useRef(Boolean(initialCachedResponse));
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -115,7 +116,7 @@ export function HomePage({ forceSignedOutView = false }) {
       pickupLocation: selectedPickupLocation,
       sort: sortBy,
     };
-    const shouldUseInitialLoading = !hasLoadedFeed && !hasCachedListings(requestParams);
+    const shouldUseInitialLoading = !hasLoadedFeedRef.current && !hasCachedListings(requestParams);
 
     const itemFetch = async () => {
       try {
@@ -136,11 +137,17 @@ export function HomePage({ forceSignedOutView = false }) {
         setItems(Array.isArray(data.items) ? data.items : []);
         setMeta(data.meta);
         setError('');
-        setHasLoadedFeed(true);
+        if (!hasLoadedFeedRef.current) {
+          hasLoadedFeedRef.current = true;
+          setHasLoadedFeed(true);
+        }
       } catch (fetchError) {
         if (isMounted) {
           setError(fetchError.message || 'Failed to fetch listings');
-          setHasLoadedFeed(true);
+          if (!hasLoadedFeedRef.current) {
+            hasLoadedFeedRef.current = true;
+            setHasLoadedFeed(true);
+          }
         }
       } finally {
         if (isMounted) {
@@ -155,7 +162,7 @@ export function HomePage({ forceSignedOutView = false }) {
     return () => {
       isMounted = false;
     };
-  }, [deferredSearch, hasLoadedFeed, page, selectedCategory, selectedPickupLocation, shouldRenderLanding, sortBy]);
+  }, [deferredSearch, page, selectedCategory, selectedPickupLocation, shouldRenderLanding, sortBy]);
 
   if (shouldRenderLanding) {
     return (
@@ -322,7 +329,6 @@ export function HomePage({ forceSignedOutView = false }) {
             {meta.totalItems} {meta.totalItems === 1 ? 'listing' : 'listings'}
             {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}
             {selectedPickupLocation !== 'All' ? `${selectedCategory !== 'All' ? ' near ' : ' in '}${selectedPickupLocation}` : ''}.
-            .
           </p>
           <div className="flex items-center gap-3">
             {isRefreshing ? (

@@ -23,9 +23,9 @@ async function fetchFromApi(url, options, fallbackMessage) {
   return readJson(response, fallbackMessage);
 }
 
-export async function getConversations(participantId) {
+export async function getConversations(participantId, {page = 1, pageSize = 10} = {}) {
   return fetchFromApi(
-    `${API_BASE_URL}/api/conversations?participantId=${encodeURIComponent(participantId)}`,
+    `${API_BASE_URL}/api/conversations?participantId=${encodeURIComponent(participantId)}&page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
     undefined,
     'Failed to load conversations'
   );

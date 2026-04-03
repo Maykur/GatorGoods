@@ -15,6 +15,11 @@ const {
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const PAYMENT_METHOD_LABELS = {
+  cash: 'Cash',
+  externalApp: 'External app',
+  gatorgoodsEscrow: 'GatorGoods escrow',
+};
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -196,6 +201,54 @@ const conversationSchema = new mongoose.Schema(
       ref: 'items',
       default: null,
     },
+    linkedItems: {
+      type: [
+        new mongoose.Schema(
+          {
+            listingId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'items',
+              required: true,
+            },
+            title: {
+              type: String,
+              default: '',
+              trim: true,
+            },
+            imageUrl: {
+              type: String,
+              default: '',
+              trim: true,
+            },
+            firstLinkedAt: {
+              type: Date,
+              default: null,
+            },
+            lastContextAt: {
+              type: Date,
+              default: null,
+            },
+            firstContextMessageId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'messages',
+              default: null,
+            },
+            latestContextMessageId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'messages',
+              default: null,
+            },
+            lastKnownStatus: {
+              type: String,
+              default: '',
+              trim: true,
+            },
+          },
+          {_id: false}
+        ),
+      ],
+      default: [],
+    },
     activePickupHubId: {
       type: String,
       default: null,
@@ -251,6 +304,74 @@ const messageSchema = new mongoose.Schema(
     attachedListingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'items',
+      default: null,
+    },
+    attachedListingTitle: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    attachedListingImageUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    offerSnapshot: {
+      type: new mongoose.Schema(
+        {
+          offerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'offers',
+            default: null,
+          },
+          eventType: {
+            type: String,
+            enum: ['sent', 'accepted', 'declined'],
+            default: '',
+            trim: true,
+          },
+          status: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          offeredPrice: {
+            type: Number,
+            default: null,
+          },
+          buyerClerkUserId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          buyerDisplayName: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          sellerClerkUserId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          paymentMethod: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupHubId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupLocation: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+        },
+        {_id: false}
+      ),
       default: null,
     },
     seedTag: {
@@ -384,6 +505,61 @@ function getItemsSort(sort) {
   }
 }
 
+const ITEM_FEED_SELECT =
+  'itemName itemCost itemCondition itemLocation pickupHubId originalPickupHubId pickupArea ' +
+  'originalPickupArea originalItemLocation userPublishingName itemCat status date';
+
+function buildItemImageUrl(itemId) {
+  const normalizedItemId = toIdString(itemId);
+
+  if (!normalizedItemId) {
+    return '';
+  }
+
+  return `/items/${normalizedItemId}/image`;
+}
+
+function buildItemFeedSummary(rawItem) {
+  const item = rawItem?.toObject ? rawItem.toObject() : rawItem;
+  const itemId = toIdString(item?._id || item?.id);
+
+  return {
+    _id: itemId,
+    itemName: item?.itemName || '',
+    itemCost: item?.itemCost || '',
+    itemCondition: item?.itemCondition || '',
+    itemLocation: item?.itemLocation || '',
+    pickupHubId: item?.pickupHubId || null,
+    originalPickupHubId: item?.originalPickupHubId || null,
+    pickupArea: item?.pickupArea || '',
+    originalPickupArea: item?.originalPickupArea || '',
+    originalItemLocation: item?.originalItemLocation || '',
+    userPublishingName: item?.userPublishingName || '',
+    itemCat: item?.itemCat || '',
+    status: item?.status || 'active',
+    date: item?.date || null,
+    itemPictureUrl: buildItemImageUrl(itemId),
+  };
+}
+
+function parseDataUrl(value = '') {
+  const match = value.match(/^data:([^;,]+)?((?:;[^,]*)*?),(.*)$/s);
+
+  if (!match) {
+    return null;
+  }
+
+  const mimeType = match[1] || 'application/octet-stream';
+  const metadata = match[2] || '';
+  const payload = match[3] || '';
+  const isBase64 = /;base64/i.test(metadata);
+
+  return {
+    mimeType,
+    data: isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodeURIComponent(payload), 'utf8'),
+  };
+}
+
 async function connectToDatabase(uri = process.env.mongo_url) {
   if (!uri) {
     throw new Error('mongo_url is required');
@@ -419,6 +595,30 @@ function normalizeParticipantIds(participantIds = []) {
   return [...new Set(participantIds.map((participantId) => participantId?.trim()).filter(Boolean))].sort();
 }
 
+async function findConversationByParticipantIds(participantIds = []) {
+  const normalizedParticipantIds = normalizeParticipantIds(participantIds);
+
+  if (normalizedParticipantIds.length !== 2) {
+    return null;
+  }
+
+  return Conversation.findOne({
+    participantIds: normalizedParticipantIds,
+  }).sort({lastMessageAt: -1, updatedAt: -1, _id: -1});
+}
+
+function toIdString(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value.toString();
+}
+
 function toObjectId(value) {
   if (!value || !mongoose.Types.ObjectId.isValid(value)) {
     return null;
@@ -429,6 +629,301 @@ function toObjectId(value) {
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function dedupeIdStrings(values = []) {
+  const seen = new Set();
+  const dedupedValues = [];
+
+  values.forEach((value) => {
+    const id = toIdString(value);
+
+    if (!id || seen.has(id)) {
+      return;
+    }
+
+    seen.add(id);
+    dedupedValues.push(id);
+  });
+
+  return dedupedValues;
+}
+
+function normalizeDateValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+}
+
+function getFirstName(value) {
+  const trimmedValue = normalizeOptionalString(value);
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  return trimmedValue.split(/\s+/)[0];
+}
+
+function normalizeLinkedItemForComparison(linkedItem = {}) {
+  return {
+    listingId: toIdString(linkedItem.listingId),
+    title: linkedItem.title || '',
+    imageUrl: linkedItem.imageUrl || '',
+    firstLinkedAt: normalizeDateValue(linkedItem.firstLinkedAt)?.toISOString() || null,
+    lastContextAt: normalizeDateValue(linkedItem.lastContextAt)?.toISOString() || null,
+    firstContextMessageId: toIdString(linkedItem.firstContextMessageId) || null,
+    latestContextMessageId: toIdString(linkedItem.latestContextMessageId) || null,
+    lastKnownStatus: linkedItem.lastKnownStatus || '',
+  };
+}
+
+function areIdListsEqual(currentValues = [], nextValues = []) {
+  if (currentValues.length !== nextValues.length) {
+    return false;
+  }
+
+  return currentValues.every((value, index) => value === nextValues[index]);
+}
+
+function areLinkedItemListsEqual(currentValues = [], nextValues = []) {
+  if (currentValues.length !== nextValues.length) {
+    return false;
+  }
+
+  return currentValues.every((linkedItem, index) => {
+    const currentValue = JSON.stringify(normalizeLinkedItemForComparison(linkedItem));
+    const nextValue = JSON.stringify(normalizeLinkedItemForComparison(nextValues[index]));
+    return currentValue === nextValue;
+  });
+}
+
+async function fetchListingsByIds(listingIds = [], {select = '', lean = false} = {}) {
+  const normalizedListingIds = dedupeIdStrings(listingIds)
+    .map((listingId) => toObjectId(listingId))
+    .filter(Boolean);
+
+  if (normalizedListingIds.length === 0) {
+    return new Map();
+  }
+
+  let query = Item.find({
+    _id: {$in: normalizedListingIds},
+  });
+
+  if (select) {
+    query = query.select(select);
+  }
+
+  if (lean) {
+    query = query.lean();
+  }
+
+  const listings = await query;
+
+  return new Map(listings.map((listing) => [toIdString(listing?._id || listing?.id), listing]));
+}
+
+function buildAttachedListingSnapshot(listing, fallback = {}) {
+  return {
+    attachedListingTitle: listing?.itemName || normalizeOptionalString(fallback.title) || '',
+    attachedListingImageUrl: listing?.itemPicture || normalizeOptionalString(fallback.imageUrl) || '',
+  };
+}
+
+async function buildAttachedListingMessageFields(attachedListingId, fallback = {}) {
+  const normalizedListingId = toObjectId(attachedListingId);
+
+  if (!normalizedListingId) {
+    return {
+      attachedListingId: null,
+      attachedListingTitle: '',
+      attachedListingImageUrl: '',
+      listing: null,
+    };
+  }
+
+  const listing = await Item.findById(normalizedListingId);
+
+  return {
+    attachedListingId: normalizedListingId,
+    ...buildAttachedListingSnapshot(listing, fallback),
+    listing,
+  };
+}
+
+async function createOfferSystemMessage({
+  conversationId,
+  listingId,
+  offer,
+  eventType,
+}) {
+  const attachedListingFields = await buildAttachedListingMessageFields(listingId);
+  const offerSnapshot = buildOfferSnapshot(offer, {eventType});
+
+  return Message.create({
+    conversationId,
+    senderClerkUserId: 'system',
+    body: `${getOfferEventBody(eventType, offerSnapshot)}.`,
+    attachedListingId: attachedListingFields.attachedListingId,
+    attachedListingTitle: attachedListingFields.attachedListingTitle,
+    attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
+    offerSnapshot,
+  });
+}
+
+async function repairConversationLinkedItems(
+  conversation,
+  {
+    messages = null,
+    touchedListingId = null,
+    contextAt = null,
+    contextMessageId = null,
+    fallbackTitle = '',
+    fallbackImageUrl = '',
+    fallbackStatus = '',
+  } = {}
+) {
+  if (!conversation?._id) {
+    return {changed: false, messages: Array.isArray(messages) ? messages : []};
+  }
+
+  const normalizedTouchedListingId = toIdString(touchedListingId);
+  const normalizedContextAt = normalizeDateValue(contextAt);
+  const normalizedContextMessageId = toObjectId(contextMessageId);
+  const orderedMessages = Array.isArray(messages)
+    ? [...messages].sort((firstMessage, secondMessage) => firstMessage.createdAt - secondMessage.createdAt)
+    : await Message.find({conversationId: conversation._id}).sort({createdAt: 1});
+  const existingLinkedItems = Array.isArray(conversation.linkedItems)
+    ? conversation.linkedItems.map((linkedItem) => (linkedItem?.toObject ? linkedItem.toObject() : linkedItem))
+    : [];
+  const existingLinkedItemsById = new Map(
+    existingLinkedItems
+      .map((linkedItem) => [toIdString(linkedItem.listingId), linkedItem])
+      .filter(([listingId]) => Boolean(listingId))
+  );
+  const messageContextByListingId = new Map();
+
+  orderedMessages.forEach((message) => {
+    const listingId = toIdString(message.attachedListingId);
+
+    if (!listingId) {
+      return;
+    }
+
+    const existingContext = messageContextByListingId.get(listingId);
+
+    if (!existingContext) {
+      messageContextByListingId.set(listingId, {
+        firstLinkedAt: message.createdAt,
+        lastContextAt: message.createdAt,
+        firstContextMessageId: message._id,
+        latestContextMessageId: message._id,
+        title: message.attachedListingTitle || '',
+        imageUrl: message.attachedListingImageUrl || '',
+      });
+      return;
+    }
+
+    existingContext.lastContextAt = message.createdAt;
+    existingContext.latestContextMessageId = message._id;
+    existingContext.title = message.attachedListingTitle || existingContext.title || '';
+    existingContext.imageUrl = message.attachedListingImageUrl || existingContext.imageUrl || '';
+  });
+
+  const canonicalListingIds = dedupeIdStrings([
+    ...(conversation.linkedListingIds || []),
+    conversation.activeListingId,
+    ...existingLinkedItems.map((linkedItem) => linkedItem.listingId),
+    ...messageContextByListingId.keys(),
+    normalizedTouchedListingId,
+  ]);
+  const liveListingsById = await fetchListingsByIds(canonicalListingIds);
+  const fallbackLinkedAt = conversation.createdAt || new Date();
+  const fallbackContextAt = normalizeDateValue(conversation.updatedAt) || fallbackLinkedAt;
+
+  const nextLinkedItems = canonicalListingIds
+    .map((listingId) => {
+      const existingLinkedItem = existingLinkedItemsById.get(listingId) || {};
+      const messageContext = messageContextByListingId.get(listingId);
+      const liveListing = liveListingsById.get(listingId);
+      const firstLinkedAt =
+        normalizeDateValue(existingLinkedItem.firstLinkedAt) ||
+        normalizeDateValue(messageContext?.firstLinkedAt) ||
+        fallbackLinkedAt;
+      let lastContextAt =
+        normalizeDateValue(messageContext?.lastContextAt) ||
+        normalizeDateValue(existingLinkedItem.lastContextAt) ||
+        firstLinkedAt ||
+        fallbackContextAt;
+
+      if (listingId === normalizedTouchedListingId && normalizedContextAt && normalizedContextAt > lastContextAt) {
+        lastContextAt = normalizedContextAt;
+      }
+
+      const firstContextMessageId =
+        toObjectId(messageContext?.firstContextMessageId) ||
+        toObjectId(existingLinkedItem.firstContextMessageId) ||
+        (listingId === normalizedTouchedListingId ? normalizedContextMessageId : null);
+      const latestContextMessageId =
+        (listingId === normalizedTouchedListingId && normalizedContextMessageId) ||
+        toObjectId(messageContext?.latestContextMessageId) ||
+        toObjectId(existingLinkedItem.latestContextMessageId) ||
+        null;
+
+      return {
+        listingId: toObjectId(listingId),
+        title:
+          liveListing?.itemName ||
+          existingLinkedItem.title ||
+          messageContext?.title ||
+          (listingId === normalizedTouchedListingId ? fallbackTitle : '') ||
+          '',
+        imageUrl:
+          liveListing?.itemPicture ||
+          existingLinkedItem.imageUrl ||
+          messageContext?.imageUrl ||
+          (listingId === normalizedTouchedListingId ? fallbackImageUrl : '') ||
+          '',
+        firstLinkedAt,
+        lastContextAt,
+        firstContextMessageId,
+        latestContextMessageId,
+        lastKnownStatus:
+          liveListing?.status ||
+          (listingId === normalizedTouchedListingId ? fallbackStatus : '') ||
+          existingLinkedItem.lastKnownStatus ||
+          'deleted',
+      };
+    })
+    .sort((firstItem, secondItem) => {
+      const firstTimestamp = normalizeDateValue(firstItem.firstLinkedAt)?.getTime() || 0;
+      const secondTimestamp = normalizeDateValue(secondItem.firstLinkedAt)?.getTime() || 0;
+      return firstTimestamp - secondTimestamp;
+    });
+  const nextLinkedListingIds = canonicalListingIds;
+  const currentLinkedListingIds = dedupeIdStrings(conversation.linkedListingIds || []);
+  const currentLinkedItems = existingLinkedItems;
+  const linkedListingIdsChanged = !areIdListsEqual(currentLinkedListingIds, nextLinkedListingIds);
+  const linkedItemsChanged = !areLinkedItemListsEqual(currentLinkedItems, nextLinkedItems);
+
+  if (linkedListingIdsChanged) {
+    conversation.linkedListingIds = nextLinkedListingIds
+      .map((listingId) => toObjectId(listingId))
+      .filter(Boolean);
+  }
+
+  if (linkedItemsChanged) {
+    conversation.linkedItems = nextLinkedItems;
+  }
+
+  return {
+    changed: linkedListingIdsChanged || linkedItemsChanged,
+    messages: orderedMessages,
+  };
 }
 
 function normalizePickupSpecifics(value) {
@@ -567,15 +1062,548 @@ async function repairConversationPickupHub(conversation) {
   return conversation;
 }
 
-function serializeConversation(conversation, extras = {}) {
+async function buildLinkedItemStateMaps(linkedItems = [], conversationId) {
+  const listingIds = dedupeIdStrings(linkedItems.map((linkedItem) => linkedItem.listingId));
+  const liveListingsById = await fetchListingsByIds(listingIds);
+  const reservedOfferIds = dedupeIdStrings(
+    listingIds.map((listingId) => liveListingsById.get(listingId)?.reservedOfferId).filter(Boolean)
+  )
+    .map((offerId) => toObjectId(offerId))
+    .filter(Boolean);
+  const reservedOffers = reservedOfferIds.length > 0
+    ? await Offer.find({
+      _id: {$in: reservedOfferIds},
+    })
+    : [];
+  const reservedOffersById = new Map(reservedOffers.map((offer) => [offer.id, offer]));
+  const reservedOffersByListingId = new Map();
+  const threadOffers = listingIds.length > 0
+    ? await Offer.find({
+      listingId: {$in: listingIds.map((listingId) => toObjectId(listingId)).filter(Boolean)},
+      conversationId: toObjectId(conversationId),
+      status: {$in: ['pending', 'accepted']},
+    }).sort({createdAt: -1, _id: -1})
+    : [];
+  const threadOffersByListingId = new Map();
+
+  listingIds.forEach((listingId) => {
+    const listing = liveListingsById.get(listingId);
+    const reservedOffer = listing?.reservedOfferId
+      ? reservedOffersById.get(toIdString(listing.reservedOfferId)) || null
+      : null;
+
+    reservedOffersByListingId.set(listingId, reservedOffer);
+  });
+
+  threadOffers.forEach((offer) => {
+    const listingId = toIdString(offer.listingId);
+    const existingOffer = threadOffersByListingId.get(listingId);
+
+    if (!existingOffer || (offer.status === 'accepted' && existingOffer.status !== 'accepted')) {
+      threadOffersByListingId.set(listingId, offer);
+    }
+  });
+
+  return {
+    liveListingsById,
+    reservedOffersByListingId,
+    threadOffersByListingId,
+    conversationId: toIdString(conversationId),
+  };
+}
+
+function deriveLinkedItemState({listing, reservedOffer, conversationId}) {
+  if (!listing) {
+    return 'unavailable';
+  }
+
+  if (listing.status === 'active') {
+    return 'active';
+  }
+
+  const reservedHere = Boolean(
+    reservedOffer &&
+    toIdString(reservedOffer.conversationId) &&
+    toIdString(reservedOffer.conversationId) === toIdString(conversationId)
+  );
+
+  if (listing.status === 'reserved') {
+    return reservedHere ? 'pending' : 'unavailable';
+  }
+
+  if (listing.status === 'sold') {
+    return reservedHere ? 'completedHere' : 'unavailable';
+  }
+
+  return 'unavailable';
+}
+
+function deriveLinkedItemRelationshipRole({listing, reservedOffer, viewerParticipantId}) {
+  const sellerId = listing?.userPublishingID || reservedOffer?.sellerClerkUserId || '';
+  const normalizedSellerId = toIdString(sellerId);
+  const normalizedViewerId = toIdString(viewerParticipantId);
+
+  if (!normalizedSellerId || !normalizedViewerId) {
+    return null;
+  }
+
+  return normalizedSellerId === normalizedViewerId ? 'selling' : 'buying';
+}
+
+function formatOfferPriceLabel(value) {
+  if (!Number.isFinite(Number(value))) {
+    return '';
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function formatPaymentMethodLabel(paymentMethod) {
+  return PAYMENT_METHOD_LABELS[paymentMethod] || '';
+}
+
+function getOfferMeetupLabel(offer = {}) {
+  return getPickupHubById(offer.meetupHubId)?.label || offer.meetupLocation || '';
+}
+
+function buildOfferDetailLine(offer = {}) {
+  const parts = [
+    formatOfferPriceLabel(offer.offeredPrice),
+    formatPaymentMethodLabel(offer.paymentMethod),
+    getOfferMeetupLabel(offer),
+  ].filter(Boolean);
+
+  return parts.join(' • ');
+}
+
+function getOfferEventTitle(eventType, offerSnapshot = {}, viewerParticipantId = '') {
+  if (eventType === 'sent') {
+    const normalizedViewerId = toIdString(viewerParticipantId);
+    const normalizedBuyerId = toIdString(offerSnapshot.buyerClerkUserId);
+    const buyerName = getFirstName(offerSnapshot.buyerDisplayName) || 'Buyer';
+
+    if (normalizedViewerId && normalizedViewerId === normalizedBuyerId) {
+      return 'You sent an offer';
+    }
+
+    return `${buyerName} sent an offer`;
+  }
+
+  if (eventType === 'accepted') {
+    const normalizedViewerId = toIdString(viewerParticipantId);
+    const normalizedSellerId = toIdString(offerSnapshot.sellerClerkUserId);
+    const buyerName = getFirstName(offerSnapshot.buyerDisplayName) || 'the buyer';
+    const sellerName = getFirstName(offerSnapshot.sellerDisplayName) || 'Seller';
+
+    if (normalizedViewerId && normalizedViewerId === normalizedSellerId) {
+      return `You accepted ${buyerName}'s offer`;
+    }
+
+    return `${sellerName} accepted your offer`;
+  }
+
+  if (eventType === 'declined') {
+    const normalizedViewerId = toIdString(viewerParticipantId);
+    const normalizedSellerId = toIdString(offerSnapshot.sellerClerkUserId);
+    const buyerName = getFirstName(offerSnapshot.buyerDisplayName) || 'the buyer';
+    const sellerName = getFirstName(offerSnapshot.sellerDisplayName) || 'Seller';
+
+    if (normalizedViewerId && normalizedViewerId === normalizedSellerId) {
+      return `You rejected ${buyerName}'s offer`;
+    }
+
+    return `${sellerName} rejected your offer`;
+  }
+
+  return 'Offer sent';
+}
+
+function getOfferEventBody(eventType, offerSnapshot = {}) {
+  if (eventType === 'sent') {
+    return `${offerSnapshot.buyerDisplayName || 'Buyer'} sent an offer`;
+  }
+
+  return getOfferEventTitle(eventType, offerSnapshot);
+}
+
+function resolveBuyerDisplayName(offerSnapshot = {}, participantNamesById = new Map()) {
+  const storedName = normalizeOptionalString(offerSnapshot.buyerDisplayName);
+
+  if (storedName && storedName.toLowerCase() !== 'buyer') {
+    return storedName;
+  }
+
+  return getFirstName(participantNamesById.get(toIdString(offerSnapshot.buyerClerkUserId))) || getFirstName(storedName) || 'Buyer';
+}
+
+function resolveSellerDisplayName(offerSnapshot = {}, participantNamesById = new Map()) {
+  return getFirstName(participantNamesById.get(toIdString(offerSnapshot.sellerClerkUserId))) || 'Seller';
+}
+
+function buildOfferSnapshot(offer, {eventType = ''} = {}) {
+  if (!offer) {
+    return null;
+  }
+
+  return {
+    offerId: offer._id || offer.offerId || null,
+    eventType,
+    status: offer.status || '',
+    offeredPrice: Number.isFinite(Number(offer.offeredPrice)) ? Number(offer.offeredPrice) : null,
+    buyerClerkUserId: offer.buyerClerkUserId || '',
+    buyerDisplayName: offer.buyerDisplayName || '',
+    sellerClerkUserId: offer.sellerClerkUserId || '',
+    paymentMethod: offer.paymentMethod || '',
+    meetupHubId: offer.meetupHubId || '',
+    meetupLocation: offer.meetupLocation || '',
+  };
+}
+
+function buildOfferApiSummary(
+  offerSnapshot,
+  {
+    includeEventTitle = false,
+    viewerParticipantId = '',
+    participantNamesById = new Map(),
+  } = {}
+) {
+  if (!offerSnapshot) {
+    return null;
+  }
+
+  const buyerDisplayName = resolveBuyerDisplayName(offerSnapshot, participantNamesById);
+  const sellerDisplayName = resolveSellerDisplayName(offerSnapshot, participantNamesById);
+
+  const detailLine =
+    offerSnapshot.eventType === 'declined'
+      ? ''
+      : buildOfferDetailLine(offerSnapshot);
+
+  return {
+    offerId: toIdString(offerSnapshot.offerId),
+    eventType: offerSnapshot.eventType || '',
+    status: offerSnapshot.status || '',
+    offeredPrice: Number.isFinite(Number(offerSnapshot.offeredPrice))
+      ? Number(offerSnapshot.offeredPrice)
+      : null,
+    buyerDisplayName,
+    sellerDisplayName,
+    paymentMethod: offerSnapshot.paymentMethod || '',
+    paymentMethodLabel: formatPaymentMethodLabel(offerSnapshot.paymentMethod),
+    meetupHubId: offerSnapshot.meetupHubId || '',
+    meetupLocation: offerSnapshot.meetupLocation || '',
+    meetupLabel: getOfferMeetupLabel(offerSnapshot),
+    detailLine,
+    ...(includeEventTitle
+      ? {
+          title: getOfferEventTitle(
+            offerSnapshot.eventType,
+            {
+              ...offerSnapshot,
+              buyerDisplayName,
+              sellerDisplayName,
+            },
+            viewerParticipantId
+          ),
+        }
+      : {}),
+  };
+}
+
+function buildLinkedItemCurrentOfferSummary(offer) {
+  if (!offer || !['pending', 'accepted'].includes(offer.status)) {
+    return null;
+  }
+
+  return {
+    status: offer.status,
+    title: offer.status === 'accepted' ? 'Offer accepted' : 'Offer pending',
+    ...buildOfferApiSummary(buildOfferSnapshot(offer), {
+      includeEventTitle: false,
+    }),
+  };
+}
+
+function buildConversationPreviewLinkedItemSeeds(conversationObject = {}) {
+  const storedLinkedItems = Array.isArray(conversationObject.linkedItems) ? conversationObject.linkedItems : [];
+  const storedLinkedItemsById = new Map(
+    storedLinkedItems
+      .map((linkedItem) => [toIdString(linkedItem?.listingId), linkedItem])
+      .filter(([listingId]) => Boolean(listingId))
+  );
+  const canonicalListingIds = dedupeIdStrings([
+    ...storedLinkedItems.map((linkedItem) => linkedItem?.listingId),
+    ...(conversationObject.linkedListingIds || []),
+    conversationObject.activeListingId,
+  ]);
+
+  return canonicalListingIds.map((listingId) => {
+    const storedLinkedItem = storedLinkedItemsById.get(listingId);
+
+    if (storedLinkedItem) {
+      return storedLinkedItem;
+    }
+
+    return {
+      listingId,
+      title: '',
+      lastContextAt: conversationObject.lastMessageAt || null,
+      lastKnownStatus: '',
+    };
+  });
+}
+
+function buildLinkedItemPreviewSummary(linkedItem = {}, stateMaps, {selected = false, viewerParticipantId = ''} = {}) {
+  const listingId = toIdString(linkedItem.listingId);
+  const liveListing = stateMaps.liveListingsById.get(listingId) || null;
+  const reservedOffer = stateMaps.reservedOffersByListingId.get(listingId) || null;
+  const lastKnownStatus = liveListing?.status || linkedItem.lastKnownStatus || 'deleted';
+
+  return {
+    listingId,
+    title: liveListing?.itemName || linkedItem.title || '',
+    lastContextAt: linkedItem.lastContextAt || null,
+    lastKnownStatus,
+    state: deriveLinkedItemState({
+      listing: liveListing,
+      reservedOffer,
+      conversationId: stateMaps.conversationId,
+    }),
+    relationshipRole: deriveLinkedItemRelationshipRole({
+      listing: liveListing,
+      reservedOffer,
+      viewerParticipantId,
+    }),
+    isSelected: selected,
+  };
+}
+
+function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false, viewerParticipantId = ''} = {}) {
+  const listingId = toIdString(linkedItem.listingId);
+  const liveListing = stateMaps.liveListingsById.get(listingId) || null;
+  const reservedOffer = stateMaps.reservedOffersByListingId.get(listingId) || null;
+  const threadOffer = stateMaps.threadOffersByListingId.get(listingId) || null;
+  const lastKnownStatus = liveListing?.status || linkedItem.lastKnownStatus || 'deleted';
+
+  return {
+    listingId,
+    title: liveListing?.itemName || linkedItem.title || '',
+    imageUrl: liveListing?.itemPicture || linkedItem.imageUrl || '',
+    firstLinkedAt: linkedItem.firstLinkedAt || null,
+    lastContextAt: linkedItem.lastContextAt || null,
+    firstContextMessageId: linkedItem.firstContextMessageId || null,
+    latestContextMessageId: linkedItem.latestContextMessageId || null,
+    lastKnownStatus,
+    state: deriveLinkedItemState({
+      listing: liveListing,
+      reservedOffer,
+      conversationId: stateMaps.conversationId,
+    }),
+    relationshipRole: deriveLinkedItemRelationshipRole({
+      listing: liveListing,
+      reservedOffer,
+      viewerParticipantId,
+    }),
+    currentOffer: buildLinkedItemCurrentOfferSummary(threadOffer),
+    isSelected: selected,
+  };
+}
+
+function buildMessageAttachedItemSummary(
+  message,
+  stateMaps,
+  linkedItemsById = new Map(),
+  {viewerParticipantId = ''} = {}
+) {
+  const listingId = toIdString(message?.attachedListingId);
+
+  if (!listingId) {
+    return null;
+  }
+
+  const linkedItem = linkedItemsById.get(listingId) || {};
+  const liveListing = stateMaps.liveListingsById.get(listingId) || null;
+  const reservedOffer = stateMaps.reservedOffersByListingId.get(listingId) || null;
+
+  return {
+    listingId,
+    title: liveListing?.itemName || message?.attachedListingTitle || linkedItem.title || '',
+    imageUrl: liveListing?.itemPicture || message?.attachedListingImageUrl || linkedItem.imageUrl || '',
+    lastKnownStatus: liveListing?.status || linkedItem.lastKnownStatus || 'deleted',
+    state: deriveLinkedItemState({
+      listing: liveListing,
+      reservedOffer,
+      conversationId: stateMaps.conversationId,
+    }),
+    relationshipRole: deriveLinkedItemRelationshipRole({
+      listing: liveListing,
+      reservedOffer,
+      viewerParticipantId,
+    }),
+  };
+}
+
+async function serializeConversation(conversation, extras = {}) {
   if (!conversation) {
     return conversation;
   }
 
+  const {viewerParticipantId = '', ...serializedExtras} = extras;
+  const conversationObject = conversation.toObject({flattenMaps: true});
+  const linkedItems = Array.isArray(conversationObject.linkedItems) ? conversationObject.linkedItems : [];
+  const stateMaps = await buildLinkedItemStateMaps(linkedItems, conversationObject._id);
+  const linkedItemSummaries = linkedItems
+    .map((linkedItem) =>
+      buildLinkedItemApiSummary(linkedItem, stateMaps, {
+        selected: toIdString(linkedItem.listingId) === toIdString(conversationObject.activeListingId),
+        viewerParticipantId,
+      })
+    )
+    .sort((firstItem, secondItem) => {
+      const firstTimestamp = normalizeDateValue(firstItem.lastContextAt)?.getTime() || 0;
+      const secondTimestamp = normalizeDateValue(secondItem.lastContextAt)?.getTime() || 0;
+      return secondTimestamp - firstTimestamp;
+    });
+  const activeItem =
+    linkedItemSummaries.find(
+      (linkedItem) => linkedItem.listingId === toIdString(conversationObject.activeListingId)
+    ) || null;
+
   return {
-    ...conversation.toObject(),
-    ...extras,
+    ...conversationObject,
+    linkedItems: linkedItemSummaries,
+    linkedItemCount: linkedItemSummaries.length,
+    activeItem,
+    ...serializedExtras,
   };
+}
+
+async function serializeConversationPreviews(conversations = [], {viewerParticipantId = ''} = {}) {
+  if (!Array.isArray(conversations) || conversations.length === 0) {
+    return [];
+  }
+
+  const conversationObjects = conversations.map((conversation) =>
+    conversation?.toObject ? conversation.toObject({flattenMaps: true}) : conversation
+  );
+  const previewLinkedItemsByConversationId = new Map(
+    conversationObjects.map((conversationObject) => [
+      toIdString(conversationObject._id),
+      buildConversationPreviewLinkedItemSeeds(conversationObject),
+    ])
+  );
+  const listingIds = dedupeIdStrings(
+    conversationObjects.flatMap((conversationObject) =>
+      (previewLinkedItemsByConversationId.get(toIdString(conversationObject._id)) || []).map(
+        (linkedItem) => linkedItem.listingId
+      )
+    )
+  );
+  const liveListingsById = await fetchListingsByIds(listingIds, {
+    select: 'itemName status userPublishingID reservedOfferId',
+    lean: true,
+  });
+  const reservedOfferIds = dedupeIdStrings(
+    listingIds.map((listingId) => liveListingsById.get(listingId)?.reservedOfferId).filter(Boolean)
+  )
+    .map((offerId) => toObjectId(offerId))
+    .filter(Boolean);
+  const reservedOffers = reservedOfferIds.length > 0
+    ? await Offer.find({
+      _id: {$in: reservedOfferIds},
+    })
+      .select('conversationId sellerClerkUserId')
+      .lean()
+    : [];
+  const reservedOffersById = new Map(
+    reservedOffers.map((offer) => [toIdString(offer?._id || offer?.id), offer])
+  );
+  const reservedOffersByListingId = new Map();
+
+  listingIds.forEach((listingId) => {
+    const listing = liveListingsById.get(listingId);
+    const reservedOffer = listing?.reservedOfferId
+      ? reservedOffersById.get(toIdString(listing.reservedOfferId)) || null
+      : null;
+
+    reservedOffersByListingId.set(listingId, reservedOffer);
+  });
+
+  return conversationObjects.map((conversationObject) => {
+    const linkedItems =
+      previewLinkedItemsByConversationId.get(toIdString(conversationObject._id)) || [];
+    const stateMaps = {
+      liveListingsById,
+      reservedOffersByListingId,
+      conversationId: toIdString(conversationObject._id),
+    };
+    const linkedItemSummaries = linkedItems
+      .map((linkedItem) =>
+        buildLinkedItemPreviewSummary(linkedItem, stateMaps, {
+          selected: toIdString(linkedItem.listingId) === toIdString(conversationObject.activeListingId),
+          viewerParticipantId,
+        })
+      )
+      .sort((firstItem, secondItem) => {
+        const firstTimestamp = normalizeDateValue(firstItem.lastContextAt)?.getTime() || 0;
+        const secondTimestamp = normalizeDateValue(secondItem.lastContextAt)?.getTime() || 0;
+        return secondTimestamp - firstTimestamp;
+      });
+    const activeItem =
+      linkedItemSummaries.find(
+        (linkedItem) => linkedItem.listingId === toIdString(conversationObject.activeListingId)
+      ) || null;
+
+    return {
+      ...conversationObject,
+      linkedItems: linkedItemSummaries,
+      linkedItemCount: linkedItemSummaries.length,
+      activeItem,
+      itemPreviewTitles: linkedItemSummaries.map((linkedItem) => linkedItem.title).filter(Boolean),
+    };
+  });
+}
+
+async function serializeMessages(messages = [], conversation, options = {}) {
+  const linkedItems = Array.isArray(conversation?.linkedItems)
+    ? conversation.linkedItems.map((linkedItem) => (linkedItem?.toObject ? linkedItem.toObject() : linkedItem))
+    : [];
+  const stateMaps = await buildLinkedItemStateMaps(linkedItems, conversation?._id);
+  const linkedItemsById = new Map(
+    linkedItems.map((linkedItem) => [toIdString(linkedItem.listingId), linkedItem])
+  );
+  const offerParticipantIds = dedupeIdStrings(
+    messages.flatMap((message) => ([
+      message?.offerSnapshot?.buyerClerkUserId,
+      message?.offerSnapshot?.sellerClerkUserId,
+    ])).filter(Boolean)
+  );
+  const participantProfiles = offerParticipantIds.length > 0
+    ? await Profile.find({
+      profileID: {$in: offerParticipantIds},
+    })
+    : [];
+  const participantNamesById = new Map(
+    participantProfiles.map((profile) => [profile.profileID, profile.profileName])
+  );
+
+  return messages.map((message) => {
+    const messageObject = message?.toObject ? message.toObject() : message;
+
+    return {
+      ...messageObject,
+      attachedItem: buildMessageAttachedItemSummary(messageObject, stateMaps, linkedItemsById, options),
+      offerContext: buildOfferApiSummary(messageObject.offerSnapshot, {
+        includeEventTitle: true,
+        viewerParticipantId: options.viewerParticipantId,
+        participantNamesById,
+      }),
+    };
+  });
 }
 
 function buildProfileUpdatePayload(payload = {}, {allowEmptyStrings = false} = {}) {
@@ -650,10 +1678,7 @@ async function findOrCreateConversation({participantIds, activeListingId = null}
     throw new Error('Exactly two unique participantIds are required');
   }
 
-  let conversation = await Conversation.findOne({
-    participantIds: normalizedParticipantIds,
-    ...(normalizedListingId ? {linkedListingIds: normalizedListingId} : {}),
-  });
+  let conversation = await findConversationByParticipantIds(normalizedParticipantIds);
 
   if (conversation) {
     if (
@@ -667,6 +1692,13 @@ async function findOrCreateConversation({participantIds, activeListingId = null}
       conversation.activeListingId = normalizedListingId;
     }
 
+    if (normalizedListingId) {
+      await repairConversationLinkedItems(conversation, {
+        touchedListingId: normalizedListingId,
+        contextAt: new Date(),
+      });
+    }
+
     await conversation.save();
     return conversation;
   }
@@ -676,6 +1708,14 @@ async function findOrCreateConversation({participantIds, activeListingId = null}
     linkedListingIds: normalizedListingId ? [normalizedListingId] : [],
     activeListingId: normalizedListingId,
   });
+
+  if (normalizedListingId) {
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: normalizedListingId,
+      contextAt: conversation.createdAt || new Date(),
+    });
+    await conversation.save();
+  }
 
   return conversation;
 }
@@ -727,16 +1767,95 @@ app.get('/', (req, resp) => {
 app.get('/api/conversations', async (req, resp) => {
   try {
     const participantId = req.query.participantId?.trim();
+    const requestedPage = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number.parseInt(req.query.pageSize, 10) || 5));
 
     if (!participantId) {
       return resp.status(400).json({message: 'participantId is required'});
     }
 
-    const conversations = await Conversation.find({
+    const conversationQuery = {
       participantIds: participantId,
-    }).sort({lastMessageAt: -1, updatedAt: -1});
+    };
+    const totalCount = await Conversation.countDocuments(conversationQuery);
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const conversations = await Conversation.find(conversationQuery)
+      .select(
+        'participantIds linkedListingIds activeListingId lastMessageText lastMessageAt lastReadAtByUser ' +
+        'linkedItems.listingId linkedItems.title linkedItems.lastContextAt linkedItems.lastKnownStatus'
+      )
+      .sort({lastMessageAt: -1, updatedAt: -1})
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
 
-    resp.json(conversations);
+    const serializedConversations = await serializeConversationPreviews(conversations, {
+      viewerParticipantId: participantId,
+    });
+
+    const otherParticipantIds = dedupeIdStrings(
+      serializedConversations.map((conversation) =>
+        conversation.participantIds.find((currentParticipantId) => currentParticipantId !== participantId)
+      )
+    );
+    const participantProfiles = otherParticipantIds.length > 0
+      ? await Profile.find({
+        profileID: {$in: otherParticipantIds},
+      }).select('profileID profileName profilePicture').lean()
+      : [];
+    const participantProfilesById = new Map(
+      participantProfiles.map((profile) => [profile.profileID, profile])
+    );
+    const latestMessages = conversations.length > 0
+      ? await Message.aggregate([
+        {
+          $match: {
+            conversationId: {$in: conversations.map((conversation) => conversation._id)},
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+            _id: -1,
+          },
+        },
+        {
+          $group: {
+            _id: '$conversationId',
+            senderClerkUserId: {$first: '$senderClerkUserId'},
+          },
+        },
+      ])
+      : [];
+    const latestMessageSenderByConversationId = new Map(
+      latestMessages.map((message) => [toIdString(message._id), message.senderClerkUserId || ''])
+    );
+
+    resp.json({
+      conversations: serializedConversations.map((conversation) => {
+        const otherParticipantId = conversation.participantIds.find(
+          (currentParticipantId) => currentParticipantId !== participantId
+        ) || '';
+        const otherParticipantProfile = participantProfilesById.get(otherParticipantId) || null;
+
+        return {
+          ...conversation,
+          otherParticipantId,
+          otherParticipant: otherParticipantProfile ? {
+            id: otherParticipantProfile.profileID,
+            name: otherParticipantProfile.profileName,
+            avatarUrl: otherParticipantProfile.profilePicture || '',
+          } : null,
+          lastMessageSenderClerkUserId:
+            latestMessageSenderByConversationId.get(toIdString(conversation._id)) || '',
+        };
+      }),
+      page,
+      pageSize,
+      totalCount,
+      totalPages,
+    });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch conversations', error: e.message});
   }
@@ -753,10 +1872,7 @@ app.post('/api/conversations', async (req, resp) => {
       });
     }
 
-    const existingConversation = await Conversation.findOne({
-      participantIds: normalizedParticipantIds,
-      ...(activeListingId ? {linkedListingIds: activeListingId} : {}),
-    });
+    const existingConversation = await findConversationByParticipantIds(normalizedParticipantIds);
     const conversation = await findOrCreateConversation({
       participantIds,
       activeListingId,
@@ -792,6 +1908,7 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
     }
 
     await repairConversationPickupHub(conversation);
+    const {changed} = await repairConversationLinkedItems(conversation);
     const {reservedOffer} = await getReservedOfferForConversation(conversation);
     conversation.lastReadAtByUser.set(participantId, new Date());
     await conversation.save();
@@ -799,10 +1916,13 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
     const messages = await Message.find({conversationId}).sort({createdAt: 1});
 
     resp.json({
-      conversation: serializeConversation(conversation, {
+      conversation: await serializeConversation(conversation, {
         isMeetupHubLocked: Boolean(reservedOffer),
+        viewerParticipantId: participantId,
       }),
-      messages,
+      messages: await serializeMessages(messages, conversation, {
+        viewerParticipantId: participantId,
+      }),
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch messages', error: e.message});
@@ -838,32 +1958,38 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
       return resp.status(403).json({message: 'You are not a participant in this conversation'});
     }
 
+    const attachedListingFields = await buildAttachedListingMessageFields(attachedListingId);
     const message = await Message.create({
       conversationId,
       senderClerkUserId: trimmedSenderId,
       body: trimmedBody,
-      attachedListingId: toObjectId(attachedListingId),
+      attachedListingId: attachedListingFields.attachedListingId,
+      attachedListingTitle: attachedListingFields.attachedListingTitle,
+      attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
     });
 
     conversation.lastMessageText = trimmedBody;
     conversation.lastMessageAt = message.createdAt;
     conversation.lastReadAtByUser.set(trimmedSenderId, message.createdAt);
 
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: message.attachedListingId,
+      contextAt: message.createdAt,
+      contextMessageId: message._id,
+      fallbackTitle: message.attachedListingTitle,
+      fallbackImageUrl: message.attachedListingImageUrl,
+    });
+
     if (message.attachedListingId) {
-      const alreadyLinked = conversation.linkedListingIds.some(
-        (listingId) => listingId.toString() === message.attachedListingId.toString()
-      );
-
-      if (!alreadyLinked) {
-        conversation.linkedListingIds.push(message.attachedListingId);
-      }
-
       conversation.activeListingId = message.attachedListingId;
     }
 
     await conversation.save();
+    const [serializedMessage] = await serializeMessages([message], conversation, {
+      viewerParticipantId: trimmedSenderId,
+    });
 
-    resp.status(201).json(message);
+    resp.status(201).json(serializedMessage);
   } catch (e) {
     resp.status(500).json({message: 'Failed to send message', error: e.message});
   }
@@ -957,24 +2083,38 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
     conversation.activePickupHubId = pickupHubId || null;
     conversation.activePickupSpecifics = pickupSpecifics;
 
+    const attachedListingFields = await buildAttachedListingMessageFields(conversation.activeListingId || null);
     const systemMessage = await Message.create({
       conversationId,
       senderClerkUserId: 'system',
       body: systemMessageBody,
-      attachedListingId: conversation.activeListingId || null,
+      attachedListingId: attachedListingFields.attachedListingId,
+      attachedListingTitle: attachedListingFields.attachedListingTitle,
+      attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
     });
 
     conversation.lastMessageText = systemMessage.body;
     conversation.lastMessageAt = systemMessage.createdAt;
     conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: systemMessage.attachedListingId,
+      contextAt: systemMessage.createdAt,
+      contextMessageId: systemMessage._id,
+      fallbackTitle: systemMessage.attachedListingTitle,
+      fallbackImageUrl: systemMessage.attachedListingImageUrl,
+    });
 
     await conversation.save();
+    const [serializedSystemMessage] = await serializeMessages([systemMessage], conversation, {
+      viewerParticipantId: requesterClerkUserId,
+    });
 
     resp.json({
-      conversation: serializeConversation(conversation, {
+      conversation: await serializeConversation(conversation, {
         isMeetupHubLocked: Boolean(reservedOffer),
+        viewerParticipantId: requesterClerkUserId,
       }),
-      systemMessage,
+      systemMessage: serializedSystemMessage,
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to update pickup details', error: e.message});
@@ -1064,6 +2204,25 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       message: normalizedMessage,
     });
 
+    const systemMessage = await createOfferSystemMessage({
+      conversationId: conversation._id,
+      listingId,
+      offer,
+      eventType: 'sent',
+    });
+    conversation.lastMessageText = systemMessage.body;
+    conversation.lastMessageAt = systemMessage.createdAt;
+    conversation.lastReadAtByUser.set(trimmedBuyerId, systemMessage.createdAt);
+    await repairConversationLinkedItems(conversation, {
+      touchedListingId: listingId,
+      contextAt: systemMessage.createdAt,
+      contextMessageId: systemMessage._id,
+      fallbackTitle: systemMessage.attachedListingTitle,
+      fallbackImageUrl: systemMessage.attachedListingImageUrl,
+      fallbackStatus: listing.status,
+    });
+    await conversation.save();
+
     resp.status(201).json(offer);
   } catch (e) {
     resp.status(500).json({message: 'Failed to create offer', error: e.message});
@@ -1093,6 +2252,26 @@ app.get('/api/offers', async (req, resp) => {
     resp.json(offers);
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch offers', error: e.message});
+  }
+});
+
+app.get('/api/offers/:id', async (req, resp) => {
+  try {
+    const offerId = toObjectId(req.params.id);
+
+    if (!offerId) {
+      return resp.status(400).json({ message: 'Valid offer id is required' });
+    }
+
+    const offer = await Offer.findById(offerId);
+
+    if (!offer) {
+      return resp.status(404).json({ message: 'Offer not found' });
+    }
+
+    resp.json(offer);
+  } catch (e) {
+    resp.status(500).json({ message: 'Failed to fetch offer', error: e.message });
   }
 });
 
@@ -1164,13 +2343,11 @@ app.patch('/api/offers/:id', async (req, resp) => {
       });
       const conversation =
         (offer.conversationId ? await Conversation.findById(offer.conversationId) : null) ||
-        (await Conversation.findOne({
-          participantIds: normalizeParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]),
-          linkedListingIds: offer.listingId,
-        }));
+        (await findConversationByParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]));
       let systemMessage = null;
 
       if (conversation) {
+        conversation.activeListingId = offer.listingId;
         ensureListingOriginalPickupFields(listing);
         applyCurrentListingPickupFields(
           listing,
@@ -1184,16 +2361,28 @@ app.patch('/api/offers/:id', async (req, resp) => {
 
         const pickupHubLabel =
           getPickupHubById(resolvedAcceptedPickup.meetupHubId)?.label || resolvedAcceptedPickup.meetupLocation;
-        systemMessage = await Message.create({
+        systemMessage = await createOfferSystemMessage({
           conversationId: conversation._id,
-          senderClerkUserId: 'system',
-          body: `Offer accepted. Meetup hub: ${pickupHubLabel}. Meetup specifics: ${pickupSpecifics}`,
-          attachedListingId: conversation.activeListingId || offer.listingId,
+          listingId: offer.listingId,
+          offer: {
+            ...offer.toObject(),
+            meetupHubId: resolvedAcceptedPickup.meetupHubId || offer.meetupHubId,
+            meetupLocation: pickupHubLabel,
+          },
+          eventType: 'accepted',
         });
 
         conversation.lastMessageText = systemMessage.body;
         conversation.lastMessageAt = systemMessage.createdAt;
         conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+        await repairConversationLinkedItems(conversation, {
+          touchedListingId: offer.listingId,
+          contextAt: systemMessage.createdAt,
+          contextMessageId: systemMessage._id,
+          fallbackTitle: systemMessage.attachedListingTitle,
+          fallbackImageUrl: systemMessage.attachedListingImageUrl,
+          fallbackStatus: listing.status,
+        });
       }
 
       const saveOperations = [
@@ -1207,25 +2396,80 @@ app.patch('/api/offers/:id', async (req, resp) => {
 
       await Promise.all([
         ...saveOperations,
-        Offer.updateMany(
-          {
-            listingId: offer.listingId,
-            _id: {$ne: offer._id},
-            status: 'pending',
-          },
-          {
-            $set: {
-              status: 'declined',
-            },
-          }
-        ),
       ]);
+
+      const competingOffers = await Offer.find({
+        listingId: offer.listingId,
+        _id: {$ne: offer._id},
+        status: 'pending',
+      });
+
+      await Promise.all(
+        competingOffers.map(async (competingOffer) => {
+          competingOffer.status = 'declined';
+          await competingOffer.save();
+
+          const competingConversation =
+            (competingOffer.conversationId ? await Conversation.findById(competingOffer.conversationId) : null) ||
+            (await findConversationByParticipantIds([competingOffer.buyerClerkUserId, competingOffer.sellerClerkUserId]));
+
+          if (!competingConversation) {
+            return;
+          }
+
+          const declineMessage = await createOfferSystemMessage({
+            conversationId: competingConversation._id,
+            listingId: competingOffer.listingId,
+            offer: competingOffer,
+            eventType: 'declined',
+          });
+
+          competingConversation.lastMessageText = declineMessage.body;
+          competingConversation.lastMessageAt = declineMessage.createdAt;
+          competingConversation.lastReadAtByUser.set(requesterClerkUserId, declineMessage.createdAt);
+          await repairConversationLinkedItems(competingConversation, {
+            touchedListingId: competingOffer.listingId,
+            contextAt: declineMessage.createdAt,
+            contextMessageId: declineMessage._id,
+            fallbackTitle: declineMessage.attachedListingTitle,
+            fallbackImageUrl: declineMessage.attachedListingImageUrl,
+            fallbackStatus: listing.status,
+          });
+          await competingConversation.save();
+        })
+      );
 
       return resp.json(offer);
     }
 
     offer.status = 'declined';
     await offer.save();
+
+    const conversation =
+      (offer.conversationId ? await Conversation.findById(offer.conversationId) : null) ||
+      (await findConversationByParticipantIds([offer.buyerClerkUserId, offer.sellerClerkUserId]));
+
+    if (conversation) {
+      const declineMessage = await createOfferSystemMessage({
+        conversationId: conversation._id,
+        listingId: offer.listingId,
+        offer,
+        eventType: 'declined',
+      });
+
+      conversation.lastMessageText = declineMessage.body;
+      conversation.lastMessageAt = declineMessage.createdAt;
+      conversation.lastReadAtByUser.set(requesterClerkUserId, declineMessage.createdAt);
+      await repairConversationLinkedItems(conversation, {
+        touchedListingId: offer.listingId,
+        contextAt: declineMessage.createdAt,
+        contextMessageId: declineMessage._id,
+        fallbackTitle: declineMessage.attachedListingTitle,
+        fallbackImageUrl: declineMessage.attachedListingImageUrl,
+        fallbackStatus: listing.status,
+      });
+      await conversation.save();
+    }
 
     resp.json(offer);
   } catch (e) {
@@ -1361,33 +2605,52 @@ app.get('/items', async (req, resp) => {
     const safePage = Math.min(page, totalPages);
     const safeSkip = (safePage - 1) * limit;
     const sortStage = getItemsSort(sort);
-
-    const items = await Item.aggregate([
-      {$match: filter},
-      {
-        $addFields: {
-          itemCostNumeric: {
-            $convert: {
-              input: '$itemCost',
-              to: 'double',
-              onError: 0,
-              onNull: 0,
+    const items =
+      sort === 'price-low' || sort === 'price-high'
+        ? await Item.aggregate([
+          {$match: filter},
+          {
+            $addFields: {
+              itemCostNumeric: {
+                $convert: {
+                  input: '$itemCost',
+                  to: 'double',
+                  onError: 0,
+                  onNull: 0,
+                },
+              },
             },
           },
-        },
-      },
-      {$sort: sortStage},
-      {$skip: safeSkip},
-      {$limit: limit},
-      {
-        $project: {
-          itemCostNumeric: 0,
-        },
-      },
-    ]);
+          {$sort: sortStage},
+          {$skip: safeSkip},
+          {$limit: limit},
+          {
+            $project: {
+              itemName: 1,
+              itemCost: 1,
+              itemCondition: 1,
+              itemLocation: 1,
+              pickupHubId: 1,
+              originalPickupHubId: 1,
+              pickupArea: 1,
+              originalPickupArea: 1,
+              originalItemLocation: 1,
+              userPublishingName: 1,
+              itemCat: 1,
+              status: 1,
+              date: 1,
+            },
+          },
+        ])
+        : await Item.find(filter)
+          .select(ITEM_FEED_SELECT)
+          .sort(sortStage)
+          .skip(safeSkip)
+          .limit(limit)
+          .lean();
 
     resp.json({
-      items,
+      items: items.map((item) => buildItemFeedSummary(item)),
       meta: {
         page: safePage,
         limit,
@@ -1399,6 +2662,33 @@ app.get('/items', async (req, resp) => {
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch', error: e.message});
+  }
+});
+
+app.get('/items/:id/image', async (req, resp) => {
+  try {
+    const item = await Item.findById(req.params.id).select('itemPicture');
+
+    if (!item || !item.itemPicture) {
+      return resp.status(404).json({message: 'Listing image not found'});
+    }
+
+    if (/^https?:\/\//i.test(item.itemPicture)) {
+      resp.redirect(item.itemPicture);
+      return;
+    }
+
+    const parsedDataUrl = parseDataUrl(item.itemPicture);
+
+    if (!parsedDataUrl) {
+      return resp.status(404).json({message: 'Listing image not found'});
+    }
+
+    resp.set('Content-Type', parsedDataUrl.mimeType);
+    resp.set('Cache-Control', 'public, max-age=31536000, immutable');
+    resp.send(parsedDataUrl.data);
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to fetch listing image', error: e.message});
   }
 });
 
