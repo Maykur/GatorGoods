@@ -181,7 +181,7 @@ function getRelationshipRoleTooltip(role) {
   return '';
 }
 
-function RelationshipRoleMarker({role, className = '', onShowTooltip, onHideTooltip}) {
+function RelationshipRoleMarker({role, className = '', onShowTooltip, onHideTooltip, focusable = false}) {
   const icon = getRelationshipRoleIcon(role);
   const tooltip = getRelationshipRoleTooltip(role);
 
@@ -205,12 +205,12 @@ function RelationshipRoleMarker({role, className = '', onShowTooltip, onHideTool
   return (
     <span
       className={`inline-flex items-center ${className}`.trim()}
-      tabIndex={0}
-      aria-label={tooltip}
+      tabIndex={focusable ? 0 : undefined}
+      aria-label={focusable ? tooltip : undefined}
       onMouseEnter={showTooltip}
-      onFocus={showTooltip}
+      onFocus={focusable ? showTooltip : undefined}
       onMouseLeave={onHideTooltip}
-      onBlur={onHideTooltip}
+      onBlur={focusable ? onHideTooltip : undefined}
     >
       <AppIcon icon={icon} className="opacity-80" decorative={false} />
     </span>
@@ -1025,6 +1025,9 @@ export function ChatThreadPage() {
                 const systemTimestampClassName = isAcceptedOfferMessage
                   ? 'text-green-100/75'
                   : 'text-app-muted';
+                const attachedItemHref = normalizeId(message.attachedItem?.listingId)
+                  ? `/items/${normalizeId(message.attachedItem.listingId)}`
+                  : '';
 
                 return (
                   <div
@@ -1047,21 +1050,40 @@ export function ChatThreadPage() {
                       } ${systemMessageClassName}`}
                     >
                       {shouldShowMessageItemPill && message.attachedItem ? (
-                        <div
-                          data-testid="message-attached-item-pill"
-                          className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/12 px-3 py-1 text-xs font-semibold text-white/88"
-                        >
-                          <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
-                          {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
-                            <RelationshipRoleMarker
-                              role={message.attachedItem.relationshipRole}
-                              className="text-[0.75em]"
-                              onShowTooltip={setRoleTooltip}
-                              onHideTooltip={() => setRoleTooltip(null)}
-                            />
-                          ) : null}
-                          <span className="truncate">{message.attachedItem.title}</span>
-                        </div>
+                        attachedItemHref ? (
+                          <Link
+                            to={attachedItemHref}
+                            data-testid="message-attached-item-pill"
+                            className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/12 px-3 py-1 text-xs font-semibold text-white/88 no-underline transition hover:border-white/20 hover:bg-white/15 hover:text-white"
+                          >
+                            <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                            {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
+                              <RelationshipRoleMarker
+                                role={message.attachedItem.relationshipRole}
+                                className="text-[0.75em]"
+                                onShowTooltip={setRoleTooltip}
+                                onHideTooltip={() => setRoleTooltip(null)}
+                              />
+                            ) : null}
+                            <span className="truncate">{message.attachedItem.title}</span>
+                          </Link>
+                        ) : (
+                          <div
+                            data-testid="message-attached-item-pill"
+                            className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/12 px-3 py-1 text-xs font-semibold text-white/88"
+                          >
+                            <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                            {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
+                              <RelationshipRoleMarker
+                                role={message.attachedItem.relationshipRole}
+                                className="text-[0.75em]"
+                                onShowTooltip={setRoleTooltip}
+                                onHideTooltip={() => setRoleTooltip(null)}
+                              />
+                            ) : null}
+                            <span className="truncate">{message.attachedItem.title}</span>
+                          </div>
+                        )
                       ) : null}
                       <p className="text-sm font-medium text-white">{message.body}</p>
                       <p className={`mt-1 text-xs ${systemTimestampClassName}`}>{formatMessageTime(message.createdAt)}</p>
@@ -1104,25 +1126,48 @@ export function ChatThreadPage() {
                       }`}
                     >
                       {shouldShowMessageItemPill && message.attachedItem ? (
-                        <div
-                          data-testid="message-attached-item-pill"
-                          className={`mb-2 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
-                            isOwnMessage
-                              ? 'border-white/15 bg-white/10 text-white/90'
-                              : 'border-white/10 bg-white/6 text-app-soft'
-                          }`}
-                        >
-                          <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
-                          {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
-                            <RelationshipRoleMarker
-                              role={message.attachedItem.relationshipRole}
-                              className="text-[0.75em]"
-                              onShowTooltip={setRoleTooltip}
-                              onHideTooltip={() => setRoleTooltip(null)}
-                            />
-                          ) : null}
-                          <span className="truncate">{message.attachedItem.title}</span>
-                        </div>
+                        normalizeId(message.attachedItem.listingId) ? (
+                          <Link
+                            to={`/items/${normalizeId(message.attachedItem.listingId)}`}
+                            data-testid="message-attached-item-pill"
+                            className={`mb-2 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold no-underline transition ${
+                              isOwnMessage
+                                ? 'border-white/15 bg-white/10 text-white/90 hover:border-white/25 hover:bg-white/15 hover:text-white'
+                                : 'border-white/10 bg-white/6 text-app-soft hover:border-white/20 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                            {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
+                              <RelationshipRoleMarker
+                                role={message.attachedItem.relationshipRole}
+                                className="text-[0.75em]"
+                                onShowTooltip={setRoleTooltip}
+                                onHideTooltip={() => setRoleTooltip(null)}
+                              />
+                            ) : null}
+                            <span className="truncate">{message.attachedItem.title}</span>
+                          </Link>
+                        ) : (
+                          <div
+                            data-testid="message-attached-item-pill"
+                            className={`mb-2 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                              isOwnMessage
+                                ? 'border-white/15 bg-white/10 text-white/90'
+                                : 'border-white/10 bg-white/6 text-app-soft'
+                            }`}
+                          >
+                            <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                            {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
+                              <RelationshipRoleMarker
+                                role={message.attachedItem.relationshipRole}
+                                className="text-[0.75em]"
+                                onShowTooltip={setRoleTooltip}
+                                onHideTooltip={() => setRoleTooltip(null)}
+                              />
+                            ) : null}
+                            <span className="truncate">{message.attachedItem.title}</span>
+                          </div>
+                        )
                       ) : null}
                       <p className="whitespace-pre-wrap text-sm leading-7">{message.body}</p>
                       <p

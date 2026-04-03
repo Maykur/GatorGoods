@@ -446,7 +446,10 @@ test('message item pills render for tagged messages only when the thread has mul
 
   expect(attachedItemPills).toHaveLength(2);
   expect(attachedItemPills[0]).toHaveTextContent('Desk Lamp');
+  expect(attachedItemPills[0]).toHaveAttribute('href', '/items/item-1');
   expect(attachedItemPills[1]).toHaveTextContent('Study Chair');
+  expect(attachedItemPills[1]).toHaveAttribute('href', '/items/item-2');
+  expect(screen.getByTestId('composer-item-context').querySelector('a')).toBeNull();
 });
 
 test('mixed-direction threads surface buying and selling context in the focused item card', async () => {
