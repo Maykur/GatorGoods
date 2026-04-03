@@ -9,6 +9,9 @@ const DEFAULT_LOCATION = 'Campus pickup';
 const DEFAULT_SELLER_NAME = 'GatorGoods Seller';
 const DEFAULT_LISTING_TITLE = 'Untitled listing';
 const DEFAULT_LISTING_STATUS = 'active';
+const API_BASE_URL = 'http://localhost:5000';
+const MAX_CONVERSATION_ITEM_TITLE_LENGTH = 25;
+const MAX_CONVERSATION_PREVIEW_LENGTH = 75;
 const LISTING_STATUS_LABELS = {
   active: 'Active',
   reserved: 'Reserved',
@@ -34,6 +37,56 @@ export const LISTING_CATEGORIES = [
 
 function normalizeText(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeImageUrl(value) {
+  const normalizedValue = normalizeText(value);
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  if (
+    normalizedValue.startsWith('http://') ||
+    normalizedValue.startsWith('https://') ||
+    normalizedValue.startsWith('data:')
+  ) {
+    return normalizedValue;
+  }
+
+  if (normalizedValue.startsWith('/')) {
+    return `${API_BASE_URL}${normalizedValue}`;
+  }
+
+  return normalizedValue;
+}
+
+function getFirstName(value) {
+  const normalizedValue = normalizeText(value);
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return normalizedValue.split(/\s+/)[0];
+}
+
+function truncateText(value, maxLength) {
+  const normalizedValue = normalizeText(value);
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalizedValue.length <= maxLength) {
+    return normalizedValue;
+  }
+
+  if (maxLength <= 3) {
+    return normalizedValue.slice(0, maxLength);
+  }
+
+  return `${normalizedValue.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function getPublicListingPickup(raw) {
@@ -121,6 +174,25 @@ export function formatDateLabel(value) {
   return date.toLocaleString();
 }
 
+export function formatConversationTimestamp(value) {
+  if (!value) {
+    return 'No messages yet';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'No messages yet';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
 export function toListingCardViewModel(raw) {
   const publicPickup = getPublicListingPickup(raw);
 
@@ -132,7 +204,7 @@ export function toListingCardViewModel(raw) {
     location: publicPickup.location,
     pickupHubId: publicPickup.pickupHubId,
     pickupArea: publicPickup.pickupArea,
-    imageUrl: normalizeText(raw?.itemPicture, ''),
+    imageUrl: normalizeImageUrl(normalizeText(raw?.itemPictureUrl, normalizeText(raw?.itemPicture, ''))),
     category: normalizeCategory(raw?.itemCat),
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
     status: normalizeListingStatus(raw?.status),
@@ -177,18 +249,63 @@ export function toListingDetailViewModel(raw, viewerId = null) {
   };
 }
 
-export function toConversationPreviewViewModel(raw, profile, listing, viewerId) {
+export function toConversationPreviewViewModel(raw, profileOrViewerId, listing, maybeViewerId) {
+  const viewerId = typeof maybeViewerId === 'string' ? maybeViewerId : profileOrViewerId;
+  const profile = typeof maybeViewerId === 'string' ? profileOrViewerId : null;
   const lastReadAt =
     raw?.lastReadAtByUser?.[viewerId] ||
     (typeof raw?.lastReadAtByUser?.get === 'function' ? raw.lastReadAtByUser.get(viewerId) : null);
+  const participantName = normalizeText(
+    raw?.otherParticipant?.name,
+    normalizeText(profile?.profile?.profileName, raw?.otherParticipantId || 'Conversation')
+  );
+  const linkedItems = Array.isArray(raw?.linkedItems) ? raw.linkedItems : [];
+  const itemTitles = Array.from(
+    new Set(
+      (
+        Array.isArray(raw?.itemPreviewTitles) && raw.itemPreviewTitles.length > 0
+          ? raw.itemPreviewTitles
+          : linkedItems.map((linkedItem) => linkedItem?.title).filter(Boolean)
+      ).map((title) => normalizeText(title)).filter(Boolean)
+    )
+  );
+  const activeItemTitle = normalizeText(raw?.activeItem?.title, normalizeText(listing?.itemName, 'General conversation'));
+  const displayedItemTitles = itemTitles
+    .slice(0, 3)
+    .map((title) => truncateText(title, MAX_CONVERSATION_ITEM_TITLE_LENGTH));
+  const linkedItemCount = Math.max(0, Number(raw?.linkedItemCount) || 0);
+  const extraItemCount = Math.max(0, linkedItemCount - displayedItemTitles.length);
+  const lastMessageText = normalizeText(raw?.lastMessageText, 'No messages yet');
+  const lastMessageSenderId = normalizeText(raw?.lastMessageSenderClerkUserId, '');
+  const lastMessageSenderLabel =
+    lastMessageSenderId === 'system'
+      ? 'Update'
+      : lastMessageSenderId && viewerId && lastMessageSenderId === viewerId
+        ? 'You'
+        : getFirstName(participantName) || 'They';
+  const fullLastMessagePreviewText =
+    lastMessageText === 'No messages yet' ? lastMessageText : `${lastMessageSenderLabel}: ${lastMessageText}`;
+  const truncatedActiveItemTitle = truncateText(activeItemTitle, MAX_CONVERSATION_ITEM_TITLE_LENGTH);
 
   return {
     id: raw?._id || '',
-    participantName: normalizeText(profile?.profile?.profileName, raw?.otherParticipantId || 'Conversation'),
-    participantAvatarUrl: normalizeText(profile?.profile?.profilePicture, ''),
-    listingName: normalizeText(listing?.itemName, 'General conversation'),
-    lastMessageText: normalizeText(raw?.lastMessageText, 'No messages yet'),
-    lastMessageAtLabel: formatDateLabel(raw?.lastMessageAt),
+    participantName,
+    participantAvatarUrl: normalizeText(raw?.otherParticipant?.avatarUrl, normalizeText(profile?.profile?.profilePicture, '')),
+    listingName: truncatedActiveItemTitle,
+    activeItemTitle: truncatedActiveItemTitle,
+    fullActiveItemTitle: activeItemTitle,
+    itemTitles: displayedItemTitles,
+    itemTitlesLabel: displayedItemTitles.join(', '),
+    fullItemTitlesLabel: itemTitles.slice(0, 3).join(', '),
+    linkedItemCount,
+    extraItemCount,
+    lastMessageText,
+    lastMessagePreviewText: truncateText(fullLastMessagePreviewText, MAX_CONVERSATION_PREVIEW_LENGTH),
+    fullLastMessagePreviewText,
+    lastMessageSenderLabel,
+    lastMessageAtLabel: formatConversationTimestamp(raw?.lastMessageAt),
+    hasSellingItems: linkedItems.some((linkedItem) => linkedItem?.relationshipRole === 'selling'),
+    pendingItemCount: linkedItems.filter((linkedItem) => linkedItem?.state === 'pending').length,
     isUnread: Boolean(
       raw?.lastMessageAt && (!lastReadAt || new Date(lastReadAt) < new Date(raw.lastMessageAt))
     ),

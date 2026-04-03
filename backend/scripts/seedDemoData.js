@@ -499,6 +499,36 @@ function buildSeedDataset(config) {
       seedTag: config.seedTag,
     },
     {
+      key: 'standing-desk',
+      ownerKey: 'jasmine',
+      itemName: 'Compact Standing Desk',
+      itemCost: '110',
+      itemCondition: 'Good',
+      pickupHubId: 'honors-village',
+      itemPicture: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'A small adjustable standing desk that fits well in a dorm or apartment bedroom.',
+      itemDetails: 'Already sold through the same relationship thread, but it stays useful as a completed-history example.',
+      itemCat: 'Home & Garden',
+      status: 'sold',
+      date: subtractHours(now, 34),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'shoe-rack',
+      ownerKey: 'jasmine',
+      itemName: 'Narrow Shoe Rack',
+      itemCost: '16',
+      itemCondition: 'Good',
+      pickupHubId: 'honors-village',
+      itemPicture: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Slim entryway shoe rack that keeps a small apartment from getting cluttered near the door.',
+      itemDetails: 'This listing is intentionally deleted after seeding so the messaging thread keeps a historical deleted-item example.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 6),
+      seedTag: config.seedTag,
+    },
+    {
       key: 'denim-jacket',
       ownerKey: 'noah',
       itemName: 'Vintage Denim Jacket',
@@ -597,29 +627,43 @@ function buildSeedDataset(config) {
       participantKeys: ['presenter', 'ava'],
       messages: [
         {
-          senderKey: 'ava',
-          body: addFiller('Hi! I just sent an offer on the lamp and could meet near Library West after my chem lecture.', MESSAGE_VARIANTS),
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-ava',
+          offerEventType: 'sent',
+          body: 'Ava sent an offer.',
           createdAt: subtractHours(now, 30),
         },
         {
+          senderKey: 'ava',
+          attachedListingKey: 'desk-lamp',
+          body: addFiller('Hi! I could still meet near Library West after my chem lecture if the lamp is available.', MESSAGE_VARIANTS),
+          createdAt: subtractHours(now, 29.8),
+        },
+        {
           senderKey: 'presenter',
+          attachedListingKey: 'desk-lamp',
           body: 'That should work. I am on campus most of the afternoon and can keep it packed up.',
           createdAt: subtractHours(now, 29.5),
         },
         {
-          senderKey: 'ava',
-          body: 'Perfect. If you still have it, I can head over later today.',
-          createdAt: subtractHours(now, 2.4),
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-ava',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 18.7),
         },
         {
           senderKey: 'ava',
-          body: addFiller('I am still interested and can confirm within ten minutes once you reply.', MESSAGE_VARIANTS),
-          createdAt: subtractHours(now, 1.8),
+          attachedListingKey: 'desk-lamp',
+          body: 'Thanks for the quick heads-up. If anything changes, feel free to message me.',
+          createdAt: subtractHours(now, 18.4),
         },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 29.5,
-        ava: 1.8,
+        presenter: 19,
+        ava: 18.4,
       },
     },
     {
@@ -630,23 +674,31 @@ function buildSeedDataset(config) {
       activePickupSpecifics: 'Ground floor entrance by the benches.',
       messages: [
         {
-          senderKey: 'ethan',
-          body: addFiller('Sent an offer on the lamp. Could we do pickup at Marston tomorrow around lunch?', MESSAGE_VARIANTS),
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-ethan',
+          offerEventType: 'sent',
+          body: 'Ethan sent an offer.',
           createdAt: subtractHours(now, 20),
         },
         {
           senderKey: 'presenter',
+          attachedListingKey: 'desk-lamp',
           body: 'Tomorrow around lunch is workable. I will be nearby after my morning class.',
           createdAt: subtractHours(now, 19.6),
         },
         {
           senderKey: 'ethan',
+          attachedListingKey: 'desk-lamp',
           body: 'Sounds good. Let me know if the timing shifts.',
           createdAt: subtractHours(now, 19.1),
         },
         {
           senderKey: 'system',
-          body: 'Offer accepted. Meetup hub: Marston Science Library. Meetup specifics: By the tables outside',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-ethan',
+          offerEventType: 'accepted',
+          body: 'Scott accepted your offer.',
           createdAt: subtractHours(now, 18.8),
         },
         {
@@ -676,148 +728,255 @@ function buildSeedDataset(config) {
       participantKeys: ['presenter', 'leo'],
       messages: [
         {
-          senderKey: 'leo',
-          body: 'I sent an offer and could meet near the Reitz right after my design review.',
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-leo',
+          offerEventType: 'sent',
+          body: 'Leo sent an offer.',
           createdAt: subtractHours(now, 23),
         },
         {
           senderKey: 'presenter',
+          attachedListingKey: 'desk-lamp',
           body: addFiller('Thanks for the offer. Reitz could work if the lamp is still available tomorrow afternoon.', MESSAGE_VARIANTS),
           createdAt: subtractHours(now, 22.4),
         },
         {
-          senderKey: 'leo',
-          body: 'Great. Keep me posted if one of the earlier offers falls through.',
-          createdAt: subtractHours(now, 21.9),
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-leo',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 18.6),
         },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 21.9,
-        leo: 21.9,
+        presenter: 18.6,
+        leo: 18.6,
       },
     },
     {
       key: 'conv-mini-fridge-noah',
-      listingKey: 'mini-fridge',
+      activeListingKey: 'mini-fridge',
+      linkedListingKeys: ['desk-lamp', 'mini-fridge'],
       participantKeys: ['presenter', 'noah'],
       messages: [
         {
-          senderKey: 'noah',
-          body: 'I sent an offer on the fridge. I can swing by Hume after 6:00 tonight if that works.',
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-noah',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 32),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'desk-lamp',
+          body: 'I wanted to close the loop quickly on the lamp. The earlier buyer confirmed, but I can still keep you posted if another listing comes up.',
+          createdAt: subtractHours(now, 31.6),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-noah',
+          offerEventType: 'sent',
+          body: 'Noah sent an offer.',
           createdAt: subtractHours(now, 14),
         },
         {
           senderKey: 'presenter',
+          attachedListingKey: 'mini-fridge',
           body: 'That works. I already wiped it down and can meet outside the Hume side entrance.',
           createdAt: subtractHours(now, 13.7),
         },
         {
           senderKey: 'noah',
+          attachedListingKey: 'mini-fridge',
           body: addFiller('Awesome. I will bring exact cash and message when I am heading over.', MESSAGE_VARIANTS),
           createdAt: subtractHours(now, 13.4),
         },
         {
           senderKey: 'presenter',
+          attachedListingKey: 'mini-fridge',
           body: 'Sounds good. I will have it unplugged and ready by then.',
           createdAt: subtractHours(now, 12.9),
         },
       ],
       lastReadHoursAgoByParticipant: {
         presenter: 12.9,
-        noah: 12.9,
+        noah: 13.2,
       },
     },
     {
-      key: 'conv-mini-fridge-jasmine',
-      listingKey: 'mini-fridge',
+      key: 'conv-presenter-jasmine',
+      activeListingKey: 'sublease-room',
+      linkedListingKeys: ['mini-fridge', 'sublease-room', 'storage-drawers', 'standing-desk', 'shoe-rack'],
       participantKeys: ['presenter', 'jasmine'],
       messages: [
         {
-          senderKey: 'jasmine',
-          body: 'I sent an offer in case the fridge opens back up. I can pay through Venmo at pickup.',
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-jasmine',
+          offerEventType: 'sent',
+          body: 'Jasmine sent an offer.',
           createdAt: subtractHours(now, 17),
         },
         {
           senderKey: 'presenter',
+          attachedListingKey: 'mini-fridge',
           body: 'Thanks for sending it over. I already promised it to another buyer, but I wanted to keep you posted quickly.',
           createdAt: subtractHours(now, 16.6),
         },
         {
-          senderKey: 'jasmine',
-          body: 'No worries at all. Appreciate the quick update.',
-          createdAt: subtractHours(now, 16.2),
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-jasmine',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 16.5),
         },
-      ],
-      lastReadHoursAgoByParticipant: {
-        presenter: 16.2,
-        jasmine: 16.2,
-      },
-    },
-    {
-      key: 'conv-sublease-presenter',
-      listingKey: 'sublease-room',
-      participantKeys: ['presenter', 'jasmine'],
-      messages: [
         {
-          senderKey: 'presenter',
-          body: 'I sent an offer on the summer sublease and wanted to ask whether parking is still available if we meet near Honors Village.',
+          senderKey: 'system',
+          attachedListingKey: 'sublease-room',
+          offerKey: 'offer-sublease-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
           createdAt: subtractHours(now, 11),
         },
         {
           senderKey: 'jasmine',
-          body: 'Yes, there is one spot open. I can also share a quick video walkthrough later today.',
+          attachedListingKey: 'sublease-room',
+          body: 'Yes, there is one spot open. I can also share a quick video walkthrough later today and answer any parking questions.',
           createdAt: subtractHours(now, 10.7),
         },
         {
+          senderKey: 'system',
+          attachedListingKey: 'storage-drawers',
+          offerKey: 'offer-storage-drawers-presenter',
+          offerEventType: 'accepted',
+          body: 'Jasmine accepted your offer.',
+          createdAt: subtractHours(now, 9.6),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'standing-desk',
+          body: 'Sale completed. Pickup finished near Honors Village and both sides confirmed the handoff.',
+          createdAt: subtractHours(now, 8.9),
+        },
+        {
           senderKey: 'presenter',
-          body: addFiller('That would be helpful. I am mostly comparing commute time and move-in flexibility.', MESSAGE_VARIANTS),
-          createdAt: subtractHours(now, 10.1),
+          attachedListingKey: 'shoe-rack',
+          body: 'I was also interested in the shoe rack if it is still around, but I noticed the listing disappeared.',
+          createdAt: subtractHours(now, 3.2),
+        },
+        {
+          senderKey: 'jasmine',
+          attachedListingKey: 'sublease-room',
+          body: addFiller('The shoe rack is gone, but the sublease is still open and I can send that walkthrough tonight.', MESSAGE_VARIANTS),
+          createdAt: subtractHours(now, 2.7),
         },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 10.1,
-        jasmine: 10.1,
+        presenter: 3.1,
+        jasmine: 3.2,
       },
     },
     {
       key: 'conv-backpack-presenter',
-      listingKey: 'backpack',
+      activeListingKey: 'backpack',
+      linkedListingKeys: ['textbook-bundle', 'backpack'],
       participantKeys: ['presenter', 'mateo'],
       messages: [
         {
-          senderKey: 'presenter',
-          body: addFiller('Sent an offer on the backpack. Could pickup happen near Turlington after 3:00 tomorrow?', MESSAGE_VARIANTS),
+          senderKey: 'system',
+          attachedListingKey: 'textbook-bundle',
+          offerKey: 'offer-textbook-bundle-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
+          createdAt: subtractHours(now, 28.5),
+        },
+        {
+          senderKey: 'mateo',
+          attachedListingKey: 'textbook-bundle',
+          body: 'Yes, the bundle is still available. I can hold it for a day or two if you want to compare before deciding.',
+          createdAt: subtractHours(now, 28.1),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'backpack',
+          offerKey: 'offer-backpack-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
           createdAt: subtractHours(now, 27),
         },
         {
           senderKey: 'mateo',
+          attachedListingKey: 'backpack',
           body: 'Tomorrow works, but I already have another buyer lined up first. I will let you know if that changes.',
           createdAt: subtractHours(now, 26.4),
         },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'backpack',
+          offerKey: 'offer-backpack-presenter',
+          offerEventType: 'declined',
+          body: 'Mateo rejected your offer.',
+          createdAt: subtractHours(now, 26.1),
+        },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 26.4,
-        mateo: 26.4,
+        presenter: 26.1,
+        mateo: 26.1,
       },
     },
     {
       key: 'conv-stroller-ava',
-      listingKey: 'stroller-organizer',
+      activeListingKey: 'stroller-organizer',
+      linkedListingKeys: ['board-game', 'stroller-organizer'],
       participantKeys: ['ava', 'priya'],
       messages: [
         {
-          senderKey: 'ava',
-          body: 'I sent an offer on the stroller organizer. Could pickup happen near Honors Village tomorrow afternoon?',
+          senderKey: 'system',
+          attachedListingKey: 'board-game',
+          offerKey: 'offer-board-game-ava',
+          offerEventType: 'accepted',
+          body: 'Priya accepted your offer.',
+          createdAt: subtractHours(now, 42.3),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'board-game',
+          body: 'Sale completed. Meetup finished near Broward Hall and the board game was handed off successfully.',
+          createdAt: subtractHours(now, 39.5),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'stroller-organizer',
+          offerKey: 'offer-stroller-ava-low',
+          offerEventType: 'sent',
+          body: 'Ava sent an offer.',
           createdAt: subtractHours(now, 8),
         },
         {
           senderKey: 'priya',
+          attachedListingKey: 'stroller-organizer',
           body: 'Tomorrow afternoon works. The first offer was a little low, but I am open to another one.',
           createdAt: subtractHours(now, 7.6),
         },
         {
-          senderKey: 'ava',
-          body: addFiller('Thanks. I sent an updated offer with a slightly better price and can be flexible on timing.', MESSAGE_VARIANTS),
+          senderKey: 'system',
+          attachedListingKey: 'stroller-organizer',
+          offerKey: 'offer-stroller-ava-low',
+          offerEventType: 'declined',
+          body: 'Priya rejected your offer.',
+          createdAt: subtractHours(now, 7.4),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'stroller-organizer',
+          offerKey: 'offer-stroller-ava-updated',
+          offerEventType: 'sent',
+          body: 'Ava sent an offer.',
           createdAt: subtractHours(now, 7.1),
         },
       ],
@@ -870,6 +1029,19 @@ function buildSeedDataset(config) {
       createdAt: subtractHours(now, 23),
     },
     {
+      key: 'offer-desk-lamp-noah',
+      listingKey: 'desk-lamp',
+      buyerKey: 'noah',
+      conversationKey: 'conv-mini-fridge-noah',
+      offeredPrice: 23,
+      meetupHubId: 'library-west',
+      meetupWindow: 'Yesterday 5:00 PM - 5:20 PM',
+      paymentMethod: 'cash',
+      message: addFiller('If the earlier buyers fall through, I could still pick up the lamp quickly.', OFFER_MESSAGE_VARIANTS),
+      status: 'declined',
+      createdAt: subtractHours(now, 32.2),
+    },
+    {
       key: 'offer-mini-fridge-noah',
       listingKey: 'mini-fridge',
       buyerKey: 'noah',
@@ -886,7 +1058,7 @@ function buildSeedDataset(config) {
       key: 'offer-mini-fridge-jasmine',
       listingKey: 'mini-fridge',
       buyerKey: 'jasmine',
-      conversationKey: 'conv-mini-fridge-jasmine',
+      conversationKey: 'conv-presenter-jasmine',
       offeredPrice: 66,
       meetupHubId: 'hume-hall',
       meetupWindow: 'Tomorrow 11:30 AM - 12:00 PM',
@@ -899,7 +1071,7 @@ function buildSeedDataset(config) {
       key: 'offer-sublease-presenter',
       listingKey: 'sublease-room',
       buyerKey: 'presenter',
-      conversationKey: 'conv-sublease-presenter',
+      conversationKey: 'conv-presenter-jasmine',
       offeredPrice: 740,
       meetupHubId: 'honors-village',
       meetupWindow: 'Tomorrow 5:30 PM - 6:00 PM',
@@ -907,6 +1079,34 @@ function buildSeedDataset(config) {
       message: addFiller('I am interested in a quick walkthrough and can move fast if it is a fit.', OFFER_MESSAGE_VARIANTS),
       status: 'pending',
       createdAt: subtractHours(now, 11),
+    },
+    {
+      key: 'offer-storage-drawers-presenter',
+      listingKey: 'storage-drawers',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-presenter-jasmine',
+      offeredPrice: 32,
+      meetupHubId: 'turlington-hall',
+      meetupWindow: 'Today 2:00 PM - 2:20 PM',
+      paymentMethod: 'cash',
+      message: addFiller('I can grab the drawers between classes if they are still available.', OFFER_MESSAGE_VARIANTS),
+      status: 'accepted',
+      acceptedPickupSpecifics: 'Near the bus loop benches.',
+      createdAt: subtractHours(now, 9.9),
+    },
+    {
+      key: 'offer-standing-desk-presenter',
+      listingKey: 'standing-desk',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-presenter-jasmine',
+      offeredPrice: 100,
+      meetupHubId: 'honors-village',
+      meetupWindow: 'Yesterday 6:30 PM - 7:00 PM',
+      paymentMethod: 'externalApp',
+      message: addFiller('I can pick up the standing desk tonight if that helps you clear space before the weekend.', OFFER_MESSAGE_VARIANTS),
+      status: 'accepted',
+      acceptedPickupSpecifics: 'Outside the west tower lobby.',
+      createdAt: subtractHours(now, 35),
     },
     {
       key: 'offer-backpack-presenter',
@@ -920,6 +1120,33 @@ function buildSeedDataset(config) {
       message: addFiller('If the current buyer passes, I can meet quickly between classes.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
       createdAt: subtractHours(now, 27),
+    },
+    {
+      key: 'offer-textbook-bundle-presenter',
+      listingKey: 'textbook-bundle',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-backpack-presenter',
+      offeredPrice: 50,
+      meetupHubId: 'marston',
+      meetupWindow: 'Tomorrow 1:00 PM - 1:20 PM',
+      paymentMethod: 'cash',
+      message: addFiller('I am still considering the textbook bundle if it has not moved yet.', OFFER_MESSAGE_VARIANTS),
+      status: 'pending',
+      createdAt: subtractHours(now, 28.4),
+    },
+    {
+      key: 'offer-board-game-ava',
+      listingKey: 'board-game',
+      buyerKey: 'ava',
+      conversationKey: 'conv-stroller-ava',
+      offeredPrice: 20,
+      meetupHubId: 'broward',
+      meetupWindow: 'Yesterday 7:00 PM - 7:20 PM',
+      paymentMethod: 'externalApp',
+      message: addFiller('I can do a quick pickup for the board game after class if that still works for you.', OFFER_MESSAGE_VARIANTS),
+      status: 'accepted',
+      acceptedPickupSpecifics: 'Outside the main Broward Hall doors.',
+      createdAt: subtractHours(now, 42.3),
     },
     {
       key: 'offer-stroller-ava-low',
@@ -975,6 +1202,7 @@ function buildSeedDataset(config) {
     conversations,
     offers,
     favorites,
+    deletedListingKeys: ['shoe-rack'],
   };
 }
 
@@ -1079,9 +1307,31 @@ function resolveSeedOfferPickup(offer) {
   });
 }
 
+function getConversationActiveListingKey(conversation = {}) {
+  return (
+    conversation.activeListingKey ||
+    conversation.listingKey ||
+    conversation.linkedListingKeys?.[0] ||
+    conversation.messages?.find((message) => message.attachedListingKey)?.attachedListingKey ||
+    null
+  );
+}
+
+function getConversationLinkedListingKeys(conversation = {}) {
+  return uniqueStrings([
+    getConversationActiveListingKey(conversation),
+    conversation.listingKey,
+    ...(conversation.linkedListingKeys || []),
+    ...((conversation.messages || []).map((message) => message.attachedListingKey)),
+  ]);
+}
+
 async function insertSeedDataset(dataset, config, deps = defaultDependencies()) {
   const now = config.now instanceof Date ? config.now : new Date(config.now || Date.now());
   const profileIdByKey = new Map();
+  const listingSeedByKey = new Map(dataset.listings.map((listing) => [listing.key, listing]));
+  const conversationSeedByKey = new Map(dataset.conversations.map((conversation) => [conversation.key, conversation]));
+  const offerSeedByKey = new Map(dataset.offers.map((offer) => [offer.key, offer]));
 
   const presenterProfileDocument = await deps.models.Profile.findOneAndUpdate(
     {profileID: dataset.presenterProfile.profileID},
@@ -1170,12 +1420,17 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     const participantIds = sortedParticipantIds(
       conversation.participantKeys.map((participantKey) => profileIdByKey.get(participantKey))
     );
-    const listingId = itemIdByKey.get(conversation.listingKey) || null;
+    const activeListingKey = getConversationActiveListingKey(conversation);
+    const linkedListingKeys = getConversationLinkedListingKeys(conversation);
+    const linkedListingIds = linkedListingKeys
+      .map((listingKey) => itemIdByKey.get(listingKey))
+      .filter(Boolean);
+    const activeListingId = activeListingKey ? itemIdByKey.get(activeListingKey) || null : null;
     const lastMessage = conversation.messages[conversation.messages.length - 1];
     const createdConversation = await deps.models.Conversation.create({
       participantIds,
-      linkedListingIds: listingId ? [listingId] : [],
-      activeListingId: listingId,
+      linkedListingIds,
+      activeListingId,
       activePickupHubId: conversation.activePickupHubId || null,
       activePickupSpecifics: conversation.activePickupSpecifics || '',
       lastMessageText: lastMessage.body,
@@ -1189,11 +1444,32 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     conversationIdByKey.set(conversation.key, createdConversation._id);
 
     for (const message of conversation.messages) {
+      const attachedListingKey = message.attachedListingKey || activeListingKey || null;
+      const attachedListingId = attachedListingKey ? itemIdByKey.get(attachedListingKey) || null : null;
+      const attachedListing = attachedListingKey ? listingSeedByKey.get(attachedListingKey) : null;
+      const offerSeed = message.offerKey ? offerSeedByKey.get(message.offerKey) : null;
+      const resolvedOfferPickup = offerSeed ? resolveSeedOfferPickup(offerSeed) : null;
+      const buyerProfile = offerSeed ? dataset.profilesByKey[offerSeed.buyerKey] : null;
+      const listingDocument = offerSeed ? itemByKey.get(offerSeed.listingKey) : null;
       await deps.models.Message.create({
         conversationId: createdConversation._id,
         senderClerkUserId: message.senderKey === 'system' ? 'system' : profileIdByKey.get(message.senderKey),
         body: message.body,
-        attachedListingId: listingId,
+        attachedListingId,
+        attachedListingTitle: attachedListing?.itemName || '',
+        attachedListingImageUrl: attachedListing?.itemPicture || '',
+        offerSnapshot: offerSeed ? {
+          offerId: null,
+          eventType: message.offerEventType || '',
+          status: offerSeed.status,
+          offeredPrice: offerSeed.offeredPrice,
+          buyerClerkUserId: profileIdByKey.get(offerSeed.buyerKey) || '',
+          buyerDisplayName: buyerProfile?.profileName || 'Buyer',
+          sellerClerkUserId: listingDocument?.userPublishingID || '',
+          paymentMethod: offerSeed.paymentMethod,
+          meetupHubId: resolvedOfferPickup?.meetupHubId || '',
+          meetupLocation: resolvedOfferPickup?.meetupLocation || '',
+        } : null,
         seedTag: config.seedTag,
         createdAt: message.createdAt,
         updatedAt: message.createdAt,
@@ -1230,17 +1506,28 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
 
     if (offer.status === 'accepted') {
       const conversationId = conversationIdByKey.get(offer.conversationKey);
+      const conversationSeed = conversationSeedByKey.get(offer.conversationKey);
+      const conversationActiveListingKey = getConversationActiveListingKey(conversationSeed);
       await deps.models.Item.findByIdAndUpdate(itemIdByKey.get(offer.listingKey), {
         reservedOfferId: createdOffer._id,
       });
-      await deps.models.Conversation.findByIdAndUpdate(conversationId, {
-        activePickupHubId: dataset.conversations.find((conversation) => conversation.key === offer.conversationKey)?.activePickupHubId
-          || resolvedMeetup.meetupHubId
-          || null,
-        activePickupSpecifics: dataset.conversations.find((conversation) => conversation.key === offer.conversationKey)?.activePickupSpecifics
-          || offer.acceptedPickupSpecifics
-          || '',
-      });
+
+      const nextConversationFields = {};
+      const explicitPickupHubId = conversationSeed?.activePickupHubId || null;
+      const explicitPickupSpecifics = conversationSeed?.activePickupSpecifics || '';
+      const shouldApplyAcceptedPickupToConversation =
+        explicitPickupHubId ||
+        explicitPickupSpecifics ||
+        (conversationActiveListingKey && conversationActiveListingKey === offer.listingKey);
+
+      if (shouldApplyAcceptedPickupToConversation) {
+        nextConversationFields.activePickupHubId = explicitPickupHubId || resolvedMeetup.meetupHubId || null;
+        nextConversationFields.activePickupSpecifics = explicitPickupSpecifics || offer.acceptedPickupSpecifics || '';
+      }
+
+      if (Object.keys(nextConversationFields).length > 0) {
+        await deps.models.Conversation.findByIdAndUpdate(conversationId, nextConversationFields);
+      }
     }
   }
 
@@ -1267,6 +1554,16 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     );
   }
 
+  const deletedListingIds = (dataset.deletedListingKeys || [])
+    .map((listingKey) => itemIdByKey.get(listingKey))
+    .filter(Boolean);
+
+  if (deletedListingIds.length > 0) {
+    await deps.models.Item.deleteMany({
+      _id: {$in: deletedListingIds},
+    });
+  }
+
   const presenterListingTitles = dataset.listings
     .filter((listing) => listing.ownerKey === 'presenter')
     .map((listing) => listing.itemName);
@@ -1287,7 +1584,7 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     },
     counts: {
       profiles: 1 + dataset.communityProfiles.length,
-      items: dataset.listings.length,
+      items: dataset.listings.length - deletedListingIds.length,
       offers: dataset.offers.length,
       conversations: dataset.conversations.length,
       messages: dataset.conversations.reduce((count, conversation) => count + conversation.messages.length, 0),
