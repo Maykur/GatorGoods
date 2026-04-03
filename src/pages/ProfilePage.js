@@ -57,6 +57,10 @@ function readImageFile(file, { maxSizeMb = 5 } = {}) {
   });
 }
 
+function normalizeProfileImageValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function ProfileSkeleton() {
   return (
     <section className="w-full space-y-8">
@@ -395,12 +399,30 @@ export function ProfilePage({ ownerView = false }) {
 
     try {
       setIsSavingProfile(true);
+      const nextProfilePayload = {
+        ...profileForm,
+      };
+      const currentProfilePicture = normalizeProfileImageValue(profileHeader?.avatarUrl);
+      const nextProfilePicture = normalizeProfileImageValue(profileForm.profilePicture);
+
+      if (ownerView && user?.setProfileImage && nextProfilePicture !== currentProfilePicture) {
+        const imageResource = await user.setProfileImage({
+          file: nextProfilePicture || null,
+        });
+
+        if (typeof user.reload === 'function') {
+          await user.reload();
+        }
+
+        nextProfilePayload.profilePicture = imageResource?.publicUrl || '';
+      }
+
       const response = await fetch(`${API_BASE_URL}/user/${profileId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(profileForm),
+        body: JSON.stringify(nextProfilePayload),
       });
       const updatedProfile = await readJson(response, 'Unable to save profile changes');
 

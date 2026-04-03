@@ -86,6 +86,16 @@ function buildProfileResponse() {
   };
 }
 
+function buildSignedInUser(id = 'seller-1') {
+  return {
+    id,
+    setProfileImage: jest.fn(async ({ file }) => ({
+      publicUrl: typeof file === 'string' ? file : '',
+    })),
+    reload: jest.fn(async () => {}),
+  };
+}
+
 beforeEach(() => {
   resetClerkState();
   mockShowToast.mockReset();
@@ -170,9 +180,7 @@ test('signed-out users can view a public seller profile with trust metrics and c
 test('signed-in owners see their listings dashboard, edit form, and favorites shortcut', async () => {
   setClerkState({
     isSignedIn: true,
-    user: {
-      id: 'seller-1',
-    },
+    user: buildSignedInUser(),
   });
 
   render(<ProfilePage ownerView />);
@@ -187,11 +195,10 @@ test('signed-in owners see their listings dashboard, edit form, and favorites sh
 });
 
 test('signed-in owners can save lightweight public profile edits', async () => {
+  const signedInUser = buildSignedInUser();
   setClerkState({
     isSignedIn: true,
-    user: {
-      id: 'seller-1',
-    },
+    user: signedInUser,
   });
 
   render(<ProfilePage ownerView />);
@@ -228,6 +235,9 @@ test('signed-in owners can save lightweight public profile edits', async () => {
       profileBanner: 'https://example.com/updated-banner.png',
     })
   );
+  expect(signedInUser.setProfileImage).toHaveBeenCalledWith({
+    file: 'https://example.com/avatar.png',
+  });
 
   expect(mockShowToast).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -240,9 +250,7 @@ test('signed-in owners can save lightweight public profile edits', async () => {
 test('signed-in owners can upload a banner image from the edit form', async () => {
   setClerkState({
     isSignedIn: true,
-    user: {
-      id: 'seller-1',
-    },
+    user: buildSignedInUser(),
   });
 
   render(<ProfilePage ownerView />);
@@ -268,11 +276,10 @@ test('signed-in owners can upload a banner image from the edit form', async () =
 });
 
 test('signed-in owners can upload a profile picture from the edit form', async () => {
+  const signedInUser = buildSignedInUser();
   setClerkState({
     isSignedIn: true,
-    user: {
-      id: 'seller-1',
-    },
+    user: signedInUser,
   });
 
   render(<ProfilePage ownerView />);
@@ -294,6 +301,9 @@ test('signed-in owners can upload a profile picture from the edit form', async (
         profilePicture: 'data:image/png;base64,mock-banner-data',
       })
     );
+  });
+  expect(signedInUser.setProfileImage).toHaveBeenCalledWith({
+    file: 'data:image/png;base64,mock-banner-data',
   });
 });
 
