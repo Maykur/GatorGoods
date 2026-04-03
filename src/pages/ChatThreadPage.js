@@ -83,6 +83,10 @@ function isNearBottom(element) {
 
 function getChipStyle(state, isSelected) {
   if (isSelected) {
+    if (state === 'completedHere' || state === 'unavailable') {
+      return 'border-brand-blue/45 bg-brand-blue/12 text-white/92';
+    }
+
     return 'border-brand-blue/70 bg-brand-blue/20 text-white';
   }
 
@@ -200,6 +204,18 @@ function sortLinkedItemsForRail(linkedItems = []) {
   });
 }
 
+function getDefaultThreadItem(conversation, linkedItems = []) {
+  const orderedLinkedItems = sortLinkedItemsForRail(linkedItems);
+
+  return (
+    orderedLinkedItems[0] ||
+    conversation?.activeItem ||
+    linkedItems.find((linkedItem) => isSelectableComposerState(linkedItem.state)) ||
+    linkedItems[0] ||
+    null
+  );
+}
+
 export function ChatThreadPage() {
   const { conversationId } = useParams();
   const { user } = useUser();
@@ -212,12 +228,7 @@ export function ChatThreadPage() {
   const [otherParticipantId, setOtherParticipantId] = useState('');
   const [otherParticipantName, setOtherParticipantName] = useState('Conversation');
   const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
-  const [activeListingDescription, setActiveListingDescription] = useState('');
-  const [listingOriginalPickupHubId, setListingOriginalPickupHubId] = useState('');
-  const [listingOriginalPickupLabel, setListingOriginalPickupLabel] = useState('');
-  const [listingCurrentPickupHubId, setListingCurrentPickupHubId] = useState('');
-  const [listingCurrentPickupLabel, setListingCurrentPickupLabel] = useState('');
-  const [listingSellerId, setListingSellerId] = useState('');
+  const [focusedListingData, setFocusedListingData] = useState(null);
   const [draftMessage, setDraftMessage] = useState('');
   const [pickupValues, setPickupValues] = useState({
     pickupHubId: '',
@@ -231,7 +242,6 @@ export function ChatThreadPage() {
   const [isPickupEditorOpen, setIsPickupEditorOpen] = useState(false);
   const [isUpdatingPickup, setIsUpdatingPickup] = useState(false);
   const [focusedListingId, setFocusedListingId] = useState('');
-  const [focusedListingDescription, setFocusedListingDescription] = useState('');
   const [selectedListingId, setSelectedListingId] = useState('');
   const [isComposerContextCleared, setIsComposerContextCleared] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState('');
@@ -240,48 +250,82 @@ export function ChatThreadPage() {
   const locallyFocusedItem = conversationLinkedItems.find(
     (linkedItem) => normalizeId(linkedItem.listingId) === normalizeId(focusedListingId)
   ) || null;
+  const defaultContextItem = getDefaultThreadItem(conversation, conversationLinkedItems);
   const selectedComposerItem = conversationLinkedItems.find(
     (linkedItem) =>
       isSelectableComposerState(linkedItem.state) &&
       normalizeId(linkedItem.listingId) === normalizeId(selectedListingId)
   ) || null;
   const sharedComposerItem =
-    !isComposerContextCleared && conversation?.activeItem && isSelectableComposerState(conversation.activeItem.state)
-      ? conversation.activeItem
+    !isComposerContextCleared && defaultContextItem && isSelectableComposerState(defaultContextItem.state)
+      ? defaultContextItem
       : null;
   const composerContextItem = selectedComposerItem || sharedComposerItem || null;
-  const focusedItem =
-    locallyFocusedItem ||
-    selectedComposerItem ||
-    conversation?.activeItem ||
-    conversationLinkedItems.find((linkedItem) => isSelectableComposerState(linkedItem.state)) ||
-    conversationLinkedItems[0] ||
-    null;
+  const focusedItem = locallyFocusedItem || defaultContextItem || null;
+  const defaultContextListingId =
+    normalizeId(defaultContextItem?.listingId) || normalizeId(conversation?.activeListingId);
+  const displayedContextListingId =
+    normalizeId(focusedItem?.listingId) || normalizeId(conversation?.activeListingId);
   const composerListingId = normalizeId(composerContextItem?.listingId);
   const shouldShowMessageItemPill = conversationLinkedItems.length > 1;
-  const derivedFocusedListingDescription =
-    normalizeId(focusedItem?.listingId) === normalizeId(conversation?.activeItem?.listingId)
-      ? activeListingDescription
-      : focusedListingDescription;
+  const focusedListingDescription = focusedListingData?.itemDescription || '';
   const focusedItemDescription = truncateText(
-    derivedFocusedListingDescription ||
+    focusedListingDescription ||
       (focusedItem?.state === 'unavailable'
         ? 'This item is no longer available on the marketplace, but it remains in your shared history.'
         : 'No item description is available right now.'),
     50
   );
-  const activePickupHubId =
-    conversation?.activePickupHubId ||
-    (conversation?.activePickupSpecifics ? listingCurrentPickupHubId : '') ||
-    listingOriginalPickupHubId ||
+  const isPreviewingAlternateContext =
+    Boolean(displayedContextListingId) && displayedContextListingId !== defaultContextListingId;
+  const focusedListingOriginalPickupHubId =
+    focusedListingData?.originalPickupHubId ||
+    focusedListingData?.pickupHubId ||
+    resolvePickupHub(focusedListingData?.originalItemLocation || focusedListingData?.itemLocation)?.id ||
     '';
-  const activePickupHub = getPickupHubById(activePickupHubId);
-  const activePickupLabel =
-    activePickupHub?.label ||
-    (conversation?.activePickupSpecifics ? listingCurrentPickupLabel : '') ||
-    listingOriginalPickupLabel ||
+  const focusedListingOriginalPickupLabel =
+    focusedListingData?.originalItemLocation ||
+    getPickupHubById(focusedListingData?.originalPickupHubId || focusedListingData?.pickupHubId)?.label ||
+    focusedListingData?.itemLocation ||
     '';
-  const isSeller = Boolean(user?.id && listingSellerId && user.id === listingSellerId);
+  const focusedListingCurrentPickupHubId =
+    focusedListingData?.pickupHubId || resolvePickupHub(focusedListingData?.itemLocation)?.id || '';
+  const focusedListingCurrentPickupLabel =
+    focusedListingData?.itemLocation ||
+    getPickupHubById(focusedListingData?.pickupHubId)?.label ||
+    focusedListingData?.originalItemLocation ||
+    '';
+  const displayedPickupHubId =
+    !isPreviewingAlternateContext
+      ? (
+          conversation?.activePickupHubId ||
+          (conversation?.activePickupSpecifics ? focusedListingCurrentPickupHubId : '') ||
+          focusedListingOriginalPickupHubId ||
+          ''
+        )
+      : (
+          focusedListingCurrentPickupHubId ||
+          focusedListingOriginalPickupHubId ||
+          ''
+        );
+  const displayedPickupHub = getPickupHubById(displayedPickupHubId);
+  const displayedPickupLabel =
+    displayedPickupHub?.label ||
+    (
+      !isPreviewingAlternateContext && conversation?.activePickupSpecifics
+        ? focusedListingCurrentPickupLabel
+        : ''
+    ) ||
+    focusedListingOriginalPickupLabel ||
+    'Location unavailable';
+  const displayedPickupSpecifics =
+    !isPreviewingAlternateContext
+      ? (
+          conversation?.activePickupSpecifics ||
+          'The seller will add the exact meetup specifics when they confirm the handoff.'
+        )
+      : 'Previewing this item location only. Exact meetup specifics stay with the current thread plan.';
+  const isSeller = Boolean(user?.id && focusedListingData?.userPublishingID && user.id === focusedListingData.userPublishingID);
   const isAcceptedMeetupLocked = Boolean(conversation?.isMeetupHubLocked);
   const buyerFirstName = getFirstName(otherParticipantName);
   const meetupHintTarget = buyerFirstName || 'the buyer';
@@ -344,12 +388,9 @@ export function ChatThreadPage() {
         const otherId = threadData.conversation.participantIds.find(
           (participantId) => participantId !== user.id
         );
-        const [profileData, listingData] = await Promise.all([
-          otherId ? fetchOptionalJson(`${API_BASE_URL}/profile/${otherId}`) : Promise.resolve(null),
-          threadData.conversation.activeListingId
-            ? fetchOptionalJson(`${API_BASE_URL}/items/${threadData.conversation.activeListingId}`)
-            : Promise.resolve(null),
-        ]);
+        const profileData = await (
+          otherId ? fetchOptionalJson(`${API_BASE_URL}/profile/${otherId}`) : Promise.resolve(null)
+        );
 
         if (!isMounted) {
           return;
@@ -361,13 +402,12 @@ export function ChatThreadPage() {
           const nextLinkedItems = Array.isArray(threadData.conversation.linkedItems)
             ? threadData.conversation.linkedItems
             : [];
-          const hasCurrentSelectableSelection = nextLinkedItems.some(
+          const hasCurrentSelection = nextLinkedItems.some(
             (linkedItem) =>
-              isSelectableComposerState(linkedItem.state) &&
               normalizeId(linkedItem.listingId) === normalizeId(currentListingId)
           );
 
-          if (hasCurrentSelectableSelection) {
+          if (hasCurrentSelection) {
             return currentListingId;
           }
 
@@ -375,13 +415,9 @@ export function ChatThreadPage() {
             return '';
           }
 
-          if (threadData.conversation.activeItem?.state && isSelectableComposerState(threadData.conversation.activeItem.state)) {
-            return normalizeId(threadData.conversation.activeItem.listingId);
-          }
+          const nextDefaultContextItem = getDefaultThreadItem(threadData.conversation, nextLinkedItems);
 
-          return normalizeId(
-            nextLinkedItems.find((linkedItem) => isSelectableComposerState(linkedItem.state))?.listingId
-          );
+          return normalizeId(nextDefaultContextItem?.listingId);
         });
         setFocusedListingId((currentListingId) => {
           const nextLinkedItems = Array.isArray(threadData.conversation.linkedItems)
@@ -395,38 +431,17 @@ export function ChatThreadPage() {
             return currentListingId;
           }
 
-          if (threadData.conversation.activeItem?.listingId) {
-            return normalizeId(threadData.conversation.activeItem.listingId);
+          const nextDefaultContextItem = getDefaultThreadItem(threadData.conversation, nextLinkedItems);
+
+          if (nextDefaultContextItem?.listingId) {
+            return normalizeId(nextDefaultContextItem.listingId);
           }
 
-          return normalizeId(nextLinkedItems[0]?.listingId);
+          return '';
         });
         setOtherParticipantId(otherId || '');
         setOtherParticipantName(profileData?.profile?.profileName || otherId || 'Conversation');
         setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
-        setActiveListingDescription(listingData?.itemDescription || '');
-        setListingOriginalPickupHubId(
-          listingData?.originalPickupHubId ||
-            listingData?.pickupHubId ||
-            resolvePickupHub(listingData?.originalItemLocation || listingData?.itemLocation)?.id ||
-            ''
-        );
-        setListingOriginalPickupLabel(
-          listingData?.originalItemLocation ||
-            getPickupHubById(listingData?.originalPickupHubId || listingData?.pickupHubId)?.label ||
-            listingData?.itemLocation ||
-            ''
-        );
-        setListingCurrentPickupHubId(
-          listingData?.pickupHubId || resolvePickupHub(listingData?.itemLocation)?.id || ''
-        );
-        setListingCurrentPickupLabel(
-          listingData?.itemLocation ||
-            getPickupHubById(listingData?.pickupHubId)?.label ||
-            listingData?.originalItemLocation ||
-            ''
-        );
-        setListingSellerId(listingData?.userPublishingID || '');
         setPageError('');
         pendingScrollBehaviorRef.current = shouldAutoScroll
           ? (showLoadingState ? 'auto' : 'smooth')
@@ -457,33 +472,29 @@ export function ChatThreadPage() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadFocusedListingDetails = async () => {
-      const normalizedFocusedListingId = normalizeId(focusedItem?.listingId);
+    const loadFocusedListingData = async () => {
+      const normalizedFocusedListingId = displayedContextListingId;
 
       if (!normalizedFocusedListingId) {
         if (isMounted) {
-          setFocusedListingDescription('');
+          setFocusedListingData(null);
         }
-        return;
-      }
-
-      if (normalizedFocusedListingId === normalizeId(conversation?.activeItem?.listingId)) {
         return;
       }
 
       const listingData = await fetchOptionalJson(`${API_BASE_URL}/items/${normalizedFocusedListingId}`);
 
       if (isMounted) {
-        setFocusedListingDescription(listingData?.itemDescription || '');
+        setFocusedListingData(listingData);
       }
     };
 
-    loadFocusedListingDetails();
+    loadFocusedListingData();
 
     return () => {
       isMounted = false;
     };
-  }, [activeListingDescription, conversation?.activeItem?.listingId, focusedItem?.listingId]);
+  }, [displayedContextListingId]);
 
   useEffect(() => {
     if (isPickupEditorOpen) {
@@ -491,10 +502,10 @@ export function ChatThreadPage() {
     }
 
     setPickupValues({
-      pickupHubId: activePickupHubId,
+      pickupHubId: displayedPickupHubId,
       pickupSpecifics: conversation?.activePickupSpecifics || '',
     });
-  }, [activePickupHubId, conversation?.activePickupSpecifics, isPickupEditorOpen]);
+  }, [displayedPickupHubId, conversation?.activePickupSpecifics, isPickupEditorOpen]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -545,7 +556,6 @@ export function ChatThreadPage() {
     }
 
     const normalizedListingId = normalizeId(linkedItem.listingId);
-    setFocusedListingId(normalizedListingId);
 
     if (isSelectableComposerState(linkedItem.state)) {
       if (normalizedListingId === normalizeId(composerContextItem?.listingId)) {
@@ -553,6 +563,7 @@ export function ChatThreadPage() {
         return;
       }
 
+      setFocusedListingId(normalizedListingId);
       composerContextClearedRef.current = false;
       setIsComposerContextCleared(false);
       setSelectedListingId(normalizedListingId);
@@ -560,6 +571,10 @@ export function ChatThreadPage() {
       return;
     }
 
+    setFocusedListingId(normalizedListingId);
+    composerContextClearedRef.current = true;
+    setIsComposerContextCleared(true);
+    setSelectedListingId(normalizedListingId);
     const anchorMessageId = normalizeId(linkedItem.latestContextMessageId);
 
     if (!anchorMessageId) {
@@ -576,6 +591,7 @@ export function ChatThreadPage() {
   const handleClearComposerContext = () => {
     composerContextClearedRef.current = true;
     setIsComposerContextCleared(true);
+    setFocusedListingId('');
     setSelectedListingId('');
     setHighlightedMessageId('');
   };
@@ -597,7 +613,10 @@ export function ChatThreadPage() {
     }
 
     const normalizedPickupHubId = pickupValues.pickupHubId.trim();
-    const canUseLockedCustomLocation = isAcceptedMeetupLocked && !normalizedPickupHubId && Boolean(activePickupLabel);
+    const canUseLockedCustomLocation =
+      isAcceptedMeetupLocked &&
+      !normalizedPickupHubId &&
+      Boolean(displayedPickupLabel && displayedPickupLabel !== 'Location unavailable');
 
     if (!normalizedPickupHubId && !canUseLockedCustomLocation) {
       setPickupError('Choose a meetup hub before updating the thread.');
@@ -690,7 +709,7 @@ export function ChatThreadPage() {
         <Card variant="subtle" className="space-y-3">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              <AppIcon icon="listing" className="text-[0.95em]" />
+              <AppIcon icon="collection" className="text-[0.95em]" />
               <span>Items in this conversation</span>
             </div>
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -750,34 +769,37 @@ export function ChatThreadPage() {
         </Card>
       ) : null}
 
-      <Card variant="subtle" className="space-y-4">
+      <Card
+        variant="subtle"
+        className={`space-y-4 ${isPreviewingAlternateContext ? 'border-brand-blue/30 bg-brand-blue/10' : ''}`}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
               <AppIcon icon="location" className="text-[0.95em]" />
-              <span>Meetup hub</span>
+              <span>{isPreviewingAlternateContext ? 'Selected item location' : 'Meetup hub'}</span>
             </div>
             <h2 className="ml-6 text-xl font-semibold text-white">
-              {activePickupLabel || 'Meetup hub not set yet'}
+              {displayedPickupLabel}
             </h2>
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-                <AppIcon icon="description" className="text-[0.95em]" />
-                <span>Meetup specifics</span>
+                <AppIcon icon="locationDetails" className="text-[0.95em]" />
+                <span>{isPreviewingAlternateContext ? 'Location note' : 'Meetup specifics'}</span>
               </div>
               <p className="ml-6 text-xl font-semibold text-white">
-                {conversation?.activePickupSpecifics || 'The seller will add the exact meetup specifics when they confirm the handoff.'}
+                {displayedPickupSpecifics}
               </p>
             </div>
           </div>
-          {isSeller ? (
+          {isSeller && !isPreviewingAlternateContext ? (
             <Button
               variant="secondary"
               size="sm"
               leadingIcon="location"
               onClick={() => {
                 setPickupValues({
-                  pickupHubId: activePickupHubId,
+                  pickupHubId: displayedPickupHubId,
                   pickupSpecifics: conversation?.activePickupSpecifics || '',
                 });
                 setPickupError('');
@@ -789,13 +811,17 @@ export function ChatThreadPage() {
           ) : null}
         </div>
 
-        {!isSeller ? (
+        {isPreviewingAlternateContext ? (
+          <p className="text-sm leading-7 text-blue-100/80">
+            You are previewing this item's location context locally. Clear the selection to return to the shared thread plan.
+          </p>
+        ) : !isSeller ? (
           <p className="text-sm leading-7 text-app-soft">
             Need a different spot? Suggest it in chat and the seller can update the official meetup details here.
           </p>
         ) : null}
 
-        {isPickupEditorOpen ? (
+        {isPickupEditorOpen && !isPreviewingAlternateContext ? (
           <form className="space-y-4" onSubmit={handlePickupSubmit}>
             <PickupHubPicker
               id="conversation-pickup-hub"

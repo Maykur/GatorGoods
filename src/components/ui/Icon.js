@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
+  faArchive,
   faArrowLeft,
   faArrowRight,
   faArrowUpWideShort,
@@ -24,6 +25,7 @@ import {
   faHouse,
   faLaptop,
   faLocationDot,
+  faLocationCrosshairs,
   faMagnifyingGlass,
   faMessage,
   faMoneyBillWave,
@@ -45,6 +47,7 @@ import { cn } from '../../lib/ui';
 
 export const APP_ICONS = {
   browse: faStore,
+  collection: faArchive,
   unavailable: faBan,
   category: faTag,
   clear: faRotateLeft,
@@ -57,6 +60,7 @@ export const APP_ICONS = {
   linkedin: faLinkedin,
   listing: faTag,
   location: faLocationDot,
+  locationDetails: faLocationCrosshairs,
   menu: faBars,
   message: faMessage,
   messages: faComments,

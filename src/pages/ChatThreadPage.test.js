@@ -401,12 +401,15 @@ test('pending chips behave like selectable message context and can be toggled of
 
   render(<ChatThreadPage />);
 
-  fireEvent.click(await screen.findByRole('button', { name: /mini fridge\. pending in this thread\./i }));
+  expect(await screen.findByRole('button', { name: /mini fridge\. pending in this thread\./i })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
   expect(screen.getByTestId('composer-item-context')).toHaveTextContent('Mini Fridge');
   expect(screen.getByText('Pending')).toBeInTheDocument();
   expect(await screen.findByText(/Compact mini fridge with one accepted offer/i)).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: /mini fridge\. pending in this thread\./i }));
+  fireEvent.click(await screen.findByRole('button', { name: /mini fridge\. pending in this thread\./i }));
   expect(screen.queryByTestId('composer-item-context')).not.toBeInTheDocument();
 });
 
@@ -467,7 +470,7 @@ test('tapping another active item chip changes the next message context locally'
   expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-2');
 });
 
-test('tapping a historical item chip jumps to its latest thread message without changing compose context', async () => {
+test('tapping a historical item chip jumps to its latest thread message and clears compose context', async () => {
   mockGetConversationMessages.mockResolvedValue({
     conversation: {
       _id: 'conversation-1',
@@ -556,6 +559,7 @@ test('tapping a historical item chip jumps to its latest thread message without 
   fireEvent.click(await screen.findByRole('button', { name: /bike helmet\. completed here\./i }));
 
   expect(scrollIntoViewMock).toHaveBeenCalled();
+  expect(screen.queryByTestId('composer-item-context')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-4');
   expect(screen.getByText('Purchased')).toBeInTheDocument();
 
@@ -569,7 +573,7 @@ test('tapping a historical item chip jumps to its latest thread message without 
       conversationId: 'conversation-1',
       senderClerkUserId: 'buyer-1',
       body: 'Still good for the lamp?',
-      attachedListingId: 'item-1',
+      attachedListingId: null,
     });
   });
 });
@@ -670,6 +674,9 @@ test('unavailable chips update the item details card while also jumping to the l
   fireEvent.click(await screen.findByRole('button', { name: /poster tube\. unavailable\./i }));
 
   expect(scrollIntoViewMock).toHaveBeenCalled();
+  expect(screen.queryByTestId('composer-item-context')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /poster tube\. unavailable\./i })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: /desk lamp\. active\./i })).toHaveAttribute('aria-pressed', 'false');
   expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-5');
   expect(screen.getByText('Unavailable')).toBeInTheDocument();
   expect(await screen.findByText(/Rigid poster tube with a shoulder strap/i)).toBeInTheDocument();
