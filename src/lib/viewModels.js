@@ -400,6 +400,52 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
   };
 }
 
+export function toTransactionViewModel(rawTransaction, {listing, buyerProfile, sellerProfile} = {}) {
+  const acceptedTerms = rawTransaction?.acceptedTerms || {};
+  const transactionOfferLike = {
+    _id: rawTransaction?._id || '',
+    listingId: rawTransaction?.listingId || '',
+    buyerClerkUserId: rawTransaction?.buyerClerkUserId || '',
+    buyerDisplayName: buyerProfile?.profile?.profileName || buyerProfile?.profileName || 'Buyer',
+    sellerClerkUserId: rawTransaction?.sellerClerkUserId || '',
+    conversationId: rawTransaction?.conversationId || '',
+    offeredPrice: acceptedTerms?.price,
+    meetupHubId: acceptedTerms?.meetupHubId || '',
+    meetupLocation: acceptedTerms?.meetupLocation || '',
+    meetupDate: acceptedTerms?.meetupDate || '',
+    meetupTime: acceptedTerms?.meetupTime || '',
+    paymentMethod: acceptedTerms?.paymentMethod || '',
+    status: rawTransaction?.status || 'scheduled',
+  };
+  const offerView = toOfferCardViewModel(transactionOfferLike, {
+    listing,
+    buyerProfile,
+    sellerProfile,
+  });
+
+  return {
+    ...offerView,
+    transactionId: rawTransaction?._id || '',
+    offerId: rawTransaction?.offerId || '',
+    acceptedTerms: {
+      price: Number(acceptedTerms?.price) || 0,
+      paymentMethod: acceptedTerms?.paymentMethod || '',
+      meetupHubId: acceptedTerms?.meetupHubId || '',
+      meetupLocation: acceptedTerms?.meetupLocation || '',
+      pickupSpecifics: normalizeText(acceptedTerms?.pickupSpecifics, ''),
+      meetupDate: acceptedTerms?.meetupDate || '',
+      meetupTime: acceptedTerms?.meetupTime || '',
+    },
+    pickupSpecifics: normalizeText(acceptedTerms?.pickupSpecifics, ''),
+    buyerDecision: normalizeText(rawTransaction?.buyerDecision, ''),
+    sellerDecision: normalizeText(rawTransaction?.sellerDecision, ''),
+    buyerReviewedAt: rawTransaction?.buyerReviewedAt || null,
+    sellerReviewedAt: rawTransaction?.sellerReviewedAt || null,
+    createdAt: rawTransaction?.createdAt || null,
+    updatedAt: rawTransaction?.updatedAt || null,
+  };
+}
+
 export function groupOffersByListing(rawOffers, listingsById = {}) {
   return (Array.isArray(rawOffers) ? rawOffers : []).reduce((groups, offer) => {
     const listingId = offer?.listingId?.toString?.() || offer?.listingId || '';

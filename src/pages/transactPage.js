@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { getIndividualOffer } from '../lib/offersApi';
-import { toOfferCardViewModel } from '../lib/viewModels';
+import { getTransactionByOfferId, submitTransactionDecision } from '../lib/transactionsApi';
+import { toTransactionViewModel } from '../lib/viewModels';
 import {
   AppIcon,
   Avatar,
@@ -21,12 +21,13 @@ const API_BASE_URL = 'http://localhost:5000';
 
 function getStatusBadgeVariant(status) {
   switch (status) {
-    case 'accepted':
+    case 'completed':
       return 'success';
-    case 'declined':
+    case 'problemReported':
     case 'cancelled':
       return 'danger';
-    case 'countered':
+    case 'buyerConfirmed':
+    case 'sellerConfirmed':
       return 'warning';
     default:
       return 'info';
@@ -84,20 +85,20 @@ function OrderMetaCard({ icon, label, value, emphasis = false }) {
 
 function getStatusMessage(status) {
   switch (status) {
-    case 'accepted':
-      return 'This offer has been accepted. Head to the meetup location at the agreed time to complete the transaction.';
-    case 'declined':
-      return 'This offer was declined by the seller.';
+    case 'completed':
+      return 'Both sides have confirmed the handoff. This transaction is marked as completed.';
+    case 'buyerConfirmed':
+      return 'The buyer has confirmed the exchange. Waiting on the seller to confirm too.';
+    case 'sellerConfirmed':
+      return 'The seller has confirmed the exchange. Waiting on the buyer to confirm too.';
+    case 'problemReported':
+      return 'A problem was reported for this handoff. Both submissions are preserved so nothing gets silently overwritten.';
     case 'cancelled':
-      return 'This offer has been cancelled.';
-    case 'countered':
-      return 'The seller has countered this offer. Check your messages for details.';
-    case 'pending':
-      return 'This offer is awaiting a response from the seller.';
-    case 'convertedToTransaction':
-      return 'This offer has been converted into a confirmed transaction.';
+      return 'This transaction has been cancelled.';
+    case 'scheduled':
+      return 'Your meetup is scheduled. Use this page to confirm the handoff or report a problem after the exchange.';
     default:
-      return 'Check your messages for the latest updates on this order.';
+      return 'Check your messages for the latest updates on this transaction.';
   }
 }
 
@@ -153,9 +154,10 @@ function ReadOnlyPickupMap({ selectedHubId }) {
 export function TransactPage() {
   const { orderId } = useParams();
   const { user, isLoaded } = useUser();
-  const [offer, setOffer] = useState(null);
+  const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -169,7 +171,7 @@ export function TransactPage() {
     }
 
     if (!user?.id) {
-      setOffer(null);
+      setTransaction(null);
       setError('Sign in to view this transaction.');
       setIsLoading(false);
       return;
@@ -179,30 +181,30 @@ export function TransactPage() {
       setIsLoading(true);
       setError('');
 
-      const rawOffer = await getIndividualOffer(orderId, {
+      const rawTransaction = await getTransactionByOfferId(orderId, {
         participantId: user.id,
       });
 
-      const listingId = rawOffer.listingId?.toString?.() || rawOffer.listingId || '';
+      const listingId = rawTransaction.listingId?.toString?.() || rawTransaction.listingId || '';
       const counterpartId =
-        user?.id === rawOffer.sellerClerkUserId
-          ? rawOffer.buyerClerkUserId
-          : rawOffer.sellerClerkUserId;
+        user?.id === rawTransaction.sellerClerkUserId
+          ? rawTransaction.buyerClerkUserId
+          : rawTransaction.sellerClerkUserId;
 
       const [listingData, profileData] = await Promise.all([
         listingId ? fetchOptionalJson(`${API_BASE_URL}/items/${listingId}`) : null,
         counterpartId ? fetchOptionalJson(`${API_BASE_URL}/profile/${counterpartId}`) : null,
       ]);
 
-      const isSeller = user?.id === rawOffer.sellerClerkUserId;
+      const isSeller = user?.id === rawTransaction.sellerClerkUserId;
 
-      const offerView = toOfferCardViewModel(rawOffer, {
+      const transactionView = toTransactionViewModel(rawTransaction, {
         listing: listingData,
         buyerProfile: isSeller ? profileData : null,
         sellerProfile: !isSeller ? profileData : null,
       });
 
-      setOffer(offerView);
+      setTransaction(transactionView);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load order details.');
     } finally {
@@ -214,11 +216,25 @@ export function TransactPage() {
     loadOrder();
   }, [loadOrder]);
 
-  const isSeller = user?.id && offer?.sellerId === user.id;
-  const counterpartLabel = isSeller ? 'Buyer' : 'Seller';
-  const counterpartName = isSeller ? offer?.buyerName : offer?.sellerName;
-  const counterpartId = isSeller ? offer?.buyerId : offer?.sellerId;
-  const counterpartTrust = isSeller ? offer?.buyerTrust : offer?.sellerTrust;
+  const handleDecision = useCallback(async (decision) => {
+    if (!transaction?.transactionId || !user?.id) {
+      return;
+    }
+
+    try {
+      setIsSubmittingDecision(true);
+      setError('');
+      await submitTransactionDecision(transaction.transactionId, {
+        requesterClerkUserId: user.id,
+        decision,
+      });
+      await loadOrder();
+    } catch (submissionError) {
+      setError(submissionError.message || 'Failed to update this transaction.');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  }, [loadOrder, transaction?.transactionId, user?.id]);
 
   return (
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
@@ -234,15 +250,15 @@ export function TransactPage() {
                 Back to offers
               </Button>
             </Link>
-            {offer?.conversationId ? (
-              <Link to={`/messages/${offer.conversationId}`} className="no-underline">
+            {transaction?.conversationId ? (
+              <Link to={`/messages/${transaction.conversationId}`} className="no-underline">
                 <Button size="sm" leadingIcon="messages">
-                  Message {offer?.sellerId === user?.id ? 'buyer' : 'seller'}
+                  Message {transaction?.sellerId === user?.id ? 'buyer' : 'seller'}
                 </Button>
               </Link>
             ) : null}
-            {offer?.listingId ? (
-              <Link to={`/items/${offer.listingId}`} className="no-underline">
+            {transaction?.listingId ? (
+              <Link to={`/items/${transaction.listingId}`} className="no-underline">
                 <Button variant="secondary" size="sm" leadingIcon="listing">View listing</Button>
               </Link>
             ) : null}
@@ -259,24 +275,24 @@ export function TransactPage() {
 
       {isLoading ? <TransactSkeleton /> : null}
 
-      {!isLoading && !error && offer ? (
+      {!isLoading && !error && transaction ? (
         <div className="space-y-6">
           {/* Listing & status header */}
           <Card className="space-y-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-semibold text-white">{offer.listingTitle}</h2>
-                  <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
-                  <Badge variant={getStatusBadgeVariant(offer.listingStatus)}>{offer.listingStatusLabel}</Badge>
+                  <h2 className="text-2xl font-semibold text-white">{transaction.listingTitle}</h2>
+                  <Badge variant={getStatusBadgeVariant(transaction.status)}>{transaction.status}</Badge>
+                  <Badge variant={getStatusBadgeVariant(transaction.listingStatus)}>{transaction.listingStatusLabel}</Badge>
                 </div>
                 <p className="text-sm leading-7 text-app-soft">
-                  {getStatusMessage(offer.status)}
+                  {getStatusMessage(transaction.status)}
                 </p>
               </div>
 
               <Link
-                to={`/items/${offer.listingId}`}
+                to={`/items/${transaction.listingId}`}
                 className="inline-flex items-center gap-2 text-sm font-semibold text-app-soft no-underline transition hover:text-white"
               >
                 <AppIcon icon="open" className="text-[0.95em]" />
@@ -293,12 +309,12 @@ export function TransactPage() {
             </div>
 
             {/* Item photo — centered at top, uncropped */}
-            {offer.listingImageUrl ? (
+            {transaction.listingImageUrl ? (
               <div className="flex flex-col items-center gap-4">
                 <div className="overflow-hidden rounded-2xl bg-app-surface/60 w-48 h-48 flex items-center justify-center">
                   <img
-                    src={offer.listingImageUrl}
-                    alt={offer.listingTitle}
+                    src={transaction.listingImageUrl}
+                    alt={transaction.listingTitle}
                     className="max-h-full max-w-full object-contain"
                   />
                 </div>
@@ -307,19 +323,19 @@ export function TransactPage() {
                 <div className="w-full max-w-sm space-y-2">
                   <div className="grid grid-cols-[1fr_auto] items-center gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Link to={`/profile/${offer.sellerId}`} className="no-underline flex-shrink-0">
-                        <Avatar src={offer.sellerAvatarUrl} name={offer.sellerName} size="sm" />
+                      <Link to={`/profile/${transaction.sellerId}`} className="no-underline flex-shrink-0">
+                        <Avatar src={transaction.sellerAvatarUrl} name={transaction.sellerName} size="sm" />
                       </Link>
                       <p className="text-sm text-app-soft truncate">
-                        <Link to={`/profile/${offer.sellerId}`} className="font-semibold text-white no-underline hover:underline">
-                          {offer.sellerName}
+                        <Link to={`/profile/${transaction.sellerId}`} className="font-semibold text-white no-underline hover:underline">
+                          {transaction.sellerName}
                         </Link>
-                        {'\u2019s '}{offer.listingTitle}
+                        {'\u2019s '}{transaction.listingTitle}
                       </p>
                     </div>
                     <span className="w-28 flex items-center gap-1.5 text-sm font-bold text-white flex-shrink-0">
                       <AppIcon icon="payment" className="text-gatorOrange text-[1.25rem]" />
-                      {offer.offeredPriceLabel}
+                      {transaction.offeredPriceLabel}
                     </span>
                   </div>
 
@@ -329,28 +345,55 @@ export function TransactPage() {
                       <span className="w-10 flex-shrink-0 flex items-center justify-center">
                         <AppIcon icon="location" className="text-gatorOrange text-[1.25rem]" />
                       </span>
-                      {offer.meetupLocation}
+                      {transaction.meetupLocation}
                     </span>
                     <span className="w-28 flex items-center gap-1.5 flex-shrink-0">
                       <AppIcon icon="time" className="text-gatorOrange text-[1.25rem]" />
-                      {offer.meetupScheduleLabel}
+                      {transaction.meetupScheduleLabel}
                     </span>
                   </div>
+
+                  {transaction.pickupSpecifics ? (
+                    <div className="grid grid-cols-[1fr_auto] items-start gap-3 text-xs text-app-muted">
+                      <span className="flex items-start gap-2.5">
+                        <span className="w-10 flex-shrink-0 flex items-center justify-center">
+                          <AppIcon icon="messages" className="text-gatorOrange text-[1.25rem]" />
+                        </span>
+                        <span>{transaction.pickupSpecifics}</span>
+                      </span>
+                      <span className="w-28 text-right uppercase tracking-[0.14em] text-app-muted/80">
+                        Pickup specifics
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
 
             {/* Meetup map */}
-            {offer.meetupHubId ? (
+            {transaction.meetupHubId ? (
               <div className="flex justify-center">
-                <ReadOnlyPickupMap selectedHubId={offer.meetupHubId} />
+                <ReadOnlyPickupMap selectedHubId={transaction.meetupHubId} />
               </div>
             ) : null}
 
             {/* Exchange actions */}
             <div className="flex justify-center gap-3 pt-1">
-              <Button leadingIcon="verified">Confirm Exchange</Button>
-              <Button variant="danger" className="bg-red-600 hover:bg-red-500">Cancel Exchange</Button>
+              <Button
+                leadingIcon="verified"
+                onClick={() => handleDecision('confirmed')}
+                disabled={isSubmittingDecision}
+              >
+                {isSubmittingDecision ? 'Saving...' : 'Confirm exchange'}
+              </Button>
+              <Button
+                variant="danger"
+                className="bg-red-600 hover:bg-red-500"
+                onClick={() => handleDecision('problemReported')}
+                disabled={isSubmittingDecision}
+              >
+                Report a problem
+              </Button>
             </div>
           </Card>
 

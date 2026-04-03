@@ -24,6 +24,15 @@ const PAYMENT_METHOD_LABELS = {
   externalApp: 'External app',
   gatorgoodsEscrow: 'GatorGoods escrow',
 };
+const TRANSACTION_STATUSES = [
+  'scheduled',
+  'buyerConfirmed',
+  'sellerConfirmed',
+  'completed',
+  'problemReported',
+  'cancelled',
+];
+const TRANSACTION_DECISIONS = ['confirmed', 'problemReported'];
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -512,11 +521,122 @@ const offerSchema = new mongoose.Schema(
 offerSchema.index({sellerClerkUserId: 1, status: 1, createdAt: -1});
 offerSchema.index({buyerClerkUserId: 1, status: 1, createdAt: -1});
 
+const transactionSchema = new mongoose.Schema(
+  {
+    offerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'offers',
+      required: true,
+      unique: true,
+      index: true,
+    },
+    listingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'items',
+      required: true,
+      index: true,
+    },
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'conversations',
+      default: null,
+    },
+    buyerClerkUserId: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+    sellerClerkUserId: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+    acceptedTerms: {
+      type: new mongoose.Schema(
+        {
+          price: {
+            type: Number,
+            default: null,
+          },
+          paymentMethod: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupHubId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupLocation: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          pickupSpecifics: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupDate: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupTime: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: TRANSACTION_STATUSES,
+      default: 'scheduled',
+      index: true,
+    },
+    buyerDecision: {
+      type: String,
+      enum: ['', ...TRANSACTION_DECISIONS],
+      default: '',
+      trim: true,
+    },
+    sellerDecision: {
+      type: String,
+      enum: ['', ...TRANSACTION_DECISIONS],
+      default: '',
+      trim: true,
+    },
+    buyerReviewedAt: {
+      type: Date,
+      default: null,
+    },
+    sellerReviewedAt: {
+      type: Date,
+      default: null,
+    },
+    seedTag: {
+      type: String,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
 const Item = mongoose.models.items || mongoose.model('items', ItemSchema);
 const Profile = mongoose.models.profiles || mongoose.model('profiles', profileSchema);
 const Conversation = mongoose.models.conversations || mongoose.model('conversations', conversationSchema);
 const Message = mongoose.models.messages || mongoose.model('messages', messageSchema);
 const Offer = mongoose.models.offers || mongoose.model('offers', offerSchema);
+const Transaction = mongoose.models.transactions || mongoose.model('transactions', transactionSchema);
 
 function clampPositiveInteger(value, fallback, max = null) {
   const parsedValue = Number.parseInt(value, 10);
@@ -723,6 +843,132 @@ function isOfferParticipant(offer, participantId) {
     normalizeOptionalString(offer.buyerClerkUserId),
     normalizeOptionalString(offer.sellerClerkUserId),
   ].includes(normalizedParticipantId);
+}
+
+function getTransactionParticipantRole(transaction, participantId) {
+  const normalizedParticipantId = normalizeOptionalString(participantId);
+
+  if (!transaction || !normalizedParticipantId) {
+    return '';
+  }
+
+  if (normalizeOptionalString(transaction.buyerClerkUserId) === normalizedParticipantId) {
+    return 'buyer';
+  }
+
+  if (normalizeOptionalString(transaction.sellerClerkUserId) === normalizedParticipantId) {
+    return 'seller';
+  }
+
+  return '';
+}
+
+function deriveTransactionStatus({buyerDecision = '', sellerDecision = ''} = {}) {
+  if (buyerDecision === 'problemReported' || sellerDecision === 'problemReported') {
+    return 'problemReported';
+  }
+
+  if (buyerDecision === 'confirmed' && sellerDecision === 'confirmed') {
+    return 'completed';
+  }
+
+  if (buyerDecision === 'confirmed') {
+    return 'buyerConfirmed';
+  }
+
+  if (sellerDecision === 'confirmed') {
+    return 'sellerConfirmed';
+  }
+
+  return 'scheduled';
+}
+
+function buildTransactionAcceptedTermsSnapshot(offer = {}, {pickupSpecifics = ''} = {}) {
+  return {
+    price: Number.isFinite(Number(offer.offeredPrice)) ? Number(offer.offeredPrice) : null,
+    paymentMethod: offer.paymentMethod || '',
+    meetupHubId: offer.meetupHubId || '',
+    meetupLocation: getOfferMeetupLabel(offer),
+    pickupSpecifics: normalizeOptionalString(pickupSpecifics),
+    meetupDate: offer.meetupDate || '',
+    meetupTime: offer.meetupTime || '',
+  };
+}
+
+function serializeTransaction(transaction) {
+  if (!transaction) {
+    return null;
+  }
+
+  return {
+    _id: toIdString(transaction._id),
+    offerId: toIdString(transaction.offerId),
+    listingId: toIdString(transaction.listingId),
+    conversationId: toIdString(transaction.conversationId),
+    buyerClerkUserId: transaction.buyerClerkUserId || '',
+    sellerClerkUserId: transaction.sellerClerkUserId || '',
+    acceptedTerms: {
+      price: Number.isFinite(Number(transaction.acceptedTerms?.price))
+        ? Number(transaction.acceptedTerms.price)
+        : null,
+      paymentMethod: transaction.acceptedTerms?.paymentMethod || '',
+      meetupHubId: transaction.acceptedTerms?.meetupHubId || '',
+      meetupLocation: transaction.acceptedTerms?.meetupLocation || '',
+      pickupSpecifics: transaction.acceptedTerms?.pickupSpecifics || '',
+      meetupDate: transaction.acceptedTerms?.meetupDate || '',
+      meetupTime: transaction.acceptedTerms?.meetupTime || '',
+    },
+    status: transaction.status || 'scheduled',
+    buyerDecision: transaction.buyerDecision || '',
+    sellerDecision: transaction.sellerDecision || '',
+    buyerReviewedAt: transaction.buyerReviewedAt || null,
+    sellerReviewedAt: transaction.sellerReviewedAt || null,
+    createdAt: transaction.createdAt || null,
+    updatedAt: transaction.updatedAt || null,
+  };
+}
+
+async function ensureTransactionForAcceptedOffer(
+  offer,
+  {
+    listing = null,
+    conversation = null,
+    pickupSpecifics = '',
+  } = {}
+) {
+  if (!offer || offer.status !== 'accepted') {
+    return null;
+  }
+
+  const existingTransaction = await Transaction.findOne({offerId: offer._id});
+
+  if (existingTransaction) {
+    return existingTransaction;
+  }
+
+  const resolvedListing =
+    listing || (offer.listingId ? await Item.findById(offer.listingId) : null);
+  const resolvedConversation =
+    conversation ||
+    (offer.conversationId ? await Conversation.findById(offer.conversationId) : null);
+  const resolvedPickupSpecifics =
+    normalizeOptionalString(pickupSpecifics) ||
+    normalizeOptionalString(resolvedConversation?.activePickupSpecifics);
+
+  return Transaction.create({
+    offerId: offer._id,
+    listingId: offer.listingId,
+    conversationId: offer.conversationId || resolvedConversation?._id || null,
+    buyerClerkUserId: offer.buyerClerkUserId,
+    sellerClerkUserId: offer.sellerClerkUserId,
+    acceptedTerms: buildTransactionAcceptedTermsSnapshot(offer, {
+      pickupSpecifics: resolvedPickupSpecifics,
+    }),
+    status: 'scheduled',
+    buyerDecision: '',
+    sellerDecision: '',
+    seedTag: offer.seedTag || resolvedListing?.seedTag || null,
+  });
 }
 
 function normalizeLinkedItemForComparison(linkedItem = {}) {
@@ -2362,6 +2608,45 @@ app.get('/api/offers/:id', async (req, resp) => {
   }
 });
 
+app.get('/api/transactions/by-offer/:offerId', async (req, resp) => {
+  try {
+    const offerId = toObjectId(req.params.offerId);
+    const participantId = normalizeOptionalString(req.query.participantId);
+
+    if (!offerId) {
+      return resp.status(400).json({message: 'Valid offer id is required'});
+    }
+
+    if (!participantId) {
+      return resp.status(400).json({message: 'participantId is required'});
+    }
+
+    const offer = await Offer.findById(offerId);
+
+    if (!offer) {
+      return resp.status(404).json({message: 'Offer not found'});
+    }
+
+    if (offer.status !== 'accepted') {
+      return resp.status(409).json({message: 'Transactions are only available for accepted offers'});
+    }
+
+    if (!isOfferParticipant(offer, participantId)) {
+      return resp.status(403).json({message: 'You are not authorized to view this transaction'});
+    }
+
+    const transaction = await ensureTransactionForAcceptedOffer(offer);
+
+    if (!transaction) {
+      return resp.status(404).json({message: 'Transaction not found'});
+    }
+
+    resp.json(serializeTransaction(transaction));
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to fetch transaction', error: e.message});
+  }
+});
+
 app.patch('/api/offers/:id', async (req, resp) => {
   try {
     const offerId = toObjectId(req.params.id);
@@ -2485,6 +2770,12 @@ app.patch('/api/offers/:id', async (req, resp) => {
         ...saveOperations,
       ]);
 
+      await ensureTransactionForAcceptedOffer(offer, {
+        listing,
+        conversation,
+        pickupSpecifics,
+      });
+
       const competingOffers = await Offer.find({
         listingId: offer.listingId,
         _id: {$ne: offer._id},
@@ -2561,6 +2852,55 @@ app.patch('/api/offers/:id', async (req, resp) => {
     resp.json(offer);
   } catch (e) {
     resp.status(500).json({message: 'Failed to update offer', error: e.message});
+  }
+});
+
+app.patch('/api/transactions/:id/decision', async (req, resp) => {
+  try {
+    const transactionId = toObjectId(req.params.id);
+    const requesterClerkUserId = normalizeOptionalString(req.body.requesterClerkUserId);
+    const decision = normalizeOptionalString(req.body.decision);
+
+    if (!transactionId) {
+      return resp.status(400).json({message: 'Valid transaction id is required'});
+    }
+
+    if (!requesterClerkUserId) {
+      return resp.status(400).json({message: 'requesterClerkUserId is required'});
+    }
+
+    if (!TRANSACTION_DECISIONS.includes(decision)) {
+      return resp.status(400).json({message: 'decision must be confirmed or problemReported'});
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+
+    if (!transaction) {
+      return resp.status(404).json({message: 'Transaction not found'});
+    }
+
+    const participantRole = getTransactionParticipantRole(transaction, requesterClerkUserId);
+
+    if (!participantRole) {
+      return resp.status(403).json({message: 'Only transaction participants can update this transaction'});
+    }
+
+    if (participantRole === 'buyer') {
+      transaction.buyerDecision = decision;
+    } else {
+      transaction.sellerDecision = decision;
+    }
+
+    transaction.status = deriveTransactionStatus({
+      buyerDecision: transaction.buyerDecision,
+      sellerDecision: transaction.sellerDecision,
+    });
+
+    await transaction.save();
+
+    resp.json(serializeTransaction(transaction));
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to update transaction', error: e.message});
   }
 });
 
@@ -2954,6 +3294,7 @@ module.exports = {
     Message,
     Offer,
     Profile,
+    Transaction,
   },
   startServer,
 };

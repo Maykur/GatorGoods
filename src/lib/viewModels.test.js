@@ -12,6 +12,7 @@ import {
   toConversationPreviewViewModel,
   toListingCardViewModel,
   toProfileHeaderViewModel,
+  toTransactionViewModel,
   toTrustMetricsViewModel,
 } from './viewModels';
 import {
@@ -228,6 +229,52 @@ test('toConversationPreviewViewModel truncates item titles and long message prev
     'Alexandra: This is a much longer message preview than we want to show in the inbox card at once.'
   );
   expect(preview.lastMessagePreviewText.length).toBeLessThanOrEqual(75);
+});
+
+test('toTransactionViewModel maps snapshotted accepted terms into transaction display fields', () => {
+  const transaction = toTransactionViewModel(
+    {
+      _id: 'transaction-1',
+      offerId: 'offer-1',
+      listingId: 'item-1',
+      conversationId: 'conversation-1',
+      buyerClerkUserId: 'buyer-1',
+      sellerClerkUserId: 'seller-1',
+      acceptedTerms: {
+        price: 68,
+        paymentMethod: 'cash',
+        meetupHubId: 'reitz',
+        meetupLocation: 'Reitz Union',
+        pickupSpecifics: 'Meet by the bookstore entrance.',
+        meetupDate: '2026-04-04',
+        meetupTime: '19:00',
+      },
+      status: 'scheduled',
+      buyerDecision: '',
+      sellerDecision: '',
+    },
+    {
+      listing: {
+        _id: 'item-1',
+        itemName: 'Mini Fridge',
+        itemCost: '80',
+        itemCondition: 'Good',
+        originalPickupHubId: 'library-west',
+        originalItemLocation: 'Library West',
+        itemPictureUrl: '/items/item-1/image',
+        userPublishingName: 'Seller One',
+      },
+    }
+  );
+
+  expect(transaction.transactionId).toBe('transaction-1');
+  expect(transaction.offerId).toBe('offer-1');
+  expect(transaction.listingTitle).toBe('Mini Fridge');
+  expect(transaction.offeredPriceLabel).toBe('$68');
+  expect(transaction.paymentMethodLabel).toBe('Cash');
+  expect(transaction.meetupLocation).toBe('Reitz Union');
+  expect(transaction.pickupSpecifics).toBe('Meet by the bookstore entrance.');
+  expect(transaction.meetupScheduleLabel).toMatch(/Apr/);
 });
 
 test('formatConversationTimestamp removes the year and seconds from inbox timestamps', () => {

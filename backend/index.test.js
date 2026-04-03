@@ -14,6 +14,7 @@ const {
     Message,
     Offer,
     Profile,
+    Transaction,
   },
 } = require('./index');
 
@@ -67,6 +68,16 @@ async function createOffer(listingId, overrides = {}) {
       paymentMethod: 'cash',
       message: 'Can meet after class.',
       ...overrides,
+    });
+}
+
+async function acceptOffer(offerId, sellerClerkUserId = 'user_1', pickupSpecifics = 'Outside Library West by the front benches.') {
+  return request(app)
+    .patch(`/api/offers/${offerId}`)
+    .send({
+      requesterClerkUserId: sellerClerkUserId,
+      status: 'accepted',
+      pickupSpecifics,
     });
 }
 
@@ -1080,6 +1091,74 @@ test('GET /api/offers/:id allows the accepted buyer to read an accepted offer', 
   assert.equal(response.body._id, offerResponse.body._id);
 });
 
+test('PATCH /api/offers/:id creates a transaction with snapshotted accepted terms', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id, {
+    offeredPrice: 22,
+    paymentMethod: 'externalApp',
+    meetupHubId: 'reitz',
+    meetupLocation: 'Reitz Union',
+    meetupDate: getFutureDateInputValue(1),
+    meetupTime: '18:30',
+  });
+
+  const acceptanceResponse = await acceptOffer(
+    offerResponse.body._id,
+    profile.profileID,
+    'Meet by the north entrance near the benches.'
+  );
+
+  assert.equal(acceptanceResponse.status, 200);
+
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  assert.ok(transaction);
+  assert.equal(transaction.listingId.toString(), item.id);
+  assert.equal(transaction.conversationId.toString(), offerResponse.body.conversationId);
+  assert.equal(transaction.buyerClerkUserId, 'buyer_1');
+  assert.equal(transaction.sellerClerkUserId, profile.profileID);
+  assert.equal(transaction.status, 'scheduled');
+  assert.deepEqual(transaction.acceptedTerms.toObject(), {
+    price: 22,
+    paymentMethod: 'externalApp',
+    meetupHubId: 'reitz',
+    meetupLocation: 'Reitz Union',
+    pickupSpecifics: 'Meet by the north entrance near the benches.',
+    meetupDate: getFutureDateInputValue(1),
+    meetupTime: '18:30',
+  });
+});
+
+test('GET /api/transactions/by-offer/:offerId only allows transaction participants', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+
+  const unrelatedResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: 'random_user',
+    });
+  const sellerResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: profile.profileID,
+    });
+  const buyerResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(unrelatedResponse.status, 403);
+  assert.equal(unrelatedResponse.body.message, 'You are not authorized to view this transaction');
+  assert.equal(sellerResponse.status, 200);
+  assert.equal(sellerResponse.body.offerId, offerResponse.body._id);
+  assert.equal(buyerResponse.status, 200);
+  assert.equal(buyerResponse.body.offerId, offerResponse.body._id);
+});
+
 test('PATCH /api/offers/:id only allows the seller to update a pending offer', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id);
@@ -1113,6 +1192,87 @@ test('PATCH /api/offers/:id requires meetup specifics before accepting an offer'
   const updatedOffer = await Offer.findById(offerResponse.body._id);
   assert.equal(updatedItem.status, 'active');
   assert.equal(updatedOffer.status, 'pending');
+});
+
+test('PATCH /api/transactions/:id/decision only allows participants to update transaction state', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: 'random_user',
+      decision: 'confirmed',
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'Only transaction participants can update this transaction');
+});
+
+test('PATCH /api/transactions/:id/decision marks a transaction completed after both sides confirm', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const buyerResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+    });
+
+  assert.equal(buyerResponse.status, 200);
+  assert.equal(buyerResponse.body.status, 'buyerConfirmed');
+
+  const sellerResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+    });
+
+  assert.equal(sellerResponse.status, 200);
+  assert.equal(sellerResponse.body.status, 'completed');
+
+  const updatedTransaction = await Transaction.findById(transaction.id);
+  assert.equal(updatedTransaction.buyerDecision, 'confirmed');
+  assert.equal(updatedTransaction.sellerDecision, 'confirmed');
+  assert.equal(updatedTransaction.status, 'completed');
+});
+
+test('PATCH /api/transactions/:id/decision preserves mixed outcomes as problemReported', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const firstResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+    });
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(firstResponse.body.status, 'sellerConfirmed');
+
+  const secondResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'problemReported',
+    });
+
+  assert.equal(secondResponse.status, 200);
+  assert.equal(secondResponse.body.status, 'problemReported');
+  assert.equal(secondResponse.body.sellerDecision, 'confirmed');
+  assert.equal(secondResponse.body.buyerDecision, 'problemReported');
 });
 
 test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {
