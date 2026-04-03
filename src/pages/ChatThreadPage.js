@@ -169,7 +169,6 @@ function sortLinkedItemsForRail(linkedItems = []) {
 export function ChatThreadPage() {
   const { conversationId } = useParams();
   const { user } = useUser();
-  const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const messageRefs = useRef(new Map());
   const pendingScrollBehaviorRef = useRef(null);
@@ -192,7 +191,6 @@ export function ChatThreadPage() {
   const [composerError, setComposerError] = useState('');
   const [pickupError, setPickupError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isPickupEditorOpen, setIsPickupEditorOpen] = useState(false);
   const [isUpdatingPickup, setIsUpdatingPickup] = useState(false);
@@ -239,10 +237,21 @@ export function ChatThreadPage() {
       return;
     }
 
-    messagesEndRef.current?.scrollIntoView({
-      behavior: pendingScrollBehaviorRef.current,
-      block: 'end',
-    });
+    const scrollRegion = messagesScrollRef.current;
+
+    if (scrollRegion) {
+      const nextTop = scrollRegion.scrollHeight;
+
+      if (typeof scrollRegion.scrollTo === 'function') {
+        scrollRegion.scrollTo({
+          top: nextTop,
+          behavior: pendingScrollBehaviorRef.current,
+        });
+      } else {
+        scrollRegion.scrollTop = nextTop;
+      }
+    }
+
     pendingScrollBehaviorRef.current = null;
   }, [messages]);
 
@@ -271,8 +280,6 @@ export function ChatThreadPage() {
       try {
         if (showLoadingState) {
           setIsLoading(true);
-        } else if (isMounted) {
-          setIsRefreshing(true);
         }
 
         const threadData = await getConversationMessages(conversationId, user.id);
@@ -351,7 +358,6 @@ export function ChatThreadPage() {
       } finally {
         if (isMounted) {
           setIsLoading(false);
-          setIsRefreshing(false);
         }
       }
     };
@@ -543,14 +549,6 @@ export function ChatThreadPage() {
             </h1>
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-3 text-sm text-app-soft">
-          {isRefreshing ? (
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              <AppIcon icon="time" className="text-[0.95em]" />
-              <span>Refreshing thread...</span>
-            </span>
-          ) : null}
-        </div>
       </div>
 
       {pageError ? (
@@ -832,7 +830,6 @@ export function ChatThreadPage() {
               );
             })
           )}
-          <div ref={messagesEndRef} />
         </div>
       </Card>
 
