@@ -449,6 +449,87 @@ test('message item pills render for tagged messages only when the thread has mul
   expect(attachedItemPills[1]).toHaveTextContent('Study Chair');
 });
 
+test('mixed-direction threads surface buying and selling context in the focused item card', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'active',
+        relationshipRole: 'buying',
+        latestContextMessageId: 'message-1',
+      },
+      linkedItemCount: 2,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+          relationshipRole: 'buying',
+          latestContextMessageId: 'message-1',
+        },
+        {
+          listingId: 'item-2',
+          title: 'Study Chair',
+          imageUrl: 'chair.png',
+          state: 'active',
+          relationshipRole: 'selling',
+          latestContextMessageId: 'message-2',
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sounds good',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-1',
+        senderClerkUserId: 'seller-1',
+        body: 'Lamp update',
+        createdAt: '2026-03-29T12:00:00.000Z',
+        attachedItem: {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+          relationshipRole: 'buying',
+        },
+      },
+      {
+        _id: 'message-2',
+        senderClerkUserId: 'buyer-1',
+        body: 'I am also selling the chair if you still want it.',
+        createdAt: '2026-03-29T12:20:00.000Z',
+        attachedItem: {
+          listingId: 'item-2',
+          title: 'Study Chair',
+          imageUrl: 'chair.png',
+          state: 'active',
+          relationshipRole: 'selling',
+        },
+      },
+    ],
+  });
+
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByText('Buying')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /study chair\. active\./i }));
+
+  expect(await screen.findByText('Selling')).toBeInTheDocument();
+});
+
 test('tapping another active item chip changes the next message context locally', async () => {
   render(<ChatThreadPage />);
 

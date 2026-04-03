@@ -962,7 +962,19 @@ function deriveLinkedItemState({listing, reservedOffer, conversationId}) {
   return 'unavailable';
 }
 
-function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false} = {}) {
+function deriveLinkedItemRelationshipRole({listing, reservedOffer, viewerParticipantId}) {
+  const sellerId = listing?.userPublishingID || reservedOffer?.sellerClerkUserId || '';
+  const normalizedSellerId = toIdString(sellerId);
+  const normalizedViewerId = toIdString(viewerParticipantId);
+
+  if (!normalizedSellerId || !normalizedViewerId) {
+    return null;
+  }
+
+  return normalizedSellerId === normalizedViewerId ? 'selling' : 'buying';
+}
+
+function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false, viewerParticipantId = ''} = {}) {
   const listingId = toIdString(linkedItem.listingId);
   const liveListing = stateMaps.liveListingsById.get(listingId) || null;
   const reservedOffer = stateMaps.reservedOffersByListingId.get(listingId) || null;
@@ -982,11 +994,21 @@ function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false
       reservedOffer,
       conversationId: stateMaps.conversationId,
     }),
+    relationshipRole: deriveLinkedItemRelationshipRole({
+      listing: liveListing,
+      reservedOffer,
+      viewerParticipantId,
+    }),
     isSelected: selected,
   };
 }
 
-function buildMessageAttachedItemSummary(message, stateMaps, linkedItemsById = new Map()) {
+function buildMessageAttachedItemSummary(
+  message,
+  stateMaps,
+  linkedItemsById = new Map(),
+  {viewerParticipantId = ''} = {}
+) {
   const listingId = toIdString(message?.attachedListingId);
 
   if (!listingId) {
@@ -1007,6 +1029,11 @@ function buildMessageAttachedItemSummary(message, stateMaps, linkedItemsById = n
       reservedOffer,
       conversationId: stateMaps.conversationId,
     }),
+    relationshipRole: deriveLinkedItemRelationshipRole({
+      listing: liveListing,
+      reservedOffer,
+      viewerParticipantId,
+    }),
   };
 }
 
@@ -1015,6 +1042,7 @@ async function serializeConversation(conversation, extras = {}) {
     return conversation;
   }
 
+  const {viewerParticipantId = '', ...serializedExtras} = extras;
   const conversationObject = conversation.toObject();
   const linkedItems = Array.isArray(conversationObject.linkedItems) ? conversationObject.linkedItems : [];
   const stateMaps = await buildLinkedItemStateMaps(linkedItems, conversationObject._id);
@@ -1022,6 +1050,7 @@ async function serializeConversation(conversation, extras = {}) {
     .map((linkedItem) =>
       buildLinkedItemApiSummary(linkedItem, stateMaps, {
         selected: toIdString(linkedItem.listingId) === toIdString(conversationObject.activeListingId),
+        viewerParticipantId,
       })
     )
     .sort((firstItem, secondItem) => {
@@ -1039,11 +1068,11 @@ async function serializeConversation(conversation, extras = {}) {
     linkedItems: linkedItemSummaries,
     linkedItemCount: linkedItemSummaries.length,
     activeItem,
-    ...extras,
+    ...serializedExtras,
   };
 }
 
-async function serializeMessages(messages = [], conversation) {
+async function serializeMessages(messages = [], conversation, options = {}) {
   const linkedItems = Array.isArray(conversation?.linkedItems)
     ? conversation.linkedItems.map((linkedItem) => (linkedItem?.toObject ? linkedItem.toObject() : linkedItem))
     : [];
@@ -1057,7 +1086,7 @@ async function serializeMessages(messages = [], conversation) {
 
     return {
       ...messageObject,
-      attachedItem: buildMessageAttachedItemSummary(messageObject, stateMaps, linkedItemsById),
+      attachedItem: buildMessageAttachedItemSummary(messageObject, stateMaps, linkedItemsById, options),
     };
   });
 }
@@ -1240,7 +1269,9 @@ app.get('/api/conversations', async (req, resp) => {
           await conversation.save();
         }
 
-        return serializeConversation(conversation);
+        return serializeConversation(conversation, {
+          viewerParticipantId: participantId,
+        });
       })
     );
 
@@ -1307,8 +1338,11 @@ app.get('/api/conversations/:id/messages', async (req, resp) => {
     resp.json({
       conversation: await serializeConversation(conversation, {
         isMeetupHubLocked: Boolean(reservedOffer),
+        viewerParticipantId: participantId,
       }),
-      messages: await serializeMessages(messages, conversation),
+      messages: await serializeMessages(messages, conversation, {
+        viewerParticipantId: participantId,
+      }),
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch messages', error: e.message});
@@ -1371,7 +1405,9 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
     }
 
     await conversation.save();
-    const [serializedMessage] = await serializeMessages([message], conversation);
+    const [serializedMessage] = await serializeMessages([message], conversation, {
+      viewerParticipantId: trimmedSenderId,
+    });
 
     resp.status(201).json(serializedMessage);
   } catch (e) {
@@ -1489,11 +1525,14 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
     });
 
     await conversation.save();
-    const [serializedSystemMessage] = await serializeMessages([systemMessage], conversation);
+    const [serializedSystemMessage] = await serializeMessages([systemMessage], conversation, {
+      viewerParticipantId: requesterClerkUserId,
+    });
 
     resp.json({
       conversation: await serializeConversation(conversation, {
         isMeetupHubLocked: Boolean(reservedOffer),
+        viewerParticipantId: requesterClerkUserId,
       }),
       systemMessage: serializedSystemMessage,
     });

@@ -606,6 +606,7 @@ test('POST /api/conversations/:id/messages stores attached item snapshots and up
   assert.equal(response.body.attachedItem.title, secondItem.itemName);
   assert.equal(response.body.attachedItem.imageUrl, secondItem.itemPicture);
   assert.equal(response.body.attachedItem.state, 'active');
+  assert.equal(response.body.attachedItem.relationshipRole, 'buying');
 
   const storedConversation = await Conversation.findById(conversationResponse.body._id);
   const fridgeLinkedItem = storedConversation.linkedItems.find(
@@ -1194,7 +1195,79 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
   assert.equal(response.body.messages[3].attachedItem.title, archivedItem.itemName);
   assert.equal(response.body.messages[3].attachedItem.state, 'unavailable');
   assert.equal(response.body.messages[3].attachedItem.lastKnownStatus, archivedItem.status);
+  assert.equal(response.body.conversation.activeItem.relationshipRole, 'buying');
   assert.equal(response.body.conversation.linkedItems[0].latestContextMessageId.toString(), archivedMessage.id);
+});
+
+test('GET /api/conversations/:id/messages derives buying and selling roles for mixed-direction threads', async () => {
+  const {profile} = await seedProfileAndItem();
+  const buyingItem = await Item.create({
+    itemName: 'Desk Lamp',
+    itemCost: '20',
+    itemCondition: 'Good',
+    itemLocation: 'Library West',
+    itemPicture: 'https://example.com/lamp.png',
+    itemDescription: 'Lamp for studying',
+    itemDetails: 'Warm bulb included',
+    userPublishingID: profile.profileID,
+    userPublishingName: profile.profileName,
+    status: 'active',
+  });
+  const sellingItem = await Item.create({
+    itemName: 'Study Chair',
+    itemCost: '35',
+    itemCondition: 'Good',
+    itemLocation: 'Reitz Union',
+    itemPicture: 'https://example.com/chair.png',
+    itemDescription: 'Desk chair',
+    itemDetails: 'Comfortable',
+    userPublishingID: 'buyer_1',
+    userPublishingName: 'Buyer One',
+    status: 'active',
+  });
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [buyingItem._id, sellingItem._id],
+    activeListingId: sellingItem._id,
+    lastMessageText: 'Let us trade both items.',
+    lastMessageAt: new Date('2026-04-04T14:00:00.000Z'),
+  });
+
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'I still want the lamp.',
+    attachedListingId: buyingItem._id,
+    attachedListingTitle: buyingItem.itemName,
+    attachedListingImageUrl: buyingItem.itemPicture,
+    createdAt: new Date('2026-04-03T10:00:00.000Z'),
+    updatedAt: new Date('2026-04-03T10:00:00.000Z'),
+  });
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: profile.profileID,
+    body: 'I can also pick up your chair.',
+    attachedListingId: sellingItem._id,
+    attachedListingTitle: sellingItem.itemName,
+    attachedListingImageUrl: sellingItem.itemPicture,
+    createdAt: new Date('2026-04-04T10:00:00.000Z'),
+    updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+  });
+
+  const response = await request(app)
+    .get(`/api/conversations/${conversation._id}/messages`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.conversation.activeItem.relationshipRole, 'selling');
+  assert.deepEqual(
+    response.body.conversation.linkedItems.map((linkedItem) => linkedItem.relationshipRole),
+    ['selling', 'buying']
+  );
+  assert.equal(response.body.messages[0].attachedItem.relationshipRole, 'buying');
+  assert.equal(response.body.messages[1].attachedItem.relationshipRole, 'selling');
 });
 
 test('POST /api/conversations/:id/messages lazily repairs linked item history for a legacy conversation on write', async () => {

@@ -153,6 +153,70 @@ function getFocusedItemStatusLabel(state) {
   return 'Available';
 }
 
+function getRelationshipRoleLabel(role) {
+  if (role === 'selling') {
+    return 'Selling';
+  }
+
+  if (role === 'buying') {
+    return 'Buying';
+  }
+
+  return '';
+}
+
+function getRelationshipRoleIcon(role) {
+  if (role === 'selling') {
+    return 'outgoing';
+  }
+
+  return null;
+}
+
+function getRelationshipRoleTooltip(role) {
+  if (role === 'selling') {
+    return 'You are selling this item.';
+  }
+
+  return '';
+}
+
+function RelationshipRoleMarker({role, className = '', onShowTooltip, onHideTooltip}) {
+  const icon = getRelationshipRoleIcon(role);
+  const tooltip = getRelationshipRoleTooltip(role);
+
+  if (!icon || !tooltip) {
+    return null;
+  }
+
+  const showTooltip = (event) => {
+    if (!onShowTooltip) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    onShowTooltip({
+      text: tooltip,
+      left: rect.left + rect.width / 2,
+      top: rect.top - 8,
+    });
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center ${className}`.trim()}
+      tabIndex={0}
+      aria-label={tooltip}
+      onMouseEnter={showTooltip}
+      onFocus={showTooltip}
+      onMouseLeave={onHideTooltip}
+      onBlur={onHideTooltip}
+    >
+      <AppIcon icon={icon} className="opacity-80" decorative={false} />
+    </span>
+  );
+}
+
 function getRailPriority(state) {
   if (state === 'pending') {
     return 0;
@@ -245,8 +309,13 @@ export function ChatThreadPage() {
   const [selectedListingId, setSelectedListingId] = useState('');
   const [isComposerContextCleared, setIsComposerContextCleared] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState('');
+  const [roleTooltip, setRoleTooltip] = useState(null);
   const conversationLinkedItems = Array.isArray(conversation?.linkedItems) ? conversation.linkedItems : [];
   const orderedConversationLinkedItems = sortLinkedItemsForRail(conversationLinkedItems);
+  const relationshipRoles = Array.from(
+    new Set(conversationLinkedItems.map((linkedItem) => linkedItem.relationshipRole).filter(Boolean))
+  );
+  const shouldShowRelationshipRoles = relationshipRoles.length > 1;
   const locallyFocusedItem = conversationLinkedItems.find(
     (linkedItem) => normalizeId(linkedItem.listingId) === normalizeId(focusedListingId)
   ) || null;
@@ -369,6 +438,20 @@ export function ChatThreadPage() {
       window.clearTimeout(timeoutId);
     };
   }, [highlightedMessageId]);
+
+  useEffect(() => {
+    const hideTooltip = () => {
+      setRoleTooltip(null);
+    };
+
+    window.addEventListener('scroll', hideTooltip, true);
+    window.addEventListener('resize', hideTooltip);
+
+    return () => {
+      window.removeEventListener('scroll', hideTooltip, true);
+      window.removeEventListener('resize', hideTooltip);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -705,6 +788,19 @@ export function ChatThreadPage() {
         />
       ) : null}
 
+      {roleTooltip ? (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[140] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-white/12 bg-app-bg/95 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-card backdrop-blur-sm"
+          style={{
+            left: `${roleTooltip.left}px`,
+            top: `${roleTooltip.top}px`,
+          }}
+        >
+          {roleTooltip.text}
+        </div>
+      ) : null}
+
       {conversationLinkedItems.length > 0 ? (
         <Card variant="subtle" className="space-y-3">
           <div className="space-y-3">
@@ -712,9 +808,13 @@ export function ChatThreadPage() {
               <AppIcon icon="collection" className="text-[0.95em]" />
               <span>Items in this conversation</span>
             </div>
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            <div className="relative z-20 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
               {orderedConversationLinkedItems.map((linkedItem) => {
                 const isSelected = normalizeId(linkedItem.listingId) === normalizeId(selectedListingId);
+                const relationshipRoleIcon =
+                  shouldShowRelationshipRoles && linkedItem.relationshipRole
+                    ? getRelationshipRoleIcon(linkedItem.relationshipRole)
+                    : null;
 
                 return (
                   <button
@@ -726,6 +826,14 @@ export function ChatThreadPage() {
                     aria-label={`${linkedItem.title}. ${getChipStatusLabel(linkedItem.state)}.`}
                   >
                     <AppIcon icon={getChipIcon(linkedItem.state)} className="text-[0.95em]" />
+                    {relationshipRoleIcon ? (
+                      <RelationshipRoleMarker
+                        role={linkedItem.relationshipRole}
+                        className="text-[0.8em]"
+                        onShowTooltip={setRoleTooltip}
+                        onHideTooltip={() => setRoleTooltip(null)}
+                      />
+                    ) : null}
                     <span>{linkedItem.title}</span>
                   </button>
                 );
@@ -750,6 +858,18 @@ export function ChatThreadPage() {
                       <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
                         <AppIcon icon={getChipIcon(focusedItem.state)} className="text-[0.95em]" />
                         <span>{getFocusedItemStatusLabel(focusedItem.state)}</span>
+                        {shouldShowRelationshipRoles && focusedItem.relationshipRole ? (
+                          <>
+                            <span aria-hidden="true" className="text-app-muted/70">•</span>
+                            <RelationshipRoleMarker
+                              role={focusedItem.relationshipRole}
+                              className="text-[0.85em]"
+                              onShowTooltip={setRoleTooltip}
+                              onHideTooltip={() => setRoleTooltip(null)}
+                            />
+                            <span>{getRelationshipRoleLabel(focusedItem.relationshipRole)}</span>
+                          </>
+                        ) : null}
                       </span>
                       <h2 className="truncate text-xl font-semibold text-white">{focusedItem.title}</h2>
                       <p className="text-sm text-app-soft">{focusedItemDescription}</p>
@@ -932,6 +1052,14 @@ export function ChatThreadPage() {
                           className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/12 px-3 py-1 text-xs font-semibold text-white/88"
                         >
                           <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                          {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
+                            <RelationshipRoleMarker
+                              role={message.attachedItem.relationshipRole}
+                              className="text-[0.75em]"
+                              onShowTooltip={setRoleTooltip}
+                              onHideTooltip={() => setRoleTooltip(null)}
+                            />
+                          ) : null}
                           <span className="truncate">{message.attachedItem.title}</span>
                         </div>
                       ) : null}
@@ -985,6 +1113,14 @@ export function ChatThreadPage() {
                           }`}
                         >
                           <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                          {shouldShowRelationshipRoles && message.attachedItem.relationshipRole ? (
+                            <RelationshipRoleMarker
+                              role={message.attachedItem.relationshipRole}
+                              className="text-[0.75em]"
+                              onShowTooltip={setRoleTooltip}
+                              onHideTooltip={() => setRoleTooltip(null)}
+                            />
+                          ) : null}
                           <span className="truncate">{message.attachedItem.title}</span>
                         </div>
                       ) : null}
@@ -1016,6 +1152,14 @@ export function ChatThreadPage() {
                 <span className="font-semibold text-app-muted">Discussing:</span>
                 <span className="inline-flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white">
                   <AppIcon icon={getChipIcon(composerContextItem.state)} className="text-[0.95em]" />
+                  {shouldShowRelationshipRoles && composerContextItem.relationshipRole ? (
+                    <RelationshipRoleMarker
+                      role={composerContextItem.relationshipRole}
+                      className="text-[0.8em]"
+                      onShowTooltip={setRoleTooltip}
+                      onHideTooltip={() => setRoleTooltip(null)}
+                    />
+                  ) : null}
                   <span className="truncate">{composerContextItem.title}</span>
                 </span>
               </p>
