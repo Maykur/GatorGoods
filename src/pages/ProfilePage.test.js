@@ -5,6 +5,8 @@ import { resetClerkState, setClerkState } from '../testUtils/mockClerk';
 const mockShowToast = jest.fn();
 const mockConfirm = jest.fn(() => Promise.resolve(true));
 let mockRouteParams = { id: 'seller-1' };
+let mockProfileResponse;
+let mockSellerOffers;
 
 jest.mock('@clerk/react', () => {
   const { getClerkState } = require('../testUtils/mockClerk');
@@ -49,7 +51,14 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-function buildProfileResponse() {
+function toLocalDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`;
+}
+
+function buildProfileResponse(overrides = {}) {
   return {
     profile: {
       profileID: 'seller-1',
@@ -69,20 +78,23 @@ function buildProfileResponse() {
         responsiveness: 100,
         safety: 81,
       },
+      ...overrides.profile,
     },
-    listings: [
-      {
-        _id: 'item-1',
-        itemName: 'Desk Lamp',
-        itemCost: '20',
-        itemCondition: 'Good',
-        itemLocation: 'Library West',
-        itemPicture: 'lamp.png',
-        itemCat: 'Electronics & Computers',
-        userPublishingName: 'Seller One',
-        status: 'active',
-      },
-    ],
+    listings:
+      overrides.listings ||
+      [
+        {
+          _id: 'item-1',
+          itemName: 'Desk Lamp',
+          itemCost: '20',
+          itemCondition: 'Good',
+          itemLocation: 'Library West',
+          itemPicture: 'lamp.png',
+          itemCat: 'Electronics & Computers',
+          userPublishingName: 'Seller One',
+          status: 'active',
+        },
+      ],
   };
 }
 
@@ -102,6 +114,8 @@ beforeEach(() => {
   mockConfirm.mockReset();
   mockConfirm.mockResolvedValue(true);
   mockRouteParams = { id: 'seller-1' };
+  mockProfileResponse = buildProfileResponse();
+  mockSellerOffers = [];
   global.FileReader = class MockFileReader {
     readAsDataURL(file) {
       this.result = `data:${file.type};base64,mock-banner-data`;
@@ -113,7 +127,11 @@ beforeEach(() => {
 
   global.fetch = jest.fn((url, options = {}) => {
     if (url === 'http://localhost:5000/profile/seller-1') {
-      return jsonResponse(buildProfileResponse());
+      return jsonResponse(mockProfileResponse);
+    }
+
+    if (url === 'http://localhost:5000/api/offers?participantId=seller-1&role=seller') {
+      return jsonResponse(mockSellerOffers);
     }
 
     if (url === 'http://localhost:5000/items/item-2') {
@@ -131,16 +149,9 @@ beforeEach(() => {
       });
     }
 
-    if (url === 'http://localhost:5000/update_score/seller-1' && options.method === 'POST') {
-      return jsonResponse({
-        ...buildProfileResponse().profile,
-        profileRating: 4.7,
-      });
-    }
-
     if (url === 'http://localhost:5000/user/seller-1' && options.method === 'PATCH') {
       return jsonResponse({
-        ...buildProfileResponse().profile,
+        ...mockProfileResponse.profile,
         profileName: 'Updated Seller',
         profileBio: 'Updated bio',
       });
@@ -175,6 +186,7 @@ test('signed-out users can view a public seller profile with trust metrics and c
   );
   expect(screen.getByText('Desk Lamp')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /save profile changes/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /open transaction/i })).not.toBeInTheDocument();
 });
 
 test('signed-in owners see their listings dashboard, edit form, and favorites shortcut', async () => {
@@ -187,7 +199,7 @@ test('signed-in owners see their listings dashboard, edit form, and favorites sh
 
   fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
   expect(await screen.findByText(/refresh what people see before they message you/i)).toBeInTheDocument();
-  expect(screen.getByLabelText(/short bio/i)).toHaveValue('Selling a few trusted dorm essentials.');
+  expect(screen.getByLabelText(/profile bio/i)).toHaveValue('Selling a few trusted dorm essentials.');
   expect(screen.getByLabelText(/display name/i)).toHaveValue('Seller One');
   expect(screen.getByLabelText(/profile photo url/i)).toHaveValue('');
   expect(screen.getByRole('link', { name: /open favorites/i })).toHaveAttribute('href', '/favorites');
@@ -210,7 +222,7 @@ test('signed-in owners can save lightweight public profile edits', async () => {
   fireEvent.change(screen.getByLabelText(/profile photo url/i), {
     target: { value: 'https://example.com/avatar.png' },
   });
-  fireEvent.change(screen.getByLabelText(/short bio/i), {
+  fireEvent.change(screen.getByLabelText(/profile bio/i), {
     target: { value: 'Updated bio' },
   });
   fireEvent.change(screen.getByLabelText(/banner image url/i), {
@@ -307,7 +319,7 @@ test('signed-in owners can upload a profile picture from the edit form', async (
   });
 });
 
-test('signed-in non-owners can submit a seller review', async () => {
+test('public profiles no longer show the generic review form', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -317,23 +329,70 @@ test('signed-in non-owners can submit a seller review', async () => {
 
   render(<ProfilePage />);
 
-  fireEvent.change(await screen.findByLabelText(/review rating/i), {
-    target: { value: '5' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: /submit review score/i }));
+  expect(await screen.findByText('Desk Lamp')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/review rating/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /submit review score/i })).not.toBeInTheDocument();
+});
 
-  await waitFor(() => {
-    expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:5000/update_score/seller-1',
-      expect.objectContaining({
-        method: 'POST',
-      })
-    );
+test('owner view shows a transaction CTA only for the seller item scheduled today', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
   });
-  expect(mockShowToast).toHaveBeenCalledWith(
-    expect.objectContaining({
-      title: 'Review submitted',
-      variant: 'success',
-    })
-  );
+  mockProfileResponse = buildProfileResponse({
+    listings: [
+      {
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        itemCost: '20',
+        itemCondition: 'Good',
+        itemLocation: 'Library West',
+        itemPicture: 'lamp.png',
+        itemCat: 'Electronics & Computers',
+        userPublishingName: 'Seller One',
+        status: 'reserved',
+      },
+      {
+        _id: 'item-2',
+        itemName: 'Mini Fridge',
+        itemCost: '80',
+        itemCondition: 'Fair',
+        itemLocation: 'Broward Hall',
+        itemPicture: 'fridge.png',
+        itemCat: 'Home & Garden',
+        userPublishingName: 'Seller One',
+        status: 'reserved',
+      },
+    ],
+  });
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  mockSellerOffers = [
+    {
+      _id: 'offer-today',
+      listingId: 'item-1',
+      sellerClerkUserId: 'seller-1',
+      status: 'accepted',
+      meetupDate: toLocalDateInputValue(today),
+      meetupTime: '16:30',
+    },
+    {
+      _id: 'offer-tomorrow',
+      listingId: 'item-2',
+      sellerClerkUserId: 'seller-1',
+      status: 'accepted',
+      meetupDate: toLocalDateInputValue(tomorrow),
+      meetupTime: '12:15',
+    },
+  ];
+
+  render(<ProfilePage ownerView />);
+
+  const transactionLinks = await screen.findAllByRole('link', { name: /open transaction/i });
+  expect(transactionLinks).toHaveLength(1);
+  expect(transactionLinks[0]).toHaveAttribute('href', '/transact/offer-today');
+  expect(screen.queryByRole('link', { name: /transact view/i })).not.toBeInTheDocument();
 });

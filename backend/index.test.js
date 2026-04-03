@@ -14,10 +14,22 @@ const {
     Message,
     Offer,
     Profile,
+    Transaction,
   },
 } = require('./index');
 
 let mongoServer;
+
+function toLocalDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getFutureDateInputValue(daysAhead = 3) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  return toLocalDateInputValue(date);
+}
 
 async function seedProfileAndItem(overrides = {}) {
   const profile = await Profile.create({
@@ -51,10 +63,21 @@ async function createOffer(listingId, overrides = {}) {
       buyerDisplayName: 'Buyer One',
       offeredPrice: 18,
       meetupLocation: 'Plaza of the Americas',
-      meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+      meetupDate: getFutureDateInputValue(3),
+      meetupTime: '13:00',
       paymentMethod: 'cash',
       message: 'Can meet after class.',
       ...overrides,
+    });
+}
+
+async function acceptOffer(offerId, sellerClerkUserId = 'user_1', pickupSpecifics = 'Outside Library West by the front benches.') {
+  return request(app)
+    .patch(`/api/offers/${offerId}`)
+    .send({
+      requesterClerkUserId: sellerClerkUserId,
+      status: 'accepted',
+      pickupSpecifics,
     });
 }
 
@@ -461,6 +484,8 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   const storedOffer = await Offer.findById(response.body._id);
   assert.equal(storedOffer.buyerClerkUserId, 'buyer_1');
   assert.equal(storedOffer.paymentMethod, 'cash');
+  assert.equal(storedOffer.meetupDate, getFutureDateInputValue(3));
+  assert.equal(storedOffer.meetupTime, '13:00');
 
   const linkedConversation = await Conversation.findById(response.body.conversationId);
   assert.deepEqual(linkedConversation.participantIds, ['buyer_1', 'user_1']);
@@ -475,6 +500,20 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   assert.equal(sentMessage.offerSnapshot.eventType, 'sent');
   assert.equal(sentMessage.offerSnapshot.offeredPrice, 18);
   assert.equal(sentMessage.offerSnapshot.paymentMethod, 'cash');
+  assert.equal(sentMessage.offerSnapshot.meetupDate, getFutureDateInputValue(3));
+  assert.equal(sentMessage.offerSnapshot.meetupTime, '13:00');
+});
+
+test('POST /api/listings/:id/offers requires a valid structured meetup schedule', async () => {
+  const {item} = await seedProfileAndItem();
+
+  const response = await createOffer(item.id, {
+    meetupDate: '2099-01-01',
+    meetupTime: '14:00',
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'Meetup date must be within the next 2 weeks.');
 });
 
 test('GET /api/conversations/:id/messages resolves sent-offer titles to the buyer profile name when the snapshot is generic', async () => {
@@ -844,7 +883,8 @@ test('GET /api/conversations keeps pending preview state for reserved listings',
     conversationId: conversation._id,
     offeredPrice: 18,
     meetupLocation: 'Plaza of the Americas',
-    meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+    meetupDate: '2026-04-07',
+    meetupTime: '13:00',
     paymentMethod: 'cash',
     status: 'pending',
   });
@@ -985,6 +1025,140 @@ test('GET /api/offers returns offers for both seller and buyer views', async () 
   assert.equal(buyerResponse.body[0].buyerClerkUserId, 'buyer_1');
 });
 
+test('GET /api/offers/:id blocks unrelated users from reading an accepted offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
+    });
+
+  const response = await request(app)
+    .get(`/api/offers/${offerResponse.body._id}`)
+    .query({
+      participantId: 'random_user',
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'You are not authorized to view this offer');
+});
+
+test('GET /api/offers/:id allows the seller to read an accepted offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
+    });
+
+  const response = await request(app)
+    .get(`/api/offers/${offerResponse.body._id}`)
+    .query({
+      participantId: profile.profileID,
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body._id, offerResponse.body._id);
+});
+
+test('GET /api/offers/:id allows the accepted buyer to read an accepted offer', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await request(app)
+    .patch(`/api/offers/${offerResponse.body._id}`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      status: 'accepted',
+      pickupSpecifics: 'Outside Library West by the front benches.',
+    });
+
+  const response = await request(app)
+    .get(`/api/offers/${offerResponse.body._id}`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body._id, offerResponse.body._id);
+});
+
+test('PATCH /api/offers/:id creates a transaction with snapshotted accepted terms', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id, {
+    offeredPrice: 22,
+    paymentMethod: 'externalApp',
+    meetupHubId: 'reitz',
+    meetupLocation: 'Reitz Union',
+    meetupDate: getFutureDateInputValue(1),
+    meetupTime: '18:30',
+  });
+
+  const acceptanceResponse = await acceptOffer(
+    offerResponse.body._id,
+    profile.profileID,
+    'Meet by the north entrance near the benches.'
+  );
+
+  assert.equal(acceptanceResponse.status, 200);
+
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  assert.ok(transaction);
+  assert.equal(transaction.listingId.toString(), item.id);
+  assert.equal(transaction.conversationId.toString(), offerResponse.body.conversationId);
+  assert.equal(transaction.buyerClerkUserId, 'buyer_1');
+  assert.equal(transaction.sellerClerkUserId, profile.profileID);
+  assert.equal(transaction.status, 'scheduled');
+  assert.deepEqual(transaction.acceptedTerms.toObject(), {
+    price: 22,
+    paymentMethod: 'externalApp',
+    meetupHubId: 'reitz',
+    meetupLocation: 'Reitz Union',
+    pickupSpecifics: 'Meet by the north entrance near the benches.',
+    meetupDate: getFutureDateInputValue(1),
+    meetupTime: '18:30',
+  });
+});
+
+test('GET /api/transactions/by-offer/:offerId only allows transaction participants', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+
+  const unrelatedResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: 'random_user',
+    });
+  const sellerResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: profile.profileID,
+    });
+  const buyerResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(unrelatedResponse.status, 403);
+  assert.equal(unrelatedResponse.body.message, 'You are not authorized to view this transaction');
+  assert.equal(sellerResponse.status, 200);
+  assert.equal(sellerResponse.body.offerId, offerResponse.body._id);
+  assert.equal(buyerResponse.status, 200);
+  assert.equal(buyerResponse.body.offerId, offerResponse.body._id);
+});
+
 test('PATCH /api/offers/:id only allows the seller to update a pending offer', async () => {
   const {item} = await seedProfileAndItem();
   const offerResponse = await createOffer(item.id);
@@ -1018,6 +1192,322 @@ test('PATCH /api/offers/:id requires meetup specifics before accepting an offer'
   const updatedOffer = await Offer.findById(offerResponse.body._id);
   assert.equal(updatedItem.status, 'active');
   assert.equal(updatedOffer.status, 'pending');
+});
+
+test('PATCH /api/transactions/:id/decision only allows participants to update transaction state', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: 'random_user',
+      decision: 'confirmed',
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'Only transaction participants can update this transaction');
+});
+
+test('PATCH /api/transactions/:id/decision marks a transaction completed after both sides confirm', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const buyerResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+    });
+
+  assert.equal(buyerResponse.status, 200);
+  assert.equal(buyerResponse.body.status, 'buyerConfirmed');
+
+  const sellerResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+    });
+
+  assert.equal(sellerResponse.status, 200);
+  assert.equal(sellerResponse.body.status, 'completed');
+
+  const updatedTransaction = await Transaction.findById(transaction.id);
+  const updatedOffer = await Offer.findById(offerResponse.body._id);
+  const updatedListing = await Item.findById(item.id);
+  const updatedConversation = await Conversation.findById(transaction.conversationId);
+  const completionMessage = await Message.findOne({
+    conversationId: transaction.conversationId,
+    senderClerkUserId: 'system',
+    body: 'Sale completed. Both sides confirmed the handoff.',
+  });
+  const sellerOffersResponse = await request(app)
+    .get('/api/offers')
+    .query({
+      participantId: profile.profileID,
+      role: 'seller',
+    });
+  const buyerOffersResponse = await request(app)
+    .get('/api/offers')
+    .query({
+      participantId: 'buyer_1',
+      role: 'buyer',
+    });
+  const transactionReadResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: profile.profileID,
+    });
+
+  assert.equal(updatedTransaction.buyerDecision, 'confirmed');
+  assert.equal(updatedTransaction.sellerDecision, 'confirmed');
+  assert.equal(updatedTransaction.status, 'completed');
+  assert.equal(updatedOffer.status, 'convertedToTransaction');
+  assert.equal(updatedListing.status, 'sold');
+  assert.ok(completionMessage);
+  assert.equal(updatedConversation.lastMessageText, 'Sale completed. Both sides confirmed the handoff.');
+  assert.equal(sellerOffersResponse.status, 200);
+  assert.equal(buyerOffersResponse.status, 200);
+  assert.equal(sellerOffersResponse.body.length, 0);
+  assert.equal(buyerOffersResponse.body.length, 0);
+  assert.equal(transactionReadResponse.status, 200);
+  assert.equal(transactionReadResponse.body.status, 'completed');
+});
+
+test('PATCH /api/transactions/:id/decision preserves mixed outcomes as problemReported', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const firstResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+    });
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(firstResponse.body.status, 'sellerConfirmed');
+
+  const secondResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/decision`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'problemReported',
+    });
+
+  assert.equal(secondResponse.status, 200);
+  assert.equal(secondResponse.body.status, 'problemReported');
+  assert.equal(secondResponse.body.sellerDecision, 'confirmed');
+  assert.equal(secondResponse.body.buyerDecision, 'problemReported');
+});
+
+test('PATCH /api/transactions/:id/review only allows participants to submit a transaction review', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'random_user',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 5,
+        safety: 5,
+      },
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'Only transaction participants can submit transaction reviews');
+});
+
+test('PATCH /api/transactions/:id/review stores buyer feedback with an accuracy score', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 4,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Everything matched the listing.',
+      },
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, 'buyerConfirmed');
+  assert.equal(response.body.buyerReview.metricScores.accuracy, 4);
+  assert.equal(response.body.buyerReview.answers.accuracy, 4);
+  assert.ok(response.body.buyerReviewedAt);
+
+  const updatedProfile = await Profile.findOne({profileID: profile.profileID});
+  assert.equal(updatedProfile.profileTotalRating, 1);
+  assert.ok(Math.abs(updatedProfile.profileRating - 4.75) < 0.001);
+  assert.equal(updatedProfile.trustMetrics.reliability, 100);
+  assert.equal(updatedProfile.trustMetrics.accuracy, 80);
+  assert.equal(updatedProfile.trustMetrics.responsiveness, 100);
+  assert.equal(updatedProfile.trustMetrics.safety, 100);
+});
+
+test('PATCH /api/transactions/:id/review stores seller feedback without an accuracy score', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  await Profile.create({
+    profileID: 'buyer_1',
+    profileName: 'Buyer One',
+    profileRating: 4.2,
+    profileTotalRating: 2,
+    trustMetrics: {
+      reliability: 90,
+      accuracy: 62,
+      responsiveness: 85,
+      safety: 88,
+    },
+  });
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Smooth handoff.',
+      },
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, 'sellerConfirmed');
+  assert.equal(response.body.sellerReview.metricScores.accuracy, undefined);
+  assert.equal(response.body.sellerReview.answers.accuracy, undefined);
+  assert.ok(response.body.sellerReviewedAt);
+
+  const updatedBuyerProfile = await Profile.findOne({profileID: 'buyer_1'});
+  assert.equal(updatedBuyerProfile.trustMetrics.accuracy, 62);
+  assert.ok(updatedBuyerProfile.trustMetrics.reliability > 90);
+  assert.equal(updatedBuyerProfile.profileTotalRating, 3);
+});
+
+test('PATCH /api/transactions/:id/review blocks duplicate transaction review submissions', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const firstResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Everything looked good.',
+      },
+    });
+
+  const secondResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 4,
+        accuracy: 4,
+        responsiveness: 4,
+        safety: 4,
+        details: 'Trying to submit again.',
+      },
+    });
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 409);
+  assert.equal(secondResponse.body.message, 'You have already submitted a review for this transaction');
+
+  const updatedProfile = await Profile.findOne({profileID: profile.profileID});
+  assert.equal(updatedProfile.profileTotalRating, 1);
+});
+
+test('PATCH /api/transactions/:id/review adds a completion system message when both sides confirm', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const firstResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 4,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Everything matched the listing.',
+      },
+    });
+
+  const secondResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Smooth handoff.',
+      },
+    });
+
+  const completionMessage = await Message.findOne({
+    conversationId: transaction.conversationId,
+    senderClerkUserId: 'system',
+    body: 'Sale completed. Both sides confirmed the handoff.',
+  });
+  const updatedConversation = await Conversation.findById(transaction.conversationId);
+  const updatedOffer = await Offer.findById(offerResponse.body._id);
+  const updatedListing = await Item.findById(item.id);
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 200);
+  assert.equal(secondResponse.body.status, 'completed');
+  assert.ok(completionMessage);
+  assert.equal(updatedConversation.lastMessageText, 'Sale completed. Both sides confirmed the handoff.');
+  assert.equal(updatedOffer.status, 'convertedToTransaction');
+  assert.equal(updatedListing.status, 'sold');
 });
 
 test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {
@@ -1123,6 +1613,10 @@ test('GET /api/conversations/:id/messages makes accepted and rejected offer titl
   assert.equal(sentBuyerMessage.offerContext.title, 'You sent an offer');
   assert.equal(acceptedSellerMessage.offerContext.title, "You accepted Jasmine's offer");
   assert.equal(acceptedBuyerMessage.offerContext.title, 'Seller accepted your offer');
+  assert.equal(sentBuyerMessage.offerContext.offerId, offerResponse.body._id);
+  assert.equal(sentBuyerMessage.offerContext.sellerClerkUserId, profile.profileID);
+  assert.equal(acceptedBuyerMessage.offerContext.offerId, offerResponse.body._id);
+  assert.equal(acceptedBuyerMessage.offerContext.sellerClerkUserId, profile.profileID);
 
   const secondItem = await Item.create({
     itemName: 'Mini Fridge',
@@ -1379,7 +1873,8 @@ test('GET /api/conversations/:id/messages repairs a legacy accepted conversation
     meetupHubId: null,
     meetupArea: '',
     meetupLocation: 'Marston Science Library',
-    meetupWindow: 'Tomorrow at noon',
+    meetupDate: '2026-04-05',
+    meetupTime: '12:00',
     paymentMethod: 'cash',
     message: 'Can we do Marston?',
     status: 'accepted',
@@ -1475,7 +1970,8 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
     meetupHubId: 'reitz',
     meetupArea: 'South Core',
     meetupLocation: 'Reitz Union',
-    meetupWindow: 'Tomorrow afternoon',
+    meetupDate: '2026-04-05',
+    meetupTime: '15:00',
     paymentMethod: 'cash',
     message: 'Could meet tomorrow.',
     status: 'accepted',
@@ -1493,7 +1989,8 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
     meetupHubId: 'marston',
     meetupArea: 'East Core',
     meetupLocation: 'Marston Science Library',
-    meetupWindow: 'Today',
+    meetupDate: '2026-04-04',
+    meetupTime: '10:00',
     paymentMethod: 'cash',
     message: 'Ready to buy.',
     status: 'accepted',
@@ -1563,7 +2060,7 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
   assert.equal(response.body.conversation.linkedItems[2].currentOffer.title, 'Offer accepted');
   assert.equal(
     response.body.conversation.linkedItems[2].currentOffer.detailLine,
-    '$68 • Cash • Reitz Union'
+    '$68 • Cash • Reitz Union • Sun, Apr 5 at 3:00 PM'
   );
   assert.equal(response.body.messages[3].attachedItem.listingId.toString(), archivedItem.id);
   assert.equal(response.body.messages[3].attachedItem.title, archivedItem.itemName);

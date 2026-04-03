@@ -3,6 +3,7 @@ import {
   getPickupHubLabel,
   normalizePickupHubId,
 } from './pickupHubs';
+import { getOfferMeetupScheduleLabel } from './meetupSchedule';
 
 const DEFAULT_CATEGORY = 'Miscellaneous';
 const DEFAULT_LOCATION = 'Campus pickup';
@@ -358,6 +359,7 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
   const buyerTrust = buyerProfile ? toTrustMetricsViewModel(buyerProfile) : null;
   const sellerTrust = sellerProfile ? toTrustMetricsViewModel(sellerProfile) : null;
   const meetupHubId = normalizePickupHubId(rawOffer?.meetupHubId);
+  const meetupScheduleLabel = getOfferMeetupScheduleLabel(rawOffer);
 
   return {
     id: rawOffer?._id || rawOffer?.id || '',
@@ -369,6 +371,10 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     buyerName: normalizeText(
       buyerProfile?.profile?.profileName || buyerProfile?.profileName || rawOffer?.buyerDisplayName,
       'Buyer'
+    ),
+    buyerAvatarUrl: normalizeText(
+      buyerProfile?.profile?.profilePicture || buyerProfile?.profilePicture,
+      ''
     ),
     sellerId: normalizeText(rawOffer?.sellerClerkUserId, ''),
     sellerName: normalizeText(
@@ -384,7 +390,10 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     meetupLocation: getPickupHubLabel(meetupHubId, normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION)),
     meetupHubId,
     meetupArea: getPickupHubArea(meetupHubId, normalizeText(rawOffer?.meetupArea, '')),
-    meetupWindow: normalizeText(rawOffer?.meetupWindow, 'Meetup details pending'),
+    meetupDate: normalizeText(rawOffer?.meetupDate, ''),
+    meetupTime: normalizeText(rawOffer?.meetupTime, ''),
+    meetupScheduleLabel,
+    meetupWindow: meetupScheduleLabel,
     paymentMethod: rawOffer?.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(rawOffer?.paymentMethod),
     listingImageUrl: listingCard?.imageUrl || '',
@@ -393,6 +402,52 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     conversationId: rawOffer?.conversationId || '',
     buyerTrust,
     sellerTrust,
+  };
+}
+
+export function toTransactionViewModel(rawTransaction, {listing, buyerProfile, sellerProfile} = {}) {
+  const acceptedTerms = rawTransaction?.acceptedTerms || {};
+  const transactionOfferLike = {
+    _id: rawTransaction?._id || '',
+    listingId: rawTransaction?.listingId || '',
+    buyerClerkUserId: rawTransaction?.buyerClerkUserId || '',
+    buyerDisplayName: buyerProfile?.profile?.profileName || buyerProfile?.profileName || 'Buyer',
+    sellerClerkUserId: rawTransaction?.sellerClerkUserId || '',
+    conversationId: rawTransaction?.conversationId || '',
+    offeredPrice: acceptedTerms?.price,
+    meetupHubId: acceptedTerms?.meetupHubId || '',
+    meetupLocation: acceptedTerms?.meetupLocation || '',
+    meetupDate: acceptedTerms?.meetupDate || '',
+    meetupTime: acceptedTerms?.meetupTime || '',
+    paymentMethod: acceptedTerms?.paymentMethod || '',
+    status: rawTransaction?.status || 'scheduled',
+  };
+  const offerView = toOfferCardViewModel(transactionOfferLike, {
+    listing,
+    buyerProfile,
+    sellerProfile,
+  });
+
+  return {
+    ...offerView,
+    transactionId: rawTransaction?._id || '',
+    offerId: rawTransaction?.offerId || '',
+    acceptedTerms: {
+      price: Number(acceptedTerms?.price) || 0,
+      paymentMethod: acceptedTerms?.paymentMethod || '',
+      meetupHubId: acceptedTerms?.meetupHubId || '',
+      meetupLocation: acceptedTerms?.meetupLocation || '',
+      pickupSpecifics: normalizeText(acceptedTerms?.pickupSpecifics, ''),
+      meetupDate: acceptedTerms?.meetupDate || '',
+      meetupTime: acceptedTerms?.meetupTime || '',
+    },
+    pickupSpecifics: normalizeText(acceptedTerms?.pickupSpecifics, ''),
+    buyerDecision: normalizeText(rawTransaction?.buyerDecision, ''),
+    sellerDecision: normalizeText(rawTransaction?.sellerDecision, ''),
+    buyerReviewedAt: rawTransaction?.buyerReviewedAt || null,
+    sellerReviewedAt: rawTransaction?.sellerReviewedAt || null,
+    createdAt: rawTransaction?.createdAt || null,
+    updatedAt: rawTransaction?.updatedAt || null,
   };
 }
 

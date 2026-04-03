@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ChatThreadPage } from './ChatThreadPage';
 import { resetClerkState, setClerkState } from '../testUtils/mockClerk';
+import { toLocalDateInputValue } from '../lib/meetupSchedule';
 
 const mockGetConversationMessages = jest.fn();
 const mockSendMessage = jest.fn();
@@ -547,15 +548,17 @@ test('offer system messages render compact summaries and the focused item card s
           state: 'active',
         },
         offerContext: {
+          offerId: 'offer-1',
           eventType: 'sent',
           title: 'You sent an offer',
+          sellerClerkUserId: 'seller-1',
           detailLine: '$45 • Cash • Reitz Union',
         },
       },
       {
         _id: 'message-2',
         senderClerkUserId: 'system',
-        body: 'Offer rejected.',
+        body: 'Offer accepted.',
         createdAt: '2026-03-29T12:10:00.000Z',
         attachedItem: {
           listingId: 'item-2',
@@ -564,9 +567,11 @@ test('offer system messages render compact summaries and the focused item card s
           state: 'active',
         },
         offerContext: {
-          eventType: 'declined',
-          title: 'Offer rejected',
-          detailLine: '',
+          offerId: 'offer-2',
+          eventType: 'accepted',
+          title: 'Seller accepted your offer',
+          sellerClerkUserId: 'seller-1',
+          detailLine: '$38 • Cash • Reitz Union • Fri, Apr 3 at 4:00 PM',
         },
       },
     ],
@@ -579,7 +584,64 @@ test('offer system messages render compact summaries and the focused item card s
   expect(screen.getByText('$45')).toBeInTheDocument();
   expect(screen.getByText('Cash')).toBeInTheDocument();
   expect(screen.getAllByText('Reitz Union').length).toBeGreaterThanOrEqual(1);
-  expect(screen.getByText('Offer rejected')).toBeInTheDocument();
+  expect(screen.getByText('Seller accepted your offer')).toBeInTheDocument();
+  expect(screen.getByTestId('system-message-link-message-1')).toHaveAttribute('href', '/offers?mode=buyer&offer=offer-1');
+  expect(screen.getByTestId('system-message-link-message-2')).toHaveAttribute('href', '/offers?mode=buyer&offer=offer-2');
+});
+
+test('completed sale system messages render with the green success styling', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'completedHere',
+      },
+      linkedItemCount: 1,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'completedHere',
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sale completed. Both sides confirmed the handoff.',
+      lastMessageAt: '2026-03-29T13:10:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:10:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-completed',
+        senderClerkUserId: 'system',
+        body: 'Sale completed. Both sides confirmed the handoff.',
+        createdAt: '2026-03-29T13:10:00.000Z',
+        attachedItem: {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'completedHere',
+        },
+      },
+    ],
+  });
+
+  render(<ChatThreadPage />);
+
+  const completionTitle = await screen.findByText('Both sides confirmed the handoff.');
+  const completionCard = completionTitle.closest('div.rounded-full');
+
+  expect(completionCard.className).toContain('bg-app-success/15');
+  expect(completionCard.className).toContain('border-app-success/30');
 });
 
 test('mixed-direction threads surface buying and selling context in the focused item card', async () => {
@@ -1336,6 +1398,126 @@ test('seller can update meetup specifics while the accepted hub stays locked', a
 
   expect(await screen.findByText('Reitz Union')).toBeInTheDocument();
   expect(screen.getByText(/meetup details updated to reitz union/i)).toBeInTheDocument();
+});
+
+test('chat thread shows an open transaction CTA for today\'s accepted handoff', async () => {
+  const today = new Date();
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'pending',
+        lastContextAt: '2026-03-29T12:20:00.000Z',
+        latestContextMessageId: 'message-1',
+        currentOffer: {
+          offerId: 'offer-today',
+          status: 'accepted',
+          meetupDate: toLocalDateInputValue(today),
+          meetupTime: '16:30',
+          detailLine: 'dummy',
+        },
+      },
+      linkedItemCount: 1,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'pending',
+          lastContextAt: '2026-03-29T12:20:00.000Z',
+          latestContextMessageId: 'message-1',
+          currentOffer: {
+            offerId: 'offer-today',
+            status: 'accepted',
+            meetupDate: toLocalDateInputValue(today),
+            meetupTime: '16:30',
+            detailLine: 'dummy',
+          },
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sounds good',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [],
+  });
+
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByRole('link', { name: /open transaction/i })).toHaveAttribute(
+    'href',
+    '/transact/offer-today'
+  );
+  expect(screen.getByText(/today's handoff is ready/i)).toBeInTheDocument();
+});
+
+test('chat thread hides the transaction CTA for non-today accepted offers', async () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'pending',
+        lastContextAt: '2026-03-29T12:20:00.000Z',
+        latestContextMessageId: 'message-1',
+        currentOffer: {
+          offerId: 'offer-tomorrow',
+          status: 'accepted',
+          meetupDate: toLocalDateInputValue(tomorrow),
+          meetupTime: '16:30',
+          detailLine: 'dummy',
+        },
+      },
+      linkedItemCount: 1,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'pending',
+          lastContextAt: '2026-03-29T12:20:00.000Z',
+          latestContextMessageId: 'message-1',
+          currentOffer: {
+            offerId: 'offer-tomorrow',
+            status: 'accepted',
+            meetupDate: toLocalDateInputValue(tomorrow),
+            meetupTime: '16:30',
+            detailLine: 'dummy',
+          },
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sounds good',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [],
+  });
+
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByText('Reitz Union')).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /open transaction/i })).not.toBeInTheDocument();
 });
 
 test('seller can still change the meetup hub before acceptance even if specifics are already filled in', async () => {

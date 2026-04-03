@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { getOffers, updateOfferStatus, getIndividualOffer} from '../lib/offersApi';
-import { toOfferCardViewModel } from '../lib/viewModels';
+import { getOffers, updateOfferStatus } from '../lib/offersApi';
+import { getTransactionByOfferId } from '../lib/transactionsApi';
+import { parseMeetupDateTime, isMeetupScheduledToday } from '../lib/meetupSchedule';
+import { toOfferCardViewModel, toTransactionViewModel } from '../lib/viewModels';
 import {
   AppIcon,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -18,10 +21,31 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000';
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const LISTINGS_PER_PAGE = 5;
+const OFFERS_PER_LISTING_PAGE = 10;
+const CARDS_PER_PAGE = 5;
 const MODE_OPTIONS = [
   { id: 'seller', label: 'Selling', icon: 'offers' },
   { id: 'buyer', label: 'Buying', icon: 'payment' },
+  { id: 'transactions', label: 'Transactions', icon: 'verified' },
 ];
+
+function getRequestedOffersMode() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const requestedMode = new URLSearchParams(window.location.search).get('mode');
+  return MODE_OPTIONS.some((option) => option.id === requestedMode) ? requestedMode : '';
+}
+
+function getRequestedOfferId() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return new URLSearchParams(window.location.search).get('offer') || '';
+}
 
 function getStatusBadgeVariant(status) {
   switch (status) {
@@ -91,6 +115,56 @@ function groupOfferViewsByListing(offerViews) {
   }, {});
 }
 
+function getTotalPages(itemCount, pageSize) {
+  return Math.max(1, Math.ceil((Number(itemCount) || 0) / pageSize));
+}
+
+function clampPage(page, totalPages) {
+  return Math.min(Math.max(1, page || 1), Math.max(1, totalPages || 1));
+}
+
+function paginateItems(items, page, pageSize) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const safePage = clampPage(page, getTotalPages(safeItems.length, pageSize));
+  const startIndex = (safePage - 1) * pageSize;
+
+  return safeItems.slice(startIndex, startIndex + pageSize);
+}
+
+function PaginationControls({ page, totalPages, onPageChange, itemLabel }) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+        Page {page} of {totalPages}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+        >
+          Previous {itemLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages}
+        >
+          Next {itemLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function OfferMetaCard({ icon, label, value, emphasis = false }) {
   return (
     <Card variant="subtle" className="space-y-1">
@@ -115,12 +189,73 @@ function getFirstName(name) {
   return trimmedName.split(/\s+/)[0];
 }
 
+function getTransactionStatusBadgeVariant(status) {
+  switch (status) {
+    case 'completed':
+      return 'success';
+    case 'problemReported':
+    case 'cancelled':
+      return 'danger';
+    case 'buyerConfirmed':
+    case 'sellerConfirmed':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}
+
+function getTransactionStatusDescription(transaction) {
+  switch (transaction?.status) {
+    case 'buyerConfirmed':
+      return 'Buyer confirmed the handoff. Waiting on the seller.';
+    case 'sellerConfirmed':
+      return 'Seller confirmed the handoff. Waiting on the buyer.';
+    case 'completed':
+      return 'Both sides confirmed the exchange.';
+    case 'problemReported':
+      return 'A problem was reported for this transaction.';
+    default:
+      return isMeetupScheduledToday(transaction?.acceptedTerms || transaction)
+        ? 'Scheduled for today. Open the transaction flow to complete the handoff.'
+        : 'Accepted and scheduled. Open the transaction flow when it is time to meet.';
+  }
+}
+
+function getMeetupTimestamp(offerLike) {
+  return parseMeetupDateTime(offerLike?.meetupDate, offerLike?.meetupTime)?.getTime() || 0;
+}
+
+function sortTransactions(firstTransaction, secondTransaction) {
+  const firstIsToday = isMeetupScheduledToday(firstTransaction?.acceptedTerms || firstTransaction);
+  const secondIsToday = isMeetupScheduledToday(secondTransaction?.acceptedTerms || secondTransaction);
+
+  if (firstIsToday !== secondIsToday) {
+    return firstIsToday ? -1 : 1;
+  }
+
+  return getMeetupTimestamp(firstTransaction?.acceptedTerms || firstTransaction) - getMeetupTimestamp(secondTransaction?.acceptedTerms || secondTransaction);
+}
+
+function isRelevantTransaction(transaction) {
+  if (!transaction || transaction.status === 'cancelled' || transaction.status === 'completed') {
+    return false;
+  }
+
+  if (transaction.status === 'scheduled') {
+    return isMeetupScheduledToday(transaction?.acceptedTerms || transaction);
+  }
+
+  return true;
+}
+
 export function OffersPage() {
   const { user } = useUser();
   const { showToast } = useToast();
-  const [mode, setMode] = useState('seller');
+  const requestedMode = getRequestedOffersMode();
+  const [mode, setMode] = useState(requestedMode || 'seller');
   const [sellerGroups, setSellerGroups] = useState([]);
   const [buyerOffers, setBuyerOffers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -128,6 +263,13 @@ export function OffersPage() {
   const [openAcceptanceOfferId, setOpenAcceptanceOfferId] = useState('');
   const [acceptanceSpecifics, setAcceptanceSpecifics] = useState('');
   const [acceptanceError, setAcceptanceError] = useState('');
+  const [sellerPage, setSellerPage] = useState(1);
+  const [buyerPage, setBuyerPage] = useState(1);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [sellerOfferPagesByListing, setSellerOfferPagesByListing] = useState({});
+  const hasUserSelectedModeRef = useRef(Boolean(requestedMode));
+  const hasAutoSelectedTransactionsRef = useRef(false);
+  const lastScrolledOfferIdRef = useRef('');
 
   const loadOffers = useCallback(
     async (showLoadingState = true) => {
@@ -137,6 +279,39 @@ export function OffersPage() {
 
       const listingCache = new Map();
       const profileCache = new Map();
+      const loadOfferView = async (offer, participantRole) => {
+        const listingId = offer.listingId?.toString?.() || offer.listingId || '';
+        const listingPromise = listingId
+          ? listingCache.get(listingId) || fetchOptionalJson(`${API_BASE_URL}/items/${listingId}`)
+          : Promise.resolve(null);
+        const counterpartId =
+          participantRole === 'seller' ? offer.buyerClerkUserId : offer.sellerClerkUserId;
+        const profilePromise = counterpartId
+          ? profileCache.get(counterpartId) || fetchOptionalJson(`${API_BASE_URL}/profile/${counterpartId}`)
+          : Promise.resolve(null);
+
+        if (listingId && !listingCache.has(listingId)) {
+          listingCache.set(listingId, listingPromise);
+        }
+
+        if (counterpartId && !profileCache.has(counterpartId)) {
+          profileCache.set(counterpartId, profilePromise);
+        }
+
+        const [listingData, profileData] = await Promise.all([listingPromise, profilePromise]);
+
+        return {
+          offer,
+          participantRole,
+          listingData,
+          profileData,
+          view: toOfferCardViewModel(offer, {
+            listing: listingData,
+            buyerProfile: participantRole === 'seller' ? profileData : null,
+            sellerProfile: participantRole === 'buyer' ? profileData : null,
+          }),
+        };
+      };
 
       try {
         if (showLoadingState) {
@@ -145,51 +320,59 @@ export function OffersPage() {
           setIsRefreshing(true);
         }
 
-        const rawOffers = await getOffers({
-          participantId: user.id,
-          role: mode,
-        });
+        const [rawSellerOffers, rawBuyerOffers] = await Promise.all([
+          getOffers({
+            participantId: user.id,
+            role: 'seller',
+          }),
+          getOffers({
+            participantId: user.id,
+            role: 'buyer',
+          }),
+        ]);
 
+        const [sellerOfferEntries, buyerOfferEntries] = await Promise.all([
+          Promise.all(rawSellerOffers.map((offer) => loadOfferView(offer, 'seller'))),
+          Promise.all(rawBuyerOffers.map((offer) => loadOfferView(offer, 'buyer'))),
+        ]);
 
-        const offerViews = await Promise.all(
-          rawOffers.map(async (offer) => {
-            const listingId = offer.listingId?.toString?.() || offer.listingId || '';
-            const listingPromise = listingId
-              ? listingCache.get(listingId) || fetchOptionalJson(`${API_BASE_URL}/items/${listingId}`)
-              : Promise.resolve(null);
-            const counterpartId =
-              mode === 'seller' ? offer.buyerClerkUserId : offer.sellerClerkUserId;
-            const profilePromise = counterpartId
-              ? profileCache.get(counterpartId) || fetchOptionalJson(`${API_BASE_URL}/profile/${counterpartId}`)
-              : Promise.resolve(null);
+        const groupedOffers = Object.values(
+          groupOfferViewsByListing(sellerOfferEntries.map((entry) => entry.view))
+        ).sort((firstGroup, secondGroup) => firstGroup.listingTitle.localeCompare(secondGroup.listingTitle));
+        const nextBuyerOffers = buyerOfferEntries.map((entry) => entry.view);
+        const acceptedEntries = [...sellerOfferEntries, ...buyerOfferEntries].filter(
+          (entry) => entry.view.status === 'accepted'
+        );
+        const transactionResults = await Promise.all(
+          acceptedEntries.map(async (entry) => {
+            try {
+              const rawTransaction = await getTransactionByOfferId(entry.view.id, {
+                participantId: user.id,
+              });
 
-            if (listingId && !listingCache.has(listingId)) {
-              listingCache.set(listingId, listingPromise);
+              return toTransactionViewModel(rawTransaction, {
+                listing: entry.listingData,
+                buyerProfile: entry.participantRole === 'seller' ? entry.profileData : null,
+                sellerProfile: entry.participantRole === 'buyer' ? entry.profileData : null,
+              });
+            } catch {
+              return null;
             }
-
-            if (counterpartId && !profileCache.has(counterpartId)) {
-              profileCache.set(counterpartId, profilePromise);
-            }
-
-            const [listingData, profileData] = await Promise.all([listingPromise, profilePromise]);
-
-            return toOfferCardViewModel(offer, {
-              listing: listingData,
-              buyerProfile: mode === 'seller' ? profileData : null,
-              sellerProfile: mode === 'buyer' ? profileData : null,
-            });
           })
         );
+        const nextTransactions = transactionResults.filter(Boolean).filter(isRelevantTransaction).sort(sortTransactions);
 
-        if (mode === 'seller') {
-          const groupedOffers = Object.values(groupOfferViewsByListing(offerViews)).sort((firstGroup, secondGroup) =>
-            firstGroup.listingTitle.localeCompare(secondGroup.listingTitle)
-          );
-          setSellerGroups(groupedOffers);
-          setBuyerOffers([]);
-        } else {
-          setBuyerOffers(offerViews);
-          setSellerGroups([]);
+        setSellerGroups(groupedOffers);
+        setBuyerOffers(nextBuyerOffers);
+        setTransactions(nextTransactions);
+
+        if (
+          !hasUserSelectedModeRef.current &&
+          !hasAutoSelectedTransactionsRef.current &&
+          nextTransactions.some((transaction) => isMeetupScheduledToday(transaction.acceptedTerms || transaction))
+        ) {
+          hasAutoSelectedTransactionsRef.current = true;
+          setMode('transactions');
         }
 
         setError('');
@@ -200,8 +383,121 @@ export function OffersPage() {
         setIsRefreshing(false);
       }
     },
-    [mode, user?.id]
+    [user?.id]
   );
+
+  useEffect(() => {
+    hasUserSelectedModeRef.current = Boolean(getRequestedOffersMode());
+    hasAutoSelectedTransactionsRef.current = false;
+    lastScrolledOfferIdRef.current = '';
+    setMode(getRequestedOffersMode() || 'seller');
+    setSellerPage(1);
+    setBuyerPage(1);
+    setTransactionsPage(1);
+    setSellerOfferPagesByListing({});
+  }, [user?.id]);
+
+  useEffect(() => {
+    setSellerPage((currentPage) => clampPage(currentPage, getTotalPages(sellerGroups.length, LISTINGS_PER_PAGE)));
+    setSellerOfferPagesByListing((currentPages) =>
+      sellerGroups.reduce((nextPages, group) => {
+        nextPages[group.listingId] = clampPage(
+          currentPages[group.listingId] || 1,
+          getTotalPages(group.offers.length, OFFERS_PER_LISTING_PAGE)
+        );
+        return nextPages;
+      }, {})
+    );
+  }, [sellerGroups]);
+
+  useEffect(() => {
+    setBuyerPage((currentPage) => clampPage(currentPage, getTotalPages(buyerOffers.length, CARDS_PER_PAGE)));
+  }, [buyerOffers]);
+
+  useEffect(() => {
+    setTransactionsPage((currentPage) =>
+      clampPage(currentPage, getTotalPages(transactions.length, CARDS_PER_PAGE))
+    );
+  }, [transactions]);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    const requestedOfferId = getRequestedOfferId();
+
+    if (!requestedOfferId) {
+      return;
+    }
+
+    if (mode === 'seller') {
+      const groupIndex = sellerGroups.findIndex((group) =>
+        group.offers.some((offer) => offer.id === requestedOfferId)
+      );
+
+      if (groupIndex === -1) {
+        return;
+      }
+
+      const targetGroup = sellerGroups[groupIndex];
+      const offerIndex = targetGroup.offers.findIndex((offer) => offer.id === requestedOfferId);
+      const requiredSellerPage = Math.floor(groupIndex / LISTINGS_PER_PAGE) + 1;
+      const requiredOfferPage = Math.floor(offerIndex / OFFERS_PER_LISTING_PAGE) + 1;
+
+      if (sellerPage !== requiredSellerPage) {
+        setSellerPage(requiredSellerPage);
+        return;
+      }
+
+      if ((sellerOfferPagesByListing[targetGroup.listingId] || 1) !== requiredOfferPage) {
+        setSellerOfferPagesByListing((currentPages) => ({
+          ...currentPages,
+          [targetGroup.listingId]: requiredOfferPage,
+        }));
+      }
+
+      return;
+    }
+
+    if (mode === 'buyer') {
+      const offerIndex = buyerOffers.findIndex((offer) => offer.id === requestedOfferId);
+
+      if (offerIndex === -1) {
+        return;
+      }
+
+      const requiredBuyerPage = Math.floor(offerIndex / CARDS_PER_PAGE) + 1;
+
+      if (buyerPage !== requiredBuyerPage) {
+        setBuyerPage(requiredBuyerPage);
+      }
+    }
+  }, [isLoading, mode, sellerGroups, buyerOffers, sellerPage, buyerPage, sellerOfferPagesByListing]);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    const requestedOfferId = getRequestedOfferId();
+
+    if (!requestedOfferId || lastScrolledOfferIdRef.current === requestedOfferId) {
+      return;
+    }
+
+    const offerCard = document.getElementById(`offer-card-${requestedOfferId}`);
+
+    if (!offerCard) {
+      return;
+    }
+
+    lastScrolledOfferIdRef.current = requestedOfferId;
+    offerCard.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [isLoading, mode, buyerOffers, sellerGroups, sellerPage, buyerPage, sellerOfferPagesByListing]);
 
   useEffect(() => {
     loadOffers();
@@ -259,7 +555,15 @@ export function OffersPage() {
 
   const totalOffers = mode === 'seller'
     ? sellerGroups.reduce((count, group) => count + group.offers.length, 0)
-    : buyerOffers.length;
+    : mode === 'buyer'
+      ? buyerOffers.length
+      : transactions.length;
+  const visibleSellerGroups = paginateItems(sellerGroups, sellerPage, LISTINGS_PER_PAGE);
+  const visibleBuyerOffers = paginateItems(buyerOffers, buyerPage, CARDS_PER_PAGE);
+  const visibleTransactions = paginateItems(transactions, transactionsPage, CARDS_PER_PAGE);
+  const sellerTotalPages = getTotalPages(sellerGroups.length, LISTINGS_PER_PAGE);
+  const buyerTotalPages = getTotalPages(buyerOffers.length, CARDS_PER_PAGE);
+  const transactionTotalPages = getTotalPages(transactions.length, CARDS_PER_PAGE);
 
   return (
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
@@ -285,7 +589,10 @@ export function OffersPage() {
               type="button"
               role="tab"
               aria-selected={mode === option.id}
-              onClick={() => setMode(option.id)}
+              onClick={() => {
+                hasUserSelectedModeRef.current = true;
+                setMode(option.id);
+              }}
               className={`focus-ring rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
                 mode === option.id
                   ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
@@ -302,7 +609,9 @@ export function OffersPage() {
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-app-soft">
-            {totalOffers} {totalOffers === 1 ? 'offer' : 'offers'} {mode === 'seller' ? 'received' : 'sent'}
+            {mode === 'transactions'
+              ? `${totalOffers} ${totalOffers === 1 ? 'transaction' : 'transactions'} in progress`
+              : `${totalOffers} ${totalOffers === 1 ? 'offer' : 'offers'} ${mode === 'seller' ? 'received' : 'sent'}`}
           </p>
           {isRefreshing ? (
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
@@ -347,9 +656,27 @@ export function OffersPage() {
         />
       ) : null}
 
+      {!isLoading && !error && mode === 'transactions' && transactions.length === 0 ? (
+        <EmptyState
+          icon="verified"
+          title="No active transactions yet"
+          description="Accepted offers with active handoff progress will show up here, with today's meetups surfaced first."
+          action={
+            <Link to="/offers" className="no-underline">
+              <Button variant="secondary" leadingIcon="offers">View offer inbox</Button>
+            </Link>
+          }
+        />
+      ) : null}
+
       {!isLoading && !error && mode === 'seller' && sellerGroups.length > 0 ? (
         <div className="space-y-6">
-          {sellerGroups.map((group) => (
+          {visibleSellerGroups.map((group) => {
+            const groupOfferPage = sellerOfferPagesByListing[group.listingId] || 1;
+            const visibleOffers = paginateItems(group.offers, groupOfferPage, OFFERS_PER_LISTING_PAGE);
+            const groupOfferTotalPages = getTotalPages(group.offers.length, OFFERS_PER_LISTING_PAGE);
+
+            return (
             <Card key={group.listingId} className="space-y-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
@@ -369,24 +696,33 @@ export function OffersPage() {
               </div>
 
               <div className="space-y-4">
-                {group.offers.map((offer) => {
+                {visibleOffers.map((offer) => {
                   const buyerFirstName = getFirstName(offer.buyerName);
                   const meetupHintTarget = buyerFirstName || 'the buyer';
+                  const isRequestedOffer = getRequestedOfferId() === offer.id;
 
                   return (
-                  <Card key={offer.id} variant="subtle" className="space-y-4">
+                  <Card
+                    key={offer.id}
+                    id={`offer-card-${offer.id}`}
+                    variant="subtle"
+                    className={`space-y-4 ${isRequestedOffer ? 'ring-2 ring-gatorOrange/45 ring-offset-2 ring-offset-app-bg' : ''}`}
+                  >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="text-xl font-semibold text-white">{offer.buyerName}</h3>
-                          <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
-                          {offer.buyerTrust ? (
-                            <Badge variant="orange" icon="rating">{offer.buyerTrust.overallRatingLabel}</Badge>
-                          ) : null}
+                      <div className="flex items-start gap-3">
+                        <Avatar src={offer.buyerAvatarUrl} name={offer.buyerName} size="md" />
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="text-xl font-semibold text-white">{offer.buyerName}</h3>
+                            <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
+                            {offer.buyerTrust ? (
+                              <Badge variant="orange" icon="rating">{offer.buyerTrust.overallRatingLabel}</Badge>
+                            ) : null}
+                          </div>
+                          <p className="text-sm text-app-soft">
+                            {offer.message || 'No note attached to this offer.'}
+                          </p>
                         </div>
-                        <p className="text-sm text-app-soft">
-                          {offer.message || 'No note attached to this offer.'}
-                        </p>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -404,7 +740,7 @@ export function OffersPage() {
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <OfferMetaCard icon="payment" label="Offer" value={offer.offeredPriceLabel} emphasis />
                         <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
-                        <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                        <OfferMetaCard icon="time" label="Scheduled meetup" value={offer.meetupScheduleLabel} />
                         <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
                       </div>
 
@@ -499,27 +835,57 @@ export function OffersPage() {
                   </Card>
                   );
                 })}
+
+                <PaginationControls
+                  page={groupOfferPage}
+                  totalPages={groupOfferTotalPages}
+                  onPageChange={(nextPage) =>
+                    setSellerOfferPagesByListing((currentPages) => ({
+                      ...currentPages,
+                      [group.listingId]: clampPage(nextPage, groupOfferTotalPages),
+                    }))
+                  }
+                  itemLabel="offers"
+                />
               </div>
             </Card>
-          ))}
+            );
+          })}
+
+          <PaginationControls
+            page={sellerPage}
+            totalPages={sellerTotalPages}
+            onPageChange={(nextPage) => setSellerPage(clampPage(nextPage, sellerTotalPages))}
+            itemLabel="listings"
+          />
         </div>
       ) : null}
 
       {!isLoading && !error && mode === 'buyer' && buyerOffers.length > 0 ? (
         <div className="space-y-4">
-          {buyerOffers.map((offer) => (
-            <Card key={offer.id} className="space-y-4">
+          {visibleBuyerOffers.map((offer) => {
+            const isRequestedOffer = getRequestedOfferId() === offer.id;
+
+            return (
+            <Card
+              key={offer.id}
+              id={`offer-card-${offer.id}`}
+              className={`space-y-4 ${isRequestedOffer ? 'ring-2 ring-gatorOrange/45 ring-offset-2 ring-offset-app-bg' : ''}`}
+            >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold text-white">{offer.listingTitle}</h2>
-                    <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
-                    <Badge variant={getStatusBadgeVariant(offer.listingStatus)}>{offer.listingStatusLabel}</Badge>
+                <div className="flex items-start gap-3">
+                  <Avatar src={offer.listingImageUrl} name={offer.listingTitle} size="md" />
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-2xl font-semibold text-white">{offer.listingTitle}</h2>
+                      <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
+                      <Badge variant={getStatusBadgeVariant(offer.listingStatus)}>{offer.listingStatusLabel}</Badge>
+                    </div>
+                    <p className="text-sm text-app-soft">
+                      Seller: {offer.sellerName}
+                      {offer.sellerTrust ? ` • ${offer.sellerTrust.overallRatingLabel}` : ''}
+                    </p>
                   </div>
-                  <p className="text-sm text-app-soft">
-                    Seller: {offer.sellerName}
-                    {offer.sellerTrust ? ` • ${offer.sellerTrust.overallRatingLabel}` : ''}
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -540,7 +906,7 @@ export function OffersPage() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <OfferMetaCard icon="payment" label="Your offer" value={offer.offeredPriceLabel} emphasis />
                 <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
-                <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                <OfferMetaCard icon="time" label="Scheduled meetup" value={offer.meetupScheduleLabel} />
                 <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
               </div>
 
@@ -548,7 +914,85 @@ export function OffersPage() {
                 {offer.message || 'No note attached to this offer.'}
               </p>
             </Card>
-          ))}
+            );
+          })}
+
+          <PaginationControls
+            page={buyerPage}
+            totalPages={buyerTotalPages}
+            onPageChange={(nextPage) => setBuyerPage(clampPage(nextPage, buyerTotalPages))}
+            itemLabel="offers"
+          />
+        </div>
+      ) : null}
+
+      {!isLoading && !error && mode === 'transactions' && transactions.length > 0 ? (
+        <div className="space-y-4">
+          {visibleTransactions.map((transaction) => {
+            const counterpartLabel = transaction.sellerId === user?.id ? 'Buyer' : 'Seller';
+            const counterpartName = transaction.sellerId === user?.id ? transaction.buyerName : transaction.sellerName;
+            const canOpenTransaction = transaction.status !== 'completed';
+
+            return (
+              <Card key={transaction.transactionId} className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <Avatar src={transaction.listingImageUrl} name={transaction.listingTitle} size="md" />
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h2 className="text-2xl font-semibold text-white">{transaction.listingTitle}</h2>
+                        <Badge variant={getTransactionStatusBadgeVariant(transaction.status)}>{transaction.status}</Badge>
+                        {isMeetupScheduledToday(transaction.acceptedTerms || transaction) ? (
+                          <Badge variant="orange" icon="time">Today</Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-app-soft">
+                        {counterpartLabel}: {counterpartName}
+                      </p>
+                      <p className="text-sm leading-7 text-app-soft">
+                        {getTransactionStatusDescription(transaction)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {transaction.conversationId ? (
+                      <Link to={`/messages/${transaction.conversationId}`} className="no-underline">
+                        <Button variant="ghost" size="sm" leadingIcon="messages">Conversation</Button>
+                      </Link>
+                    ) : null}
+                    {canOpenTransaction ? (
+                      <Link to={`/transact/${transaction.offerId}`} className="no-underline">
+                        <Button size="sm" leadingIcon="verified">Open transaction</Button>
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <OfferMetaCard icon="payment" label="Accepted price" value={transaction.offeredPriceLabel} emphasis />
+                  <OfferMetaCard icon="payment" label="Payment" value={transaction.paymentMethodLabel} />
+                  <OfferMetaCard icon="time" label="Scheduled meetup" value={transaction.meetupScheduleLabel} />
+                  <OfferMetaCard icon="location" label="Meetup hub" value={transaction.meetupLocation} />
+                </div>
+
+                {transaction.pickupSpecifics ? (
+                  <p className="text-sm leading-7 text-app-soft">
+                    Pickup specifics: {transaction.pickupSpecifics}
+                  </p>
+                ) : null}
+              </Card>
+            );
+          })}
+
+          <PaginationControls
+            page={transactionsPage}
+            totalPages={transactionTotalPages}
+            onPageChange={(nextPage) =>
+              setTransactionsPage(clampPage(nextPage, transactionTotalPages))
+            }
+            itemLabel="transactions"
+          />
         </div>
       ) : null}
     </section>

@@ -11,15 +11,45 @@ const {
   isApprovedPickupLocationLabel,
   findPickupHubByLabel,
 } = require('../src/lib/pickupHubs');
+const {
+  getMeetupScheduleValidationErrors,
+  getOfferMeetupScheduleLabel,
+} = require('../src/lib/meetupSchedule');
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const MIN_TRANSACTION_REVIEW_DETAILS_LENGTH = 8;
 const PAYMENT_METHOD_LABELS = {
   cash: 'Cash',
   externalApp: 'External app',
   gatorgoodsEscrow: 'GatorGoods escrow',
 };
+const TRANSACTION_STATUSES = [
+  'scheduled',
+  'buyerConfirmed',
+  'sellerConfirmed',
+  'completed',
+  'problemReported',
+  'cancelled',
+];
+const TRANSACTION_DECISIONS = ['confirmed', 'problemReported'];
+const REVIEW_SCORE_MIN = 1;
+const REVIEW_SCORE_MAX = 5;
+const TRUST_METRIC_KEYS = ['reliability', 'accuracy', 'responsiveness', 'safety'];
+
+function buildAggregateMetricSchema() {
+  return {
+    sum: {
+      type: Number,
+      default: 0,
+    },
+    count: {
+      type: Number,
+      default: 0,
+    },
+  };
+}
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -170,6 +200,13 @@ const profileSchema = new mongoose.Schema({
       type: Number,
       default: null,
     },
+  },
+  reviewAggregate: {
+    overall: buildAggregateMetricSchema(),
+    reliability: buildAggregateMetricSchema(),
+    accuracy: buildAggregateMetricSchema(),
+    responsiveness: buildAggregateMetricSchema(),
+    safety: buildAggregateMetricSchema(),
   },
   date: {
     type: Date,
@@ -359,6 +396,26 @@ const messageSchema = new mongoose.Schema(
             default: '',
             trim: true,
           },
+          meetupDate: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupTime: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupStartAt: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupEndAt: {
+            type: String,
+            default: '',
+            trim: true,
+          },
           meetupHubId: {
             type: String,
             default: '',
@@ -434,9 +491,29 @@ const offerSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    meetupWindow: {
+    meetupDate: {
       type: String,
       required: true,
+      trim: true,
+    },
+    meetupTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    meetupStartAt: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    meetupEndAt: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    meetupWindow: {
+      type: String,
+      default: '',
       trim: true,
     },
     paymentMethod: {
@@ -468,11 +545,266 @@ const offerSchema = new mongoose.Schema(
 offerSchema.index({sellerClerkUserId: 1, status: 1, createdAt: -1});
 offerSchema.index({buyerClerkUserId: 1, status: 1, createdAt: -1});
 
+const transactionSchema = new mongoose.Schema(
+  {
+    offerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'offers',
+      required: true,
+      unique: true,
+      index: true,
+    },
+    listingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'items',
+      required: true,
+      index: true,
+    },
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'conversations',
+      default: null,
+    },
+    buyerClerkUserId: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+    sellerClerkUserId: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+    acceptedTerms: {
+      type: new mongoose.Schema(
+        {
+          price: {
+            type: Number,
+            default: null,
+          },
+          paymentMethod: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupHubId: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupLocation: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          pickupSpecifics: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupDate: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupTime: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: TRANSACTION_STATUSES,
+      default: 'scheduled',
+      index: true,
+    },
+    buyerDecision: {
+      type: String,
+      enum: ['', ...TRANSACTION_DECISIONS],
+      default: '',
+      trim: true,
+    },
+    sellerDecision: {
+      type: String,
+      enum: ['', ...TRANSACTION_DECISIONS],
+      default: '',
+      trim: true,
+    },
+    buyerReviewedAt: {
+      type: Date,
+      default: null,
+    },
+    sellerReviewedAt: {
+      type: Date,
+      default: null,
+    },
+    buyerReview: {
+      type: new mongoose.Schema(
+        {
+          decision: {
+            type: String,
+            enum: ['', ...TRANSACTION_DECISIONS],
+            default: '',
+            trim: true,
+          },
+          questionnaireType: {
+            type: String,
+            enum: ['success', 'problem'],
+            default: 'success',
+          },
+          answers: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                accuracy: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+                details: {
+                  type: String,
+                  default: '',
+                  trim: true,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          metricScores: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                accuracy: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          submittedAt: {
+            type: Date,
+            default: null,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
+    sellerReview: {
+      type: new mongoose.Schema(
+        {
+          decision: {
+            type: String,
+            enum: ['', ...TRANSACTION_DECISIONS],
+            default: '',
+            trim: true,
+          },
+          questionnaireType: {
+            type: String,
+            enum: ['success', 'problem'],
+            default: 'success',
+          },
+          answers: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+                details: {
+                  type: String,
+                  default: '',
+                  trim: true,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          metricScores: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          submittedAt: {
+            type: Date,
+            default: null,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
+    seedTag: {
+      type: String,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
 const Item = mongoose.models.items || mongoose.model('items', ItemSchema);
 const Profile = mongoose.models.profiles || mongoose.model('profiles', profileSchema);
 const Conversation = mongoose.models.conversations || mongoose.model('conversations', conversationSchema);
 const Message = mongoose.models.messages || mongoose.model('messages', messageSchema);
 const Offer = mongoose.models.offers || mongoose.model('offers', offerSchema);
+const Transaction = mongoose.models.transactions || mongoose.model('transactions', transactionSchema);
 
 function clampPositiveInteger(value, fallback, max = null) {
   const parsedValue = Number.parseInt(value, 10);
@@ -668,6 +1000,332 @@ function getFirstName(value) {
   return trimmedValue.split(/\s+/)[0];
 }
 
+function isOfferParticipant(offer, participantId) {
+  const normalizedParticipantId = normalizeOptionalString(participantId);
+
+  if (!offer || !normalizedParticipantId) {
+    return false;
+  }
+
+  return [
+    normalizeOptionalString(offer.buyerClerkUserId),
+    normalizeOptionalString(offer.sellerClerkUserId),
+  ].includes(normalizedParticipantId);
+}
+
+function getTransactionParticipantRole(transaction, participantId) {
+  const normalizedParticipantId = normalizeOptionalString(participantId);
+
+  if (!transaction || !normalizedParticipantId) {
+    return '';
+  }
+
+  if (normalizeOptionalString(transaction.buyerClerkUserId) === normalizedParticipantId) {
+    return 'buyer';
+  }
+
+  if (normalizeOptionalString(transaction.sellerClerkUserId) === normalizedParticipantId) {
+    return 'seller';
+  }
+
+  return '';
+}
+
+function deriveTransactionStatus({buyerDecision = '', sellerDecision = ''} = {}) {
+  if (buyerDecision === 'problemReported' || sellerDecision === 'problemReported') {
+    return 'problemReported';
+  }
+
+  if (buyerDecision === 'confirmed' && sellerDecision === 'confirmed') {
+    return 'completed';
+  }
+
+  if (buyerDecision === 'confirmed') {
+    return 'buyerConfirmed';
+  }
+
+  if (sellerDecision === 'confirmed') {
+    return 'sellerConfirmed';
+  }
+
+  return 'scheduled';
+}
+
+function parseReviewScore(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isInteger(numericValue) || numericValue < REVIEW_SCORE_MIN || numericValue > REVIEW_SCORE_MAX) {
+    return null;
+  }
+
+  return numericValue;
+}
+
+function createEmptyAggregateMetric() {
+  return {
+    sum: 0,
+    count: 0,
+  };
+}
+
+function createEmptyReviewAggregate() {
+  return {
+    overall: createEmptyAggregateMetric(),
+    reliability: createEmptyAggregateMetric(),
+    accuracy: createEmptyAggregateMetric(),
+    responsiveness: createEmptyAggregateMetric(),
+    safety: createEmptyAggregateMetric(),
+  };
+}
+
+function normalizeAggregateMetric(metric = {}) {
+  const sum = Number(metric?.sum);
+  const rawCount = Number(metric?.count);
+
+  return {
+    sum: Number.isFinite(sum) ? sum : 0,
+    count: Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 0,
+  };
+}
+
+function hasStoredReviewAggregate(profile) {
+  return ['overall', ...TRUST_METRIC_KEYS].some((metric) => Number(profile?.reviewAggregate?.[metric]?.count) > 0);
+}
+
+function buildReviewAggregateFromProfile(profile = {}) {
+  const aggregate = createEmptyReviewAggregate();
+  const baselineCount = Math.max(0, Number(profile?.profileTotalRating) || 0);
+  const baselineRating = Number(profile?.profileRating);
+
+  if (baselineCount > 0 && Number.isFinite(baselineRating) && baselineRating > 0) {
+    aggregate.overall = {
+      sum: baselineRating * baselineCount,
+      count: baselineCount,
+    };
+  }
+
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    const rawMetricValue = profile?.trustMetrics?.[metric];
+
+    if (rawMetricValue === null || typeof rawMetricValue === 'undefined' || rawMetricValue === '') {
+      return;
+    }
+
+    const metricValue = Number(rawMetricValue);
+
+    if (!Number.isFinite(metricValue) || metricValue < 0) {
+      return;
+    }
+
+    const metricCount = baselineCount > 0 ? baselineCount : 1;
+    const averageScore = (Math.min(metricValue, 100) / 100) * REVIEW_SCORE_MAX;
+
+    aggregate[metric] = {
+      sum: averageScore * metricCount,
+      count: metricCount,
+    };
+  });
+
+  return aggregate;
+}
+
+function getProfileReviewAggregate(profile = {}) {
+  if (!hasStoredReviewAggregate(profile)) {
+    return buildReviewAggregateFromProfile(profile);
+  }
+
+  const aggregate = createEmptyReviewAggregate();
+  aggregate.overall = normalizeAggregateMetric(profile?.reviewAggregate?.overall);
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    aggregate[metric] = normalizeAggregateMetric(profile?.reviewAggregate?.[metric]);
+  });
+  return aggregate;
+}
+
+function getAggregateAverage(metric = {}) {
+  const normalizedMetric = normalizeAggregateMetric(metric);
+
+  if (!normalizedMetric.count) {
+    return null;
+  }
+
+  return normalizedMetric.sum / normalizedMetric.count;
+}
+
+function applyTransactionReviewToProfile(profile, reviewSubmission) {
+  if (!profile || !reviewSubmission?.metricScores) {
+    return profile;
+  }
+
+  const aggregate = getProfileReviewAggregate(profile);
+  const includedScores = [];
+
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    const score = parseReviewScore(reviewSubmission.metricScores?.[metric]);
+
+    if (!score) {
+      return;
+    }
+
+    aggregate[metric].sum += score;
+    aggregate[metric].count += 1;
+    includedScores.push(score);
+  });
+
+  if (includedScores.length === 0) {
+    profile.reviewAggregate = aggregate;
+    return profile;
+  }
+
+  const overallScore = includedScores.reduce((sum, score) => sum + score, 0) / includedScores.length;
+  aggregate.overall.sum += overallScore;
+  aggregate.overall.count += 1;
+
+  profile.reviewAggregate = aggregate;
+  profile.profileTotalRating = aggregate.overall.count;
+  profile.profileRating = aggregate.overall.count > 0 ? aggregate.overall.sum / aggregate.overall.count : 0;
+
+  const nextTrustMetrics = {};
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    const averageScore = getAggregateAverage(aggregate[metric]);
+    nextTrustMetrics[metric] = averageScore === null ? null : (averageScore / REVIEW_SCORE_MAX) * 100;
+  });
+  profile.trustMetrics = nextTrustMetrics;
+
+  return profile;
+}
+
+function buildTransactionReviewSubmission({participantRole, decision, answers = {}} = {}) {
+  const questionnaireType = decision === 'problemReported' ? 'problem' : 'success';
+  const details = normalizeOptionalString(answers.details);
+  const nextAnswers = {
+    reliability: parseReviewScore(answers.reliability),
+    responsiveness: parseReviewScore(answers.responsiveness),
+    safety: parseReviewScore(answers.safety),
+    details,
+  };
+  const metricScores = {
+    reliability: nextAnswers.reliability,
+    responsiveness: nextAnswers.responsiveness,
+    safety: nextAnswers.safety,
+  };
+
+  if (!nextAnswers.reliability || !nextAnswers.responsiveness || !nextAnswers.safety) {
+    throw new Error('Review scores for reliability, responsiveness, and safety are required');
+  }
+
+  if (participantRole === 'buyer') {
+    nextAnswers.accuracy = parseReviewScore(answers.accuracy);
+    metricScores.accuracy = nextAnswers.accuracy;
+
+    if (!nextAnswers.accuracy) {
+      throw new Error('Buyer reviews must include an accuracy score');
+    }
+  }
+
+  if (decision === 'problemReported' && details.length < MIN_TRANSACTION_REVIEW_DETAILS_LENGTH) {
+    throw new Error(`Problem details must be at least ${MIN_TRANSACTION_REVIEW_DETAILS_LENGTH} characters`);
+  }
+
+  return {
+    decision,
+    questionnaireType,
+    answers: nextAnswers,
+    metricScores,
+    submittedAt: new Date(),
+  };
+}
+
+function buildTransactionAcceptedTermsSnapshot(offer = {}, {pickupSpecifics = ''} = {}) {
+  return {
+    price: Number.isFinite(Number(offer.offeredPrice)) ? Number(offer.offeredPrice) : null,
+    paymentMethod: offer.paymentMethod || '',
+    meetupHubId: offer.meetupHubId || '',
+    meetupLocation: getOfferMeetupLabel(offer),
+    pickupSpecifics: normalizeOptionalString(pickupSpecifics),
+    meetupDate: offer.meetupDate || '',
+    meetupTime: offer.meetupTime || '',
+  };
+}
+
+function serializeTransaction(transaction) {
+  if (!transaction) {
+    return null;
+  }
+
+  return {
+    _id: toIdString(transaction._id),
+    offerId: toIdString(transaction.offerId),
+    listingId: toIdString(transaction.listingId),
+    conversationId: toIdString(transaction.conversationId),
+    buyerClerkUserId: transaction.buyerClerkUserId || '',
+    sellerClerkUserId: transaction.sellerClerkUserId || '',
+    acceptedTerms: {
+      price: Number.isFinite(Number(transaction.acceptedTerms?.price))
+        ? Number(transaction.acceptedTerms.price)
+        : null,
+      paymentMethod: transaction.acceptedTerms?.paymentMethod || '',
+      meetupHubId: transaction.acceptedTerms?.meetupHubId || '',
+      meetupLocation: transaction.acceptedTerms?.meetupLocation || '',
+      pickupSpecifics: transaction.acceptedTerms?.pickupSpecifics || '',
+      meetupDate: transaction.acceptedTerms?.meetupDate || '',
+      meetupTime: transaction.acceptedTerms?.meetupTime || '',
+    },
+    status: transaction.status || 'scheduled',
+    buyerDecision: transaction.buyerDecision || '',
+    sellerDecision: transaction.sellerDecision || '',
+    buyerReviewedAt: transaction.buyerReviewedAt || null,
+    sellerReviewedAt: transaction.sellerReviewedAt || null,
+    buyerReview: transaction.buyerReview || null,
+    sellerReview: transaction.sellerReview || null,
+    createdAt: transaction.createdAt || null,
+    updatedAt: transaction.updatedAt || null,
+  };
+}
+
+async function ensureTransactionForAcceptedOffer(
+  offer,
+  {
+    listing = null,
+    conversation = null,
+    pickupSpecifics = '',
+  } = {}
+) {
+  if (!offer || offer.status !== 'accepted') {
+    return null;
+  }
+
+  const existingTransaction = await Transaction.findOne({offerId: offer._id});
+
+  if (existingTransaction) {
+    return existingTransaction;
+  }
+
+  const resolvedListing =
+    listing || (offer.listingId ? await Item.findById(offer.listingId) : null);
+  const resolvedConversation =
+    conversation ||
+    (offer.conversationId ? await Conversation.findById(offer.conversationId) : null);
+  const resolvedPickupSpecifics =
+    normalizeOptionalString(pickupSpecifics) ||
+    normalizeOptionalString(resolvedConversation?.activePickupSpecifics);
+
+  return Transaction.create({
+    offerId: offer._id,
+    listingId: offer.listingId,
+    conversationId: offer.conversationId || resolvedConversation?._id || null,
+    buyerClerkUserId: offer.buyerClerkUserId,
+    sellerClerkUserId: offer.sellerClerkUserId,
+    acceptedTerms: buildTransactionAcceptedTermsSnapshot(offer, {
+      pickupSpecifics: resolvedPickupSpecifics,
+    }),
+    status: 'scheduled',
+    buyerDecision: '',
+    sellerDecision: '',
+    seedTag: offer.seedTag || resolvedListing?.seedTag || null,
+  });
+}
+
 function normalizeLinkedItemForComparison(linkedItem = {}) {
   return {
     listingId: toIdString(linkedItem.listingId),
@@ -773,6 +1431,90 @@ async function createOfferSystemMessage({
     attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
     offerSnapshot,
   });
+}
+
+async function createTransactionCompletedSystemMessage({
+  conversationId,
+  listingId,
+} = {}) {
+  const attachedListingFields = await buildAttachedListingMessageFields(listingId);
+
+  return Message.create({
+    conversationId,
+    senderClerkUserId: 'system',
+    body: 'Sale completed. Both sides confirmed the handoff.',
+    attachedListingId: attachedListingFields.attachedListingId,
+    attachedListingTitle: attachedListingFields.attachedListingTitle,
+    attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
+  });
+}
+
+async function appendTransactionCompletionMessage(transaction, requesterClerkUserId = '') {
+  if (!transaction || transaction.status !== 'completed') {
+    return null;
+  }
+
+  const conversation =
+    (transaction.conversationId ? await Conversation.findById(transaction.conversationId) : null) ||
+    (await findConversationByParticipantIds([
+      transaction.buyerClerkUserId,
+      transaction.sellerClerkUserId,
+    ]));
+
+  if (!conversation) {
+    return null;
+  }
+
+  const systemMessage = await createTransactionCompletedSystemMessage({
+    conversationId: conversation._id,
+    listingId: transaction.listingId,
+  });
+
+  conversation.lastMessageText = systemMessage.body;
+  conversation.lastMessageAt = systemMessage.createdAt;
+
+  if (normalizeOptionalString(requesterClerkUserId)) {
+    conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+  }
+
+  await repairConversationLinkedItems(conversation, {
+    touchedListingId: systemMessage.attachedListingId,
+    contextAt: systemMessage.createdAt,
+    contextMessageId: systemMessage._id,
+    fallbackTitle: systemMessage.attachedListingTitle,
+    fallbackImageUrl: systemMessage.attachedListingImageUrl,
+  });
+  await conversation.save();
+
+  return systemMessage;
+}
+
+async function finalizeCompletedTransaction(transaction, requesterClerkUserId = '') {
+  if (!transaction || transaction.status !== 'completed') {
+    return null;
+  }
+
+  const [offer, listing] = await Promise.all([
+    transaction.offerId ? Offer.findById(transaction.offerId) : null,
+    transaction.listingId ? Item.findById(transaction.listingId) : null,
+  ]);
+
+  if (offer && offer.status !== 'convertedToTransaction') {
+    offer.status = 'convertedToTransaction';
+    await offer.save();
+  }
+
+  if (listing && listing.status !== 'sold') {
+    listing.status = 'sold';
+
+    if (!listing.reservedOfferId && transaction.offerId) {
+      listing.reservedOfferId = transaction.offerId;
+    }
+
+    await listing.save();
+  }
+
+  return appendTransactionCompletionMessage(transaction, requesterClerkUserId);
 }
 
 async function repairConversationLinkedItems(
@@ -1171,10 +1913,12 @@ function getOfferMeetupLabel(offer = {}) {
 }
 
 function buildOfferDetailLine(offer = {}) {
+  const meetupScheduleLabel = getOfferMeetupScheduleLabel(offer, '');
   const parts = [
     formatOfferPriceLabel(offer.offeredPrice),
     formatPaymentMethodLabel(offer.paymentMethod),
     getOfferMeetupLabel(offer),
+    meetupScheduleLabel,
   ].filter(Boolean);
 
   return parts.join(' • ');
@@ -1258,6 +2002,10 @@ function buildOfferSnapshot(offer, {eventType = ''} = {}) {
     buyerDisplayName: offer.buyerDisplayName || '',
     sellerClerkUserId: offer.sellerClerkUserId || '',
     paymentMethod: offer.paymentMethod || '',
+    meetupDate: offer.meetupDate || '',
+    meetupTime: offer.meetupTime || '',
+    meetupStartAt: offer.meetupStartAt || '',
+    meetupEndAt: offer.meetupEndAt || '',
     meetupHubId: offer.meetupHubId || '',
     meetupLocation: offer.meetupLocation || '',
   };
@@ -1287,6 +2035,8 @@ function buildOfferApiSummary(
     offerId: toIdString(offerSnapshot.offerId),
     eventType: offerSnapshot.eventType || '',
     status: offerSnapshot.status || '',
+    buyerClerkUserId: offerSnapshot.buyerClerkUserId || '',
+    sellerClerkUserId: offerSnapshot.sellerClerkUserId || '',
     offeredPrice: Number.isFinite(Number(offerSnapshot.offeredPrice))
       ? Number(offerSnapshot.offeredPrice)
       : null,
@@ -1294,8 +2044,13 @@ function buildOfferApiSummary(
     sellerDisplayName,
     paymentMethod: offerSnapshot.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(offerSnapshot.paymentMethod),
+    meetupDate: offerSnapshot.meetupDate || '',
+    meetupTime: offerSnapshot.meetupTime || '',
+    meetupStartAt: offerSnapshot.meetupStartAt || '',
+    meetupEndAt: offerSnapshot.meetupEndAt || '',
     meetupHubId: offerSnapshot.meetupHubId || '',
     meetupLocation: offerSnapshot.meetupLocation || '',
+    meetupScheduleLabel: getOfferMeetupScheduleLabel(offerSnapshot),
     meetupLabel: getOfferMeetupLabel(offerSnapshot),
     detailLine,
     ...(includeEventTitle
@@ -2130,14 +2885,16 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       offeredPrice,
       meetupHubId,
       meetupLocation,
-      meetupWindow,
+      meetupDate,
+      meetupTime,
       paymentMethod,
       message,
     } = req.body;
     const trimmedBuyerId = buyerClerkUserId?.trim();
     const trimmedBuyerDisplayName = buyerDisplayName?.trim() || 'Buyer';
     const trimmedMeetupLocation = meetupLocation?.trim();
-    const trimmedMeetupWindow = meetupWindow?.trim();
+    const trimmedMeetupDate = meetupDate?.trim();
+    const trimmedMeetupTime = meetupTime?.trim();
     const normalizedMessage = message?.trim() || '';
     const normalizedPrice = Number(offeredPrice);
 
@@ -2162,8 +2919,15 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       return resp.status(400).json({message: 'meetupLocation is required'});
     }
 
-    if (!trimmedMeetupWindow) {
-      return resp.status(400).json({message: 'meetupWindow is required'});
+    const scheduleErrors = getMeetupScheduleValidationErrors({
+      meetupDate: trimmedMeetupDate,
+      meetupTime: trimmedMeetupTime,
+    });
+
+    if (Object.keys(scheduleErrors).length > 0) {
+      return resp.status(400).json({
+        message: Object.values(scheduleErrors)[0],
+      });
     }
 
     if (!['cash', 'externalApp', 'gatorgoodsEscrow'].includes(paymentMethod)) {
@@ -2199,7 +2963,8 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       meetupHubId: resolvedMeetupFields.meetupHubId,
       meetupArea: resolvedMeetupFields.meetupArea,
       meetupLocation: resolvedMeetupFields.meetupLocation,
-      meetupWindow: trimmedMeetupWindow,
+      meetupDate: trimmedMeetupDate,
+      meetupTime: trimmedMeetupTime,
       paymentMethod,
       message: normalizedMessage,
     });
@@ -2244,8 +3009,8 @@ app.get('/api/offers', async (req, resp) => {
 
     const query =
       role === 'buyer'
-        ? {buyerClerkUserId: participantId}
-        : {sellerClerkUserId: participantId};
+        ? {buyerClerkUserId: participantId, status: {$ne: 'convertedToTransaction'}}
+        : {sellerClerkUserId: participantId, status: {$ne: 'convertedToTransaction'}};
 
     const offers = await Offer.find(query).sort({createdAt: -1, _id: -1});
 
@@ -2258,9 +3023,14 @@ app.get('/api/offers', async (req, resp) => {
 app.get('/api/offers/:id', async (req, resp) => {
   try {
     const offerId = toObjectId(req.params.id);
+    const participantId = normalizeOptionalString(req.query.participantId);
 
     if (!offerId) {
       return resp.status(400).json({ message: 'Valid offer id is required' });
+    }
+
+    if (!participantId) {
+      return resp.status(400).json({message: 'participantId is required'});
     }
 
     const offer = await Offer.findById(offerId);
@@ -2269,9 +3039,55 @@ app.get('/api/offers/:id', async (req, resp) => {
       return resp.status(404).json({ message: 'Offer not found' });
     }
 
+    if (!isOfferParticipant(offer, participantId)) {
+      return resp.status(403).json({message: 'You are not authorized to view this offer'});
+    }
+
     resp.json(offer);
   } catch (e) {
     resp.status(500).json({ message: 'Failed to fetch offer', error: e.message });
+  }
+});
+
+app.get('/api/transactions/by-offer/:offerId', async (req, resp) => {
+  try {
+    const offerId = toObjectId(req.params.offerId);
+    const participantId = normalizeOptionalString(req.query.participantId);
+
+    if (!offerId) {
+      return resp.status(400).json({message: 'Valid offer id is required'});
+    }
+
+    if (!participantId) {
+      return resp.status(400).json({message: 'participantId is required'});
+    }
+
+    const offer = await Offer.findById(offerId);
+
+    if (!offer) {
+      return resp.status(404).json({message: 'Offer not found'});
+    }
+
+    if (!['accepted', 'convertedToTransaction'].includes(offer.status)) {
+      return resp.status(409).json({message: 'Transactions are only available for accepted offers'});
+    }
+
+    if (!isOfferParticipant(offer, participantId)) {
+      return resp.status(403).json({message: 'You are not authorized to view this transaction'});
+    }
+
+    const transaction =
+      offer.status === 'accepted'
+        ? await ensureTransactionForAcceptedOffer(offer)
+        : await Transaction.findOne({offerId: offer._id});
+
+    if (!transaction) {
+      return resp.status(404).json({message: 'Transaction not found'});
+    }
+
+    resp.json(serializeTransaction(transaction));
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to fetch transaction', error: e.message});
   }
 });
 
@@ -2398,6 +3214,12 @@ app.patch('/api/offers/:id', async (req, resp) => {
         ...saveOperations,
       ]);
 
+      await ensureTransactionForAcceptedOffer(offer, {
+        listing,
+        conversation,
+        pickupSpecifics,
+      });
+
       const competingOffers = await Offer.find({
         listingId: offer.listingId,
         _id: {$ne: offer._id},
@@ -2474,6 +3296,156 @@ app.patch('/api/offers/:id', async (req, resp) => {
     resp.json(offer);
   } catch (e) {
     resp.status(500).json({message: 'Failed to update offer', error: e.message});
+  }
+});
+
+app.patch('/api/transactions/:id/decision', async (req, resp) => {
+  try {
+    const transactionId = toObjectId(req.params.id);
+    const requesterClerkUserId = normalizeOptionalString(req.body.requesterClerkUserId);
+    const decision = normalizeOptionalString(req.body.decision);
+
+    if (!transactionId) {
+      return resp.status(400).json({message: 'Valid transaction id is required'});
+    }
+
+    if (!requesterClerkUserId) {
+      return resp.status(400).json({message: 'requesterClerkUserId is required'});
+    }
+
+    if (!TRANSACTION_DECISIONS.includes(decision)) {
+      return resp.status(400).json({message: 'decision must be confirmed or problemReported'});
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+
+    if (!transaction) {
+      return resp.status(404).json({message: 'Transaction not found'});
+    }
+
+    const participantRole = getTransactionParticipantRole(transaction, requesterClerkUserId);
+
+    if (!participantRole) {
+      return resp.status(403).json({message: 'Only transaction participants can update this transaction'});
+    }
+
+    const previousStatus = transaction.status || 'scheduled';
+
+    if (participantRole === 'buyer') {
+      transaction.buyerDecision = decision;
+    } else {
+      transaction.sellerDecision = decision;
+    }
+
+    transaction.status = deriveTransactionStatus({
+      buyerDecision: transaction.buyerDecision,
+      sellerDecision: transaction.sellerDecision,
+    });
+
+    await transaction.save();
+
+    if (previousStatus !== 'completed' && transaction.status === 'completed') {
+      await finalizeCompletedTransaction(transaction, requesterClerkUserId);
+    }
+
+    resp.json(serializeTransaction(transaction));
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to update transaction', error: e.message});
+  }
+});
+
+app.patch('/api/transactions/:id/review', async (req, resp) => {
+  try {
+    const transactionId = toObjectId(req.params.id);
+    const requesterClerkUserId = normalizeOptionalString(req.body.requesterClerkUserId);
+    const decision = normalizeOptionalString(req.body.decision);
+    const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
+
+    if (!transactionId) {
+      return resp.status(400).json({message: 'Valid transaction id is required'});
+    }
+
+    if (!requesterClerkUserId) {
+      return resp.status(400).json({message: 'requesterClerkUserId is required'});
+    }
+
+    if (!TRANSACTION_DECISIONS.includes(decision)) {
+      return resp.status(400).json({message: 'decision must be confirmed or problemReported'});
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+
+    if (!transaction) {
+      return resp.status(404).json({message: 'Transaction not found'});
+    }
+
+    const participantRole = getTransactionParticipantRole(transaction, requesterClerkUserId);
+
+    if (!participantRole) {
+      return resp.status(403).json({message: 'Only transaction participants can submit transaction reviews'});
+    }
+
+    if (
+      (participantRole === 'buyer' && transaction.buyerReviewedAt) ||
+      (participantRole === 'seller' && transaction.sellerReviewedAt)
+    ) {
+      return resp.status(409).json({message: 'You have already submitted a review for this transaction'});
+    }
+
+    const previousStatus = transaction.status || 'scheduled';
+
+    let reviewSubmission;
+
+    try {
+      reviewSubmission = buildTransactionReviewSubmission({
+        participantRole,
+        decision,
+        answers,
+      });
+    } catch (validationError) {
+      return resp.status(400).json({message: validationError.message});
+    }
+
+    if (participantRole === 'buyer') {
+      transaction.buyerDecision = decision;
+      transaction.buyerReview = reviewSubmission;
+      transaction.buyerReviewedAt = reviewSubmission.submittedAt;
+    } else {
+      transaction.sellerDecision = decision;
+      transaction.sellerReview = reviewSubmission;
+      transaction.sellerReviewedAt = reviewSubmission.submittedAt;
+    }
+
+    transaction.status = deriveTransactionStatus({
+      buyerDecision: transaction.buyerDecision,
+      sellerDecision: transaction.sellerDecision,
+    });
+
+    const reviewedProfileId =
+      participantRole === 'buyer'
+        ? normalizeOptionalString(transaction.sellerClerkUserId)
+        : normalizeOptionalString(transaction.buyerClerkUserId);
+    const reviewedProfile = reviewedProfileId
+      ? await Profile.findOne({profileID: reviewedProfileId})
+      : null;
+
+    if (reviewedProfile) {
+      applyTransactionReviewToProfile(reviewedProfile, reviewSubmission);
+    }
+
+    await transaction.save();
+
+    if (reviewedProfile) {
+      await reviewedProfile.save();
+    }
+
+    if (previousStatus !== 'completed' && transaction.status === 'completed') {
+      await finalizeCompletedTransaction(transaction, requesterClerkUserId);
+    }
+
+    resp.json(serializeTransaction(transaction));
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to submit transaction review', error: e.message});
   }
 });
 
@@ -2867,6 +3839,7 @@ module.exports = {
     Message,
     Offer,
     Profile,
+    Transaction,
   },
   startServer,
 };

@@ -151,6 +151,10 @@ jest.mock("./pages/ItemPage", () => ({
   ItemPage: () => <div>Item Page</div>,
 }));
 
+jest.mock("./pages/TransactionReviewPage", () => ({
+  TransactionReviewPage: () => <div>Transaction Review Page</div>,
+}));
+
 beforeEach(() => {
   resetClerkState();
   window.history.pushState({}, "", "/");

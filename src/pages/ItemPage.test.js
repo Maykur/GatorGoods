@@ -61,6 +61,27 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+function toLocalDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`;
+}
+
+function getFutureDateInputValue(daysAhead = 3) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  return toLocalDateInputValue(date);
+}
+
+function formatMeetupDateLabel(value) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(`${value}T12:00:00`));
+}
+
 function buildItemPayload(overrides = {}) {
   return {
     _id: 'item-1',
@@ -206,8 +227,10 @@ test('signed-in non-owners can open and submit the structured offer form', async
   fireEvent.change(screen.getByLabelText(/your offer/i), {
     target: { value: '18' },
   });
-  fireEvent.change(screen.getByLabelText(/meetup window/i), {
-    target: { value: 'Tue 1:00 PM - 2:00 PM' },
+  const selectedDate = getFutureDateInputValue(3);
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(selectedDate) }));
+  fireEvent.change(screen.getByLabelText(/meetup time/i), {
+    target: { value: '13:00' },
   });
   fireEvent.change(screen.getByLabelText(/optional note/i), {
     target: { value: 'Can meet after class.' },
@@ -224,7 +247,8 @@ test('signed-in non-owners can open and submit the structured offer form', async
         offeredPrice: 18,
         meetupHubId: 'library-west',
         meetupLocation: 'Library West',
-        meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+        meetupDate: selectedDate,
+        meetupTime: '13:00',
         paymentMethod: 'cash',
         message: 'Can meet after class.',
       })
@@ -232,6 +256,7 @@ test('signed-in non-owners can open and submit the structured offer form', async
   });
 
   expect(await screen.findByText(/your offer is waiting for the seller/i)).toBeInTheDocument();
+  expect(screen.getByText(`${formatMeetupDateLabel(selectedDate)} at 1:00 PM`)).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /open offers inbox/i })).toHaveAttribute('href', '/offers');
   expect(screen.getByRole('link', { name: /open conversation/i })).toHaveAttribute(
     'href',
@@ -265,6 +290,48 @@ test('offer submission validates the structured fields before sending', async ()
   expect(mockCreateOffer).not.toHaveBeenCalled();
 });
 
+test('offer submission requires selecting a meetup date', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+      fullName: 'Buyer One',
+    },
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+  fireEvent.change(screen.getByLabelText(/your offer/i), {
+    target: { value: '18' },
+  });
+  fireEvent.change(screen.getByLabelText(/meetup time/i), {
+    target: { value: '14:00' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
+
+  expect(await screen.findByText(/meetup date is required/i)).toBeInTheDocument();
+  expect(mockCreateOffer).not.toHaveBeenCalled();
+});
+
+test('offer form only exposes meetup dates for the next two weeks', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+    },
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+
+  expect(screen.getAllByRole('button', { name: /choose meetup date/i })).toHaveLength(14);
+  expect(
+    screen.queryByRole('button', { name: new RegExp(getFutureDateInputValue(14)) })
+  ).not.toBeInTheDocument();
+});
+
 test('buyers can choose a different approved meetup hub before sending an offer', async () => {
   setClerkState({
     isSignedIn: true,
@@ -285,8 +352,9 @@ test('buyers can choose a different approved meetup hub before sending an offer'
   fireEvent.change(screen.getByLabelText(/your offer/i), {
     target: { value: '19' },
   });
-  fireEvent.change(screen.getByLabelText(/meetup window/i), {
-    target: { value: 'Wed 3:00 PM - 4:00 PM' },
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(getFutureDateInputValue(4)) }));
+  fireEvent.change(screen.getByLabelText(/meetup time/i), {
+    target: { value: '15:00' },
   });
   fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
 
@@ -360,8 +428,9 @@ test('offer form defaults to the listing original public hub when the reserved h
   fireEvent.change(screen.getByLabelText(/your offer/i), {
     target: { value: '17' },
   });
-  fireEvent.change(screen.getByLabelText(/meetup window/i), {
-    target: { value: 'Thu 2:00 PM - 3:00 PM' },
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(getFutureDateInputValue(5)) }));
+  fireEvent.change(screen.getByLabelText(/meetup time/i), {
+    target: { value: '14:00' },
   });
   fireEvent.click(screen.getByRole('button', { name: /send offer/i }));
 

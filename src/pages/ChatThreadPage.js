@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
 import { PickupHubPicker } from '../components/PickupHubPicker';
 import { AppIcon, Avatar, Button, Card, ErrorBanner, Skeleton, Textarea } from '../components/ui';
+import { isMeetupScheduledToday } from '../lib/meetupSchedule';
 import { getPickupHubById, resolvePickupHub } from '../lib/pickupHubs';
 import { getConversationMessages, sendMessage, updateConversationPickup } from '../lib/messagesApi';
 
@@ -92,6 +93,23 @@ function getSystemMessageTitle(message) {
   }
 
   return body;
+}
+
+function getOfferSystemMessageHref(message, viewerId = '') {
+  const offerContext = message?.offerContext;
+  const offerId = normalizeId(offerContext?.offerId);
+
+  if (!offerId) {
+    return '';
+  }
+
+  if (offerContext?.eventType === 'sent' || offerContext?.eventType === 'accepted') {
+    const sellerId = normalizeId(offerContext?.sellerClerkUserId);
+    const mode = viewerId && sellerId && viewerId === sellerId ? 'seller' : 'buyer';
+    return `/offers?mode=${mode}&offer=${offerId}`;
+  }
+
+  return '';
 }
 
 async function fetchOptionalJson(url) {
@@ -523,6 +541,14 @@ export function ChatThreadPage() {
   const pickupHubError = pickupError.toLowerCase().includes('hub') ? pickupError : '';
   const pickupSpecificsError =
     pickupError && !pickupHubError ? pickupError : '';
+  const focusedItemCurrentOffer = focusedItem?.currentOffer || null;
+  const canOpenTransaction =
+    !isPreviewingAlternateContext &&
+    focusedItem?.state !== 'completedHere' &&
+    focusedItem?.state !== 'unavailable' &&
+    focusedItemCurrentOffer?.status === 'accepted' &&
+    Boolean(focusedItemCurrentOffer?.offerId) &&
+    isMeetupScheduledToday(focusedItemCurrentOffer);
 
   useEffect(() => {
     if (!pendingScrollBehaviorRef.current) {
@@ -1084,24 +1110,37 @@ export function ChatThreadPage() {
               </p>
             </div>
           </div>
-          {isSeller && !isPreviewingAlternateContext ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon="location"
-              onClick={() => {
-                setPickupValues({
-                  pickupHubId: displayedPickupHubId,
-                  pickupSpecifics: conversation?.activePickupSpecifics || '',
-                });
-                setPickupError('');
-                setIsPickupEditorOpen((isOpen) => !isOpen);
-              }}
-            >
-              {isPickupEditorOpen ? 'Hide meetup editor' : 'Edit meetup details'}
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {canOpenTransaction ? (
+              <Link to={`/transact/${focusedItemCurrentOffer.offerId}`} className="no-underline">
+                <Button size="sm" leadingIcon="verified">Open transaction</Button>
+              </Link>
+            ) : null}
+            {isSeller && !isPreviewingAlternateContext ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                leadingIcon="location"
+                onClick={() => {
+                  setPickupValues({
+                    pickupHubId: displayedPickupHubId,
+                    pickupSpecifics: conversation?.activePickupSpecifics || '',
+                  });
+                  setPickupError('');
+                  setIsPickupEditorOpen((isOpen) => !isOpen);
+                }}
+              >
+                {isPickupEditorOpen ? 'Hide meetup editor' : 'Edit meetup details'}
+              </Button>
+            ) : null}
+          </div>
         </div>
+
+        {canOpenTransaction ? (
+          <p className="text-sm leading-7 text-gatorOrange">
+            Today&apos;s handoff is ready. Open the transaction flow here once you are meeting up.
+          </p>
+        ) : null}
 
         {isPreviewingAlternateContext ? (
           <p className="text-sm leading-7 text-blue-100/80">
@@ -1196,6 +1235,7 @@ export function ChatThreadPage() {
                 const attachedItemHref = normalizeId(message.attachedItem?.listingId)
                   ? `/items/${normalizeId(message.attachedItem.listingId)}`
                   : '';
+                const offerMessageHref = getOfferSystemMessageHref(message, user?.id);
 
                 return (
                   <div
@@ -1253,17 +1293,39 @@ export function ChatThreadPage() {
                           </div>
                         )
                       ) : null}
-                      <p className={`text-sm font-semibold ${systemMessageStyle.title}`}>
-                        {getSystemMessageTitle(message)}
-                      </p>
-                      {message.offerContext?.detailLine ? (
-                        <p className={`mt-1 text-sm ${systemMessageStyle.detail}`}>
-                          {message.offerContext.detailLine}
-                        </p>
-                      ) : null}
-                      <p className={`mt-1 text-xs ${systemMessageStyle.timestamp}`}>
-                        {formatMessageTime(message.createdAt)}
-                      </p>
+                      {offerMessageHref ? (
+                        <Link
+                          to={offerMessageHref}
+                          data-testid={`system-message-link-${normalizeId(message._id)}`}
+                          className="block rounded-2xl px-2 py-1 text-inherit no-underline transition hover:bg-white/5"
+                        >
+                          <p className={`text-sm font-semibold ${systemMessageStyle.title}`}>
+                            {getSystemMessageTitle(message)}
+                          </p>
+                          {message.offerContext?.detailLine ? (
+                            <p className={`mt-1 text-sm ${systemMessageStyle.detail}`}>
+                              {message.offerContext.detailLine}
+                            </p>
+                          ) : null}
+                          <p className={`mt-1 text-xs ${systemMessageStyle.timestamp}`}>
+                            {formatMessageTime(message.createdAt)}
+                          </p>
+                        </Link>
+                      ) : (
+                        <>
+                          <p className={`text-sm font-semibold ${systemMessageStyle.title}`}>
+                            {getSystemMessageTitle(message)}
+                          </p>
+                          {message.offerContext?.detailLine ? (
+                            <p className={`mt-1 text-sm ${systemMessageStyle.detail}`}>
+                              {message.offerContext.detailLine}
+                            </p>
+                          ) : null}
+                          <p className={`mt-1 text-xs ${systemMessageStyle.timestamp}`}>
+                            {formatMessageTime(message.createdAt)}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 );

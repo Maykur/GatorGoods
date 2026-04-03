@@ -13,6 +13,7 @@ import {
   toListingCardViewModel,
   toListingDetailViewModel,
   toProfileHeaderViewModel,
+  toTransactionViewModel,
   toTrustMetricsViewModel,
 } from './viewModels';
 import {
@@ -47,6 +48,7 @@ test('toListingCardViewModel normalizes core listing fields', () => {
     location: 'Library West',
     pickupHubId: 'library-west',
     pickupArea: 'Historic Core',
+    offerId: '',
     imageUrl: 'lamp.png',
     category: 'Miscellaneous',
     sellerName: 'GatorGoods Seller',
@@ -231,6 +233,52 @@ test('toConversationPreviewViewModel truncates item titles and long message prev
   expect(preview.lastMessagePreviewText.length).toBeLessThanOrEqual(75);
 });
 
+test('toTransactionViewModel maps snapshotted accepted terms into transaction display fields', () => {
+  const transaction = toTransactionViewModel(
+    {
+      _id: 'transaction-1',
+      offerId: 'offer-1',
+      listingId: 'item-1',
+      conversationId: 'conversation-1',
+      buyerClerkUserId: 'buyer-1',
+      sellerClerkUserId: 'seller-1',
+      acceptedTerms: {
+        price: 68,
+        paymentMethod: 'cash',
+        meetupHubId: 'reitz',
+        meetupLocation: 'Reitz Union',
+        pickupSpecifics: 'Meet by the bookstore entrance.',
+        meetupDate: '2026-04-04',
+        meetupTime: '19:00',
+      },
+      status: 'scheduled',
+      buyerDecision: '',
+      sellerDecision: '',
+    },
+    {
+      listing: {
+        _id: 'item-1',
+        itemName: 'Mini Fridge',
+        itemCost: '80',
+        itemCondition: 'Good',
+        originalPickupHubId: 'library-west',
+        originalItemLocation: 'Library West',
+        itemPictureUrl: '/items/item-1/image',
+        userPublishingName: 'Seller One',
+      },
+    }
+  );
+
+  expect(transaction.transactionId).toBe('transaction-1');
+  expect(transaction.offerId).toBe('offer-1');
+  expect(transaction.listingTitle).toBe('Mini Fridge');
+  expect(transaction.offeredPriceLabel).toBe('$68');
+  expect(transaction.paymentMethodLabel).toBe('Cash');
+  expect(transaction.meetupLocation).toBe('Reitz Union');
+  expect(transaction.pickupSpecifics).toBe('Meet by the bookstore entrance.');
+  expect(transaction.meetupScheduleLabel).toMatch(/Apr/);
+});
+
 test('formatConversationTimestamp removes the year and seconds from inbox timestamps', () => {
   expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).toMatch(/Mar/);
   expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).not.toMatch(/2026/);
@@ -345,7 +393,8 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
         meetupHubId: 'reitz',
         meetupArea: 'South Core',
         meetupLocation: 'Old Reitz Label',
-        meetupWindow: 'Fri 2:00 PM - 3:00 PM',
+        meetupDate: '2026-04-03',
+        meetupTime: '14:00',
         paymentMethod: 'cash',
         message: 'Can pick up after class.',
         status: 'pending',
@@ -388,6 +437,7 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     listingStatusLabel: 'Reserved',
     buyerId: 'buyer-1',
     buyerName: 'Buyer One',
+    buyerAvatarUrl: '',
     sellerId: 'seller-1',
     sellerName: 'Seller One',
     sellerAvatarUrl: '',
@@ -396,7 +446,10 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     meetupLocation: 'Reitz Union',
     meetupHubId: 'reitz',
     meetupArea: 'South Core',
-    meetupWindow: 'Fri 2:00 PM - 3:00 PM',
+    meetupDate: '2026-04-03',
+    meetupTime: '14:00',
+    meetupScheduleLabel: 'Fri, Apr 3 at 2:00 PM',
+    meetupWindow: 'Fri, Apr 3 at 2:00 PM',
     paymentMethod: 'cash',
     paymentMethodLabel: 'Cash',
     listingImageUrl: '',
@@ -462,7 +515,8 @@ test('groupOffersByListing groups normalized offers under each listing', () => {
           sellerClerkUserId: 'seller-1',
           offeredPrice: 25,
           meetupLocation: 'Plaza',
-          meetupWindow: 'Tomorrow',
+          meetupDate: '2026-04-04',
+          meetupTime: '13:00',
           paymentMethod: 'cash',
           status: 'pending',
         },

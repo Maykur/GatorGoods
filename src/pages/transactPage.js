@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { getIndividualOffer } from '../lib/offersApi';
-import { toOfferCardViewModel } from '../lib/viewModels';
+import { getTransactionByOfferId } from '../lib/transactionsApi';
+import { toTransactionViewModel } from '../lib/viewModels';
 import {
   AppIcon,
   Avatar,
@@ -12,21 +12,20 @@ import {
   ErrorBanner,
   PageHeader,
   Skeleton,
+  useConfirmDialog,
 } from '../components/ui';
-import { APPROVED_PICKUP_HUBS } from '../lib/pickupHubs';
-import { cn } from '../lib/ui';
-import campusPickupMap from '../assets/uf_map_ui_slate_blue.png';
 
 const API_BASE_URL = 'http://localhost:5000';
 
 function getStatusBadgeVariant(status) {
   switch (status) {
-    case 'accepted':
+    case 'completed':
       return 'success';
-    case 'declined':
+    case 'problemReported':
     case 'cancelled':
       return 'danger';
-    case 'countered':
+    case 'buyerConfirmed':
+    case 'sellerConfirmed':
       return 'warning';
     default:
       return 'info';
@@ -84,76 +83,76 @@ function OrderMetaCard({ icon, label, value, emphasis = false }) {
 
 function getStatusMessage(status) {
   switch (status) {
-    case 'accepted':
-      return 'This offer has been accepted. Head to the meetup location at the agreed time to complete the transaction.';
-    case 'declined':
-      return 'This offer was declined by the seller.';
+    case 'completed':
+      return 'Both sides have confirmed the handoff. This transaction is marked as completed.';
+    case 'buyerConfirmed':
+      return 'The buyer has confirmed the exchange. Waiting on the seller to confirm too.';
+    case 'sellerConfirmed':
+      return 'The seller has confirmed the exchange. Waiting on the buyer to confirm too.';
+    case 'problemReported':
+      return 'A problem was reported for this handoff. Both submissions are preserved so nothing gets silently overwritten.';
     case 'cancelled':
-      return 'This offer has been cancelled.';
-    case 'countered':
-      return 'The seller has countered this offer. Check your messages for details.';
-    case 'pending':
-      return 'This offer is awaiting a response from the seller.';
-    case 'convertedToTransaction':
-      return 'This offer has been converted into a confirmed transaction.';
+      return 'This transaction has been cancelled.';
+    case 'scheduled':
+      return 'Your meetup is scheduled. Use this page to confirm the handoff or report a problem after the exchange.';
     default:
-      return 'Check your messages for the latest updates on this order.';
+      return 'Check your messages for the latest updates on this transaction.';
   }
 }
 
-function ReadOnlyPickupMap({ selectedHubId }) {
+function getStateBannerContent(status) {
+  switch (status) {
+    case 'buyerConfirmed':
+      return {
+        title: 'Waiting for seller confirmation',
+        detail: 'The buyer marked the exchange as complete. The seller still needs to confirm the handoff.',
+        className: 'border-amber-400/25 bg-amber-400/10 text-amber-50',
+      };
+    case 'sellerConfirmed':
+      return {
+        title: 'Waiting for buyer confirmation',
+        detail: 'The seller marked the exchange as complete. The buyer still needs to confirm they received the item.',
+        className: 'border-amber-400/25 bg-amber-400/10 text-amber-50',
+      };
+    case 'completed':
+      return {
+        title: 'Both sides confirmed',
+        detail: 'This handoff is complete and both participants agreed on the outcome.',
+        className: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-50',
+      };
+    case 'problemReported':
+      return {
+        title: 'Problem reported',
+        detail: 'At least one participant reported an issue, so the transaction stays in a cautious state with both submissions preserved.',
+        className: 'border-rose-400/25 bg-rose-400/10 text-rose-50',
+      };
+    default:
+      return {
+        title: 'Scheduled for handoff',
+        detail: 'Review the accepted terms here, then confirm the outcome after you meet.',
+        className: 'border-brand-blue/25 bg-brand-blue/10 text-blue-50',
+      };
+  }
+}
+
+function TransactionStateBanner({ status }) {
+  const banner = getStateBannerContent(status);
+
   return (
-    <div className="relative aspect-square w-full max-w-xs overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-surface/80">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(145deg,rgba(13,38,76,0.96),rgba(8,20,43,0.92))]"
-      >
-        <img
-          src={campusPickupMap}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-70"
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(250,112,10,0.18),_transparent_30%),linear-gradient(180deg,rgba(8,20,43,0.08),rgba(8,20,43,0.24))]" />
-        <div className="absolute left-5 top-5 rounded-full border border-white/10 bg-black/15 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-app-soft">
-          Campus Map
-        </div>
-      </div>
-      <div className="absolute inset-0 z-10">
-        {APPROVED_PICKUP_HUBS.map((hub) => {
-          const isSelected = hub.id === selectedHubId;
-          return (
-            <div
-              key={hub.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${hub.mapX}%`, top: `${hub.mapY}%`, zIndex: isSelected ? 20 : 10 }}
-            >
-              <span
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full border shadow-lg transition-all',
-                  isSelected
-                    ? 'scale-110 border-gatorOrange bg-gatorOrange text-white shadow-[0_10px_24px_rgba(250,112,10,0.34)]'
-                    : 'border-white/10 bg-app-surface/80 text-app-muted opacity-40'
-                )}
-              >
-                <AppIcon icon="location" className="text-sm" />
-              </span>
-              {isSelected ? (
-                <span className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-gatorOrange/35 bg-gatorOrange/16 px-3 py-1 text-xs font-medium text-white shadow-md">
-                  {hub.shortLabel}
-                </span>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+    <div className={`rounded-[1.4rem] border px-5 py-4 ${banner.className}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em]">Transaction status</p>
+      <h3 className="mt-2 text-lg font-semibold">{banner.title}</h3>
+      <p className="mt-1 text-sm leading-7 opacity-90">{banner.detail}</p>
     </div>
   );
 }
 
 export function TransactPage() {
   const { orderId } = useParams();
-  const { user } = useUser();
-  const [offer, setOffer] = useState(null);
+  const navigate = useNavigate();
+  const { user, isLoaded } = useUser();
+  const { confirm } = useConfirmDialog();
+  const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -164,48 +163,93 @@ export function TransactPage() {
       return;
     }
 
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!user?.id) {
+      setTransaction(null);
+      setError('Sign in to view this transaction.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError('');
 
-      const rawOffer = await getIndividualOffer(orderId);
+      const rawTransaction = await getTransactionByOfferId(orderId, {
+        participantId: user.id,
+      });
 
-      const listingId = rawOffer.listingId?.toString?.() || rawOffer.listingId || '';
+      const listingId = rawTransaction.listingId?.toString?.() || rawTransaction.listingId || '';
       const counterpartId =
-        user?.id === rawOffer.sellerClerkUserId
-          ? rawOffer.buyerClerkUserId
-          : rawOffer.sellerClerkUserId;
+        user?.id === rawTransaction.sellerClerkUserId
+          ? rawTransaction.buyerClerkUserId
+          : rawTransaction.sellerClerkUserId;
 
       const [listingData, profileData] = await Promise.all([
         listingId ? fetchOptionalJson(`${API_BASE_URL}/items/${listingId}`) : null,
         counterpartId ? fetchOptionalJson(`${API_BASE_URL}/profile/${counterpartId}`) : null,
       ]);
 
-      const isSeller = user?.id === rawOffer.sellerClerkUserId;
+      const isSeller = user?.id === rawTransaction.sellerClerkUserId;
 
-      const offerView = toOfferCardViewModel(rawOffer, {
+      const transactionView = toTransactionViewModel(rawTransaction, {
         listing: listingData,
         buyerProfile: isSeller ? profileData : null,
         sellerProfile: !isSeller ? profileData : null,
       });
 
-      setOffer(offerView);
+      setTransaction(transactionView);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load order details.');
     } finally {
       setIsLoading(false);
     }
-  }, [orderId, user?.id]);
+  }, [isLoaded, orderId, user?.id]);
 
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
 
-  const isSeller = user?.id && offer?.sellerId === user.id;
-  const counterpartLabel = isSeller ? 'Buyer' : 'Seller';
-  const counterpartName = isSeller ? offer?.buyerName : offer?.sellerName;
-  const counterpartId = isSeller ? offer?.buyerId : offer?.sellerId;
-  const counterpartTrust = isSeller ? offer?.buyerTrust : offer?.sellerTrust;
+  const isSeller = Boolean(user?.id && transaction?.sellerId === user.id);
+
+  const handleReviewRoute = useCallback(async (decision) => {
+    if (!orderId || !transaction || !user?.id) {
+      return;
+    }
+
+    if (decision === 'problemReported') {
+      const otherParticipantConfirmed = isSeller
+        ? transaction.buyerDecision === 'confirmed'
+        : transaction.sellerDecision === 'confirmed';
+
+      if (otherParticipantConfirmed) {
+        const shouldContinue = await confirm({
+          title: 'Report a problem anyway?',
+          description: 'The other person already confirmed the exchange went well. Continue only if you need to record a different outcome.',
+          confirmLabel: 'Yes, continue',
+          cancelLabel: 'Go back',
+          tone: 'danger',
+        });
+
+        if (!shouldContinue) {
+          return;
+        }
+      }
+    }
+
+    navigate(`/transact/${orderId}/review?decision=${encodeURIComponent(decision)}`);
+  }, [confirm, isSeller, navigate, orderId, transaction, user?.id]);
+
+  const counterpartRoleLabel = isSeller ? 'Buyer' : 'Seller';
+  const counterpartName = isSeller ? transaction?.buyerName : transaction?.sellerName;
+  const counterpartId = isSeller ? transaction?.buyerId : transaction?.sellerId;
+  const counterpartAvatarUrl = isSeller ? transaction?.buyerAvatarUrl : transaction?.sellerAvatarUrl;
+  const primaryActionLabel = isSeller ? 'I handed off the item' : 'I received the item';
+  const problemActionLabel = 'There was a problem';
+  const hasSubmittedReview = isSeller ? Boolean(transaction?.sellerReviewedAt) : Boolean(transaction?.buyerReviewedAt);
 
   return (
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
@@ -221,15 +265,15 @@ export function TransactPage() {
                 Back to offers
               </Button>
             </Link>
-            {offer?.conversationId ? (
-              <Link to={`/messages/${offer.conversationId}`} className="no-underline">
+            {transaction?.conversationId ? (
+              <Link to={`/messages/${transaction.conversationId}`} className="no-underline">
                 <Button size="sm" leadingIcon="messages">
-                  Message {offer?.sellerId === user?.id ? 'buyer' : 'seller'}
+                  Message {transaction?.sellerId === user?.id ? 'buyer' : 'seller'}
                 </Button>
               </Link>
             ) : null}
-            {offer?.listingId ? (
-              <Link to={`/items/${offer.listingId}`} className="no-underline">
+            {transaction?.listingId ? (
+              <Link to={`/items/${transaction.listingId}`} className="no-underline">
                 <Button variant="secondary" size="sm" leadingIcon="listing">View listing</Button>
               </Link>
             ) : null}
@@ -246,101 +290,119 @@ export function TransactPage() {
 
       {isLoading ? <TransactSkeleton /> : null}
 
-      {!isLoading && !error && offer ? (
+      {!isLoading && !error && transaction ? (
         <div className="space-y-6">
-          {/* Listing & status header */}
           <Card className="space-y-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-semibold text-white">{offer.listingTitle}</h2>
-                  <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
-                  <Badge variant={getStatusBadgeVariant(offer.listingStatus)}>{offer.listingStatusLabel}</Badge>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex flex-1 flex-col gap-5">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-3xl font-semibold text-white">{transaction.listingTitle}</h2>
+                    <Badge variant={getStatusBadgeVariant(transaction.status)}>{transaction.status}</Badge>
+                    <Badge variant={getStatusBadgeVariant(transaction.listingStatus)}>{transaction.listingStatusLabel}</Badge>
+                  </div>
+                  <p className="max-w-2xl text-sm leading-7 text-app-soft">
+                    {getStatusMessage(transaction.status)}
+                  </p>
                 </div>
-                <p className="text-sm leading-7 text-app-soft">
-                  {getStatusMessage(offer.status)}
-                </p>
+
+                <TransactionStateBanner status={transaction.status} />
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <OrderMetaCard icon="payment" label="Accepted price" value={transaction.offeredPriceLabel} emphasis />
+                  <OrderMetaCard icon="payment" label="Payment" value={transaction.paymentMethodLabel} />
+                  <OrderMetaCard icon="time" label="Scheduled meetup" value={transaction.meetupScheduleLabel} />
+                  <OrderMetaCard icon="location" label="Meetup hub" value={transaction.meetupLocation} />
+                </div>
+
+                {transaction.pickupSpecifics ? (
+                  <Card variant="subtle" className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                      <AppIcon icon="locationDetails" className="text-[0.95em]" />
+                      <span>Pickup specifics</span>
+                    </div>
+                    <p className="text-sm leading-7 text-white">{transaction.pickupSpecifics}</p>
+                  </Card>
+                ) : null}
               </div>
 
-              <Link
-                to={`/items/${offer.listingId}`}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-app-soft no-underline transition hover:text-white"
-              >
-                <AppIcon icon="open" className="text-[0.95em]" />
-                <span>View listing</span>
-              </Link>
-            </div>
-          </Card>
-
-          {/* Order details — item, meetup, summary, and counterpart combined */}
-          <Card className="space-y-5">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
-              <AppIcon icon="listing" className="text-[0.95em]" />
-              <span>Order Details</span>
-            </div>
-
-            {/* Item photo — centered at top, uncropped */}
-            {offer.listingImageUrl ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="overflow-hidden rounded-2xl bg-app-surface/60 w-48 h-48 flex items-center justify-center">
-                  <img
-                    src={offer.listingImageUrl}
-                    alt={offer.listingTitle}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </div>
-
-                {/* Seller row */}
-                <div className="w-full max-w-sm space-y-2">
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Link to={`/profile/${offer.sellerId}`} className="no-underline flex-shrink-0">
-                        <Avatar src={offer.sellerAvatarUrl} name={offer.sellerName} size="sm" />
+              <div className="w-full max-w-md space-y-4">
+                <Card variant="subtle" className="space-y-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                    <AppIcon icon="seller" className="text-[0.95em]" />
+                    <span>{counterpartRoleLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {counterpartId ? (
+                      <Link to={`/profile/${counterpartId}`} className="no-underline">
+                        <Avatar src={counterpartAvatarUrl} name={counterpartName} size="md" />
                       </Link>
-                      <p className="text-sm text-app-soft truncate">
-                        <Link to={`/profile/${offer.sellerId}`} className="font-semibold text-white no-underline hover:underline">
-                          {offer.sellerName}
-                        </Link>
-                        {'\u2019s '}{offer.listingTitle}
+                    ) : (
+                      <Avatar src={counterpartAvatarUrl} name={counterpartName} size="md" />
+                    )}
+                    <div className="space-y-1">
+                      <p className="text-lg font-semibold text-white">{counterpartName || counterpartRoleLabel}</p>
+                      <p className="text-sm text-app-soft">
+                        {counterpartRoleLabel} for this handoff
                       </p>
                     </div>
-                    <span className="w-28 flex items-center gap-1.5 text-sm font-bold text-white flex-shrink-0">
-                      <AppIcon icon="payment" className="text-gatorOrange text-[1.25rem]" />
-                      {offer.offeredPriceLabel}
-                    </span>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    {transaction.conversationId ? (
+                      <Link to={`/messages/${transaction.conversationId}`} className="no-underline">
+                        <Button variant="ghost" size="sm" leadingIcon="messages">
+                          Open conversation
+                        </Button>
+                      </Link>
+                    ) : null}
+                    {counterpartId ? (
+                      <Link to={`/profile/${counterpartId}`} className="no-underline">
+                        <Button variant="ghost" size="sm" leadingIcon="seller">
+                          View {counterpartRoleLabel.toLowerCase()} profile
+                        </Button>
+                      </Link>
+                    ) : null}
+                  </div>
+                </Card>
 
-                  {/* Location & time row */}
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-3 text-xs text-app-muted">
-                    <span className="flex items-center gap-2.5">
-                      <span className="w-10 flex-shrink-0 flex items-center justify-center">
-                        <AppIcon icon="location" className="text-gatorOrange text-[1.25rem]" />
-                      </span>
-                      {offer.meetupLocation}
-                    </span>
-                    <span className="w-28 flex items-center gap-1.5 flex-shrink-0">
-                      <AppIcon icon="time" className="text-gatorOrange text-[1.25rem]" />
-                      {offer.meetupWindow}
-                    </span>
+                {transaction.listingImageUrl ? (
+                  <div className="flex justify-center">
+                    <div className="flex h-52 w-52 items-center justify-center overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-surface/60 p-4">
+                      <img
+                        src={transaction.listingImageUrl}
+                        alt={transaction.listingTitle}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
                   </div>
+                ) : null}
+
+                <div className="flex flex-col gap-3">
+                  <Button
+                    leadingIcon="verified"
+                    onClick={() => handleReviewRoute('confirmed')}
+                    className="bg-gatorOrange text-white hover:bg-gatorOrange/90"
+                    disabled={hasSubmittedReview}
+                  >
+                    {primaryActionLabel}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className="bg-red-600 hover:bg-red-500"
+                    onClick={() => handleReviewRoute('problemReported')}
+                    disabled={hasSubmittedReview}
+                  >
+                    {problemActionLabel}
+                  </Button>
+                  {hasSubmittedReview ? (
+                    <p className="text-sm leading-7 text-app-muted">
+                      You already submitted your review for this handoff, so these actions are now locked.
+                    </p>
+                  ) : null}
                 </div>
               </div>
-            ) : null}
-
-            {/* Meetup map */}
-            {offer.meetupHubId ? (
-              <div className="flex justify-center">
-                <ReadOnlyPickupMap selectedHubId={offer.meetupHubId} />
-              </div>
-            ) : null}
-
-            {/* Exchange actions */}
-            <div className="flex justify-center gap-3 pt-1">
-              <Button leadingIcon="verified">Confirm Exchange</Button>
-              <Button variant="danger" className="bg-red-600 hover:bg-red-500">Cancel Exchange</Button>
             </div>
           </Card>
-
 
         </div>
       ) : null}
