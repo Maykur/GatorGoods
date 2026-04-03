@@ -124,8 +124,8 @@ export function ItemPage() {
   const [error, setError] = useState('');
 
   const itemView = useMemo(
-    () => (item ? toListingDetailViewModel(item, user?.id || null) : null),
-    [item, user?.id]
+    () => (item ? toListingDetailViewModel(item, user?.id || null, sellerProfile) : null),
+    [item, sellerProfile, user?.id]
   );
   const isOwner = Boolean(itemView?.isOwner);
   const trustMetrics = useMemo(() => toTrustMetricsViewModel(sellerProfile), [sellerProfile]);
