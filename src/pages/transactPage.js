@@ -12,6 +12,9 @@ import {
   PageHeader,
   Skeleton,
 } from '../components/ui';
+import { APPROVED_PICKUP_HUBS } from '../lib/pickupHubs';
+import { cn } from '../lib/ui';
+import campusPickupMap from '../assets/uf_map_ui_slate_blue.png';
 
 const API_BASE_URL = 'http://localhost:5000';
 
@@ -95,6 +98,55 @@ function getStatusMessage(status) {
     default:
       return 'Check your messages for the latest updates on this order.';
   }
+}
+
+function ReadOnlyPickupMap({ selectedHubId }) {
+  return (
+    <div className="relative aspect-[16/10] overflow-hidden rounded-[1.75rem] border border-white/10 bg-app-surface/80">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(145deg,rgba(13,38,76,0.96),rgba(8,20,43,0.92))]"
+      >
+        <img
+          src={campusPickupMap}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-70"
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(250,112,10,0.18),_transparent_30%),linear-gradient(180deg,rgba(8,20,43,0.08),rgba(8,20,43,0.24))]" />
+        <div className="absolute left-5 top-5 rounded-full border border-white/10 bg-black/15 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-app-soft">
+          Campus Map
+        </div>
+      </div>
+      <div className="absolute inset-0 z-10">
+        {APPROVED_PICKUP_HUBS.map((hub) => {
+          const isSelected = hub.id === selectedHubId;
+          return (
+            <div
+              key={hub.id}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${hub.mapX}%`, top: `${hub.mapY}%`, zIndex: isSelected ? 20 : 10 }}
+            >
+              <span
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-full border shadow-lg transition-all',
+                  isSelected
+                    ? 'scale-110 border-gatorOrange bg-gatorOrange text-white shadow-[0_10px_24px_rgba(250,112,10,0.34)]'
+                    : 'border-white/10 bg-app-surface/80 text-app-muted opacity-40'
+                )}
+              >
+                <AppIcon icon="location" className="text-sm" />
+              </span>
+              {isSelected ? (
+                <span className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-gatorOrange/35 bg-gatorOrange/16 px-3 py-1 text-xs font-medium text-white shadow-md">
+                  {hub.shortLabel}
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function TransactPage() {
@@ -211,6 +263,30 @@ export function TransactPage() {
               </Link>
             </div>
           </Card>
+
+          {/* Item photo & meetup map */}
+          {(offer.listingImageUrl || offer.meetupHubId) ? (
+            <Card className="space-y-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                <AppIcon icon="listing" className="text-[0.95em]" />
+                <span>Item &amp; Meetup Location</span>
+              </div>
+              <div className={cn('grid gap-5', offer.listingImageUrl && offer.meetupHubId ? 'sm:grid-cols-2' : '')}>
+                {offer.listingImageUrl ? (
+                  <div className="overflow-hidden rounded-[1.5rem] border border-white/10">
+                    <img
+                      src={offer.listingImageUrl}
+                      alt={offer.listingTitle}
+                      className="aspect-[4/3] h-full w-full object-cover"
+                    />
+                  </div>
+                ) : null}
+                {offer.meetupHubId ? (
+                  <ReadOnlyPickupMap selectedHubId={offer.meetupHubId} />
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
 
           {/* Order details */}
           <Card className="space-y-5">

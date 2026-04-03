@@ -265,6 +265,7 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     meetupWindow: normalizeText(rawOffer?.meetupWindow, 'Meetup details pending'),
     paymentMethod: rawOffer?.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(rawOffer?.paymentMethod),
+    listingImageUrl: listingCard?.imageUrl || '',
     message: normalizeText(rawOffer?.message, ''),
     status: normalizeText(rawOffer?.status, 'pending'),
     conversationId: rawOffer?.conversationId || '',
