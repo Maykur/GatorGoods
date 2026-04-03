@@ -176,9 +176,14 @@ export function HomePage({ forceSignedOutView = false }) {
             actions={
               <div className="flex flex-wrap gap-3">
                 {isLoaded && isSignedIn ? (
-                  <Link to="/create" className="no-underline">
-                    <Button leadingIcon="createListing">Post a listing</Button>
-                  </Link>
+                  <>
+                    <Link to="/create" className="no-underline">
+                      <Button leadingIcon="createListing">Post a listing</Button>
+                    </Link>
+                    <Link to="/listings" className="no-underline">
+                      <Button variant="secondary" leadingIcon="browse">Browse</Button>
+                    </Link>
+                  </>
                 ) : (
                   <>
                     <Link to="/signup" className="no-underline">
@@ -199,19 +204,19 @@ export function HomePage({ forceSignedOutView = false }) {
             icon="verified"
             eyebrow="Trusted Network"
             title="Made for campus pickup"
-            description="Buy and sell with other UF students and keep pickup plans easy to sort out."
+            description="Buy and sell with verified UF students and coordinate pickup with confidence."
           />
           <FeatureCard
             icon="search"
             eyebrow="Cleaner browsing"
             title="Find the right listing faster"
-            description="Search and category filters help you narrow things down without digging through clutter."
+            description="Powerful search and filters help you quickly narrow down listings without scrolling through clutter."
           />
           <FeatureCard
             icon="messages"
             eyebrow="Messaging first"
             title="Keep everything in one place"
-            description="Your listing details, seller info, and messages stay together instead of getting lost in group chats."
+            description="Listings, seller details, and messages stay connected so nothing gets lost while coordinating multiple items."
           />
         </div>
       </section>

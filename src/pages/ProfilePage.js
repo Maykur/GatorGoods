@@ -38,6 +38,29 @@ function getEditableProfileValues(profileHeader) {
   };
 }
 
+function readImageFile(file, { maxSizeMb = 5 } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('Choose an image to upload.'));
+      return;
+    }
+
+    if (file.size > maxSizeMb * 1024 * 1024) {
+      reject(new Error(`Choose an image under ${maxSizeMb} MB.`));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Unable to read that image. Try a different file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function normalizeProfileImageValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function ProfileSkeleton() {
   return (
     <section className="w-full space-y-8">
@@ -311,6 +334,48 @@ export function ProfilePage({ ownerView = false }) {
     setProfileFormError('');
   };
 
+  const handleProfilePictureUpload = async (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const nextProfilePicture = await readImageFile(file);
+      setProfileForm((currentForm) => ({
+        ...currentForm,
+        profilePicture: nextProfilePicture,
+      }));
+      setProfileFormError('');
+    } catch (uploadError) {
+      setProfileFormError(uploadError.message || 'Unable to use that profile image.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleBannerUpload = async (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const nextBanner = await readImageFile(file);
+      setProfileForm((currentForm) => ({
+        ...currentForm,
+        profileBanner: nextBanner,
+      }));
+      setProfileFormError('');
+    } catch (uploadError) {
+      setProfileFormError(uploadError.message || 'Unable to use that banner image.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   const handleProfileSave = async (event) => {
     event.preventDefault();
 
@@ -325,12 +390,30 @@ export function ProfilePage({ ownerView = false }) {
 
     try {
       setIsSavingProfile(true);
+      const nextProfilePayload = {
+        ...profileForm,
+      };
+      const currentProfilePicture = normalizeProfileImageValue(profileHeader?.avatarUrl);
+      const nextProfilePicture = normalizeProfileImageValue(profileForm.profilePicture);
+
+      if (ownerView && user?.setProfileImage && nextProfilePicture !== currentProfilePicture) {
+        const imageResource = await user.setProfileImage({
+          file: nextProfilePicture || null,
+        });
+
+        if (typeof user.reload === 'function') {
+          await user.reload();
+        }
+
+        nextProfilePayload.profilePicture = imageResource?.publicUrl || '';
+      }
+
       const response = await fetch(`${API_BASE_URL}/user/${profileId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(profileForm),
+        body: JSON.stringify(nextProfilePayload),
       });
       const updatedProfile = await readJson(response, 'Unable to save profile changes');
 
@@ -365,10 +448,10 @@ export function ProfilePage({ ownerView = false }) {
       <PageHeader
         eyebrow={ownerView ? 'Your Profile' : 'Seller Profile'}
         icon={ownerView ? 'profile' : 'seller'}
-        title={ownerView ? 'Manage your profile' : profileHeader?.displayName || 'Seller profile'}
+        title={ownerView ? 'Your profile' : profileHeader?.displayName || 'Seller profile'}
         description={
           ownerView
-            ? 'Update your photo, bio, links, and listings from one place.'
+            ? 'Update your display name, profile photo, banner, bio, and listings here.'
             : 'See this seller\'s bio, links, and ratings before you decide to buy.'
         }
         actions={
@@ -394,10 +477,10 @@ export function ProfilePage({ ownerView = false }) {
               className="min-h-[11rem] border-b border-white/10 bg-gradient-to-r from-brand-blue/25 via-app-surface to-gatorOrange/20"
               style={profileHeader.bannerUrl ? { backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.35), rgba(2, 6, 23, 0.7)), url(${profileHeader.bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
             />
-            <div className="space-y-6 p-5 sm:p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-end">
-                  <div className="-mt-16 sm:-mt-20">
+            <div className="space-y-4 p-5 pb-3 sm:p-6 sm:pb-3">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                  <div className="self-start">
                     <Avatar
                       src={profileHeader.avatarUrl}
                       alt={profileHeader.displayName}
@@ -419,7 +502,7 @@ export function ProfilePage({ ownerView = false }) {
                     <p className="max-w-2xl text-sm leading-7 text-app-soft">
                       {profileHeader.bio ||
                         (ownerView
-                          ? 'Add a short bio so people know what you usually sell.'
+                          ? 'Add a short description about yourself.'
                           : 'This seller has not added a bio yet.')}
                     </p>
 
@@ -427,44 +510,57 @@ export function ProfilePage({ ownerView = false }) {
                   </div>
                 </div>
 
-                <div className="grid items-stretch gap-3 sm:grid-cols-3 lg:gap-0">
-                  <div className="h-full lg:relative lg:z-[1]">
-                    <ProfileStatCard icon="listing" label="Active listings" value={profileHeader.listingCount} />
+                <div className="flex flex-col gap-3">
+                  <div className="grid items-stretch gap-3 sm:grid-cols-3 lg:gap-0">
+                    <div className="h-full lg:relative lg:z-[1]">
+                      <ProfileStatCard icon="listing" label="Active listings" value={profileHeader.listingCount} />
+                    </div>
+                    <div className="h-full lg:relative lg:z-[2] lg:-ml-2">
+                      <ProfileStatCard icon="rating" label="Overall rating" value={trustMetrics.overallRatingLabel} />
+                    </div>
+                    <div className="h-full lg:relative lg:z-[3] lg:-ml-2">
+                      <ProfileStatCard
+                        icon={ownerView ? 'favorite' : 'verified'}
+                        label={ownerView ? 'Favorites' : 'Ratings logged'}
+                        value={ownerView ? profileHeader.favoritesCount : trustMetrics.totalRatings}
+                      />
+                    </div>
                   </div>
-                  <div className="h-full lg:relative lg:z-[2] lg:-ml-2">
-                    <ProfileStatCard icon="rating" label="Overall rating" value={trustMetrics.overallRatingLabel} />
-                  </div>
-                  <div className="h-full lg:relative lg:z-[3] lg:-ml-2">
-                    <ProfileStatCard
-                      icon={ownerView ? 'favorite' : 'verified'}
-                      label={ownerView ? 'Favorites' : 'Ratings logged'}
-                      value={ownerView ? profileHeader.favoritesCount : trustMetrics.totalRatings}
-                    />
-                  </div>
+                  {ownerView && !overlay ? (
+                    <div className="-mt-1 flex justify-start lg:justify-end">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="min-h-9 px-3"
+                        onClick={() => setOverlay(true)}
+                        aria-label="Edit profile"
+                        title="Edit profile"
+                      >
+                        <AppIcon icon="edit" className="text-sm" />
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-			  {ownerView && !overlay ? (
-				<Button onClick={() => setOverlay(true)}>
-					Edit Profile
-				</Button>
-			  ): null}
             </div>
           </Card>
 
 		{ownerView && overlay ? (
             <Card className="space-y-6">
-				<Button onClick={() => setOverlay(false)}>
-					Exit
-				</Button>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-                  <AppIcon icon="profile" className="text-sm" />
-                  <span>Edit your public profile</span>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                    <AppIcon icon="edit" className="text-sm" />
+                    <span>Edit your profile</span>
+                  </div>
+                  <h2 className="text-2xl font-semibold text-white">Refresh what people see before they message you</h2>
+                  <p className="text-sm leading-7 text-app-soft">
+                    Update your display name, profile photo, banner, bio, and public links here.
+                  </p>
                 </div>
-                <h2 className="text-2xl font-semibold text-white">Update what people see on your profile</h2>
-                <p className="text-sm leading-7 text-app-soft">
-                  Add a recognizable photo, a short bio, and any public links you want to share.
-                </p>
+                <Button variant="ghost" onClick={() => setOverlay(false)}>
+                  Close
+                </Button>
               </div>
 
               {profileFormError ? (
@@ -472,40 +568,134 @@ export function ProfilePage({ ownerView = false }) {
               ) : null}
 
               <form className="space-y-4" onSubmit={handleProfileSave}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Input
-                    id="profile-name"
-                    label="Display name"
-                    leadingIcon="profile"
-                    value={profileForm.profileName}
-                    onChange={handleProfileFieldChange('profileName')}
-                    required
-                  />
-                  <Input
-                    id="profile-picture"
-                    label="Profile image URL"
-                    leadingIcon="seller"
-                    value={profileForm.profilePicture}
-                    onChange={handleProfileFieldChange('profilePicture')}
-                    placeholder="https://..."
-                  />
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                  <Card variant="subtle" className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                        <AppIcon icon="profile" className="text-sm" />
+                        <span>Profile identity</span>
+                      </div>
+                      <p className="text-sm leading-7 text-app-soft">
+                        Change the name and photo shown around the marketplace. The profile button in the top right can also be used for account-level updates.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                      <Avatar
+                        src={profileForm.profilePicture}
+                        alt={profileForm.profileName || 'Profile preview'}
+                        name={profileForm.profileName || 'Profile preview'}
+                        size="lg"
+                      />
+                      <div className="flex-1 space-y-4">
+                        <Input
+                          id="profile-name"
+                          label="Display name"
+                          leadingIcon="profile"
+                          value={profileForm.profileName}
+                          onChange={handleProfileFieldChange('profileName')}
+                          required
+                        />
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                          <label
+                            htmlFor="profile-picture-upload"
+                            className="focus-ring inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-white/10 bg-app-surface/70 px-5 text-sm font-semibold tracking-tight text-app-text transition-all duration-200 hover:border-white/20 hover:bg-app-elevated/90"
+                          >
+                            <AppIcon icon="uploadPhoto" className="text-[0.95em]" />
+                            <span>Upload profile photo</span>
+                            <input
+                              id="profile-picture-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleProfilePictureUpload}
+                              className="sr-only"
+                            />
+                          </label>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setProfileForm((currentForm) => ({
+                                ...currentForm,
+                                profilePicture: '',
+                              }));
+                              setProfileFormError('');
+                            }}
+                          >
+                            Remove photo
+                          </Button>
+                        </div>
+                        <Input
+                          id="profile-picture"
+                          label="Profile photo URL"
+                          leadingIcon="seller"
+                          value={profileForm.profilePicture}
+                          onChange={handleProfileFieldChange('profilePicture')}
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card variant="subtle" className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                        <AppIcon icon="uploadPhoto" className="text-sm" />
+                        <span>Banner image</span>
+                      </div>
+                      <p className="text-sm leading-7 text-app-soft">
+                        Upload a banner image or paste an image URL. Wide images work best here.
+                      </p>
+                    </div>
+                    <div
+                      className="min-h-[9rem] rounded-[1.5rem] border border-white/10 bg-gradient-to-r from-brand-blue/25 via-app-surface to-gatorOrange/20"
+                      style={profileForm.profileBanner ? { backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.28), rgba(2, 6, 23, 0.6)), url(${profileForm.profileBanner})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+                    />
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <label
+                        htmlFor="profile-banner-upload"
+                        className="focus-ring inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-white/10 bg-app-surface/70 px-5 text-sm font-semibold tracking-tight text-app-text transition-all duration-200 hover:border-white/20 hover:bg-app-elevated/90"
+                      >
+                        <AppIcon icon="uploadPhoto" className="text-[0.95em]" />
+                        <span>Upload banner image</span>
+                        <input
+                          id="profile-banner-upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBannerUpload}
+                          className="sr-only"
+                        />
+                      </label>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setProfileForm((currentForm) => ({
+                            ...currentForm,
+                            profileBanner: '',
+                          }));
+                          setProfileFormError('');
+                        }}
+                      >
+                        Remove banner
+                      </Button>
+                    </div>
+                    <Input
+                      id="profile-banner"
+                      label="Banner image URL"
+                      leadingIcon="open"
+                      value={profileForm.profileBanner}
+                      onChange={handleProfileFieldChange('profileBanner')}
+                      placeholder="https://..."
+                    />
+                  </Card>
                 </div>
-                <Input
-                  id="profile-banner"
-                  label="Banner image URL"
-                  leadingIcon="open"
-                  value={profileForm.profileBanner}
-                  onChange={handleProfileFieldChange('profileBanner')}
-                  placeholder="https://..."
-                />
                 <Textarea
                   id="profile-bio"
-                  label="Short bio"
+                  label="Profile bio"
                   leadingIcon="message"
                   value={profileForm.profileBio}
                   onChange={handleProfileFieldChange('profileBio')}
-                  rows={4}
-                  placeholder="Selling a few campus essentials and always meeting in public spots."
+                  rows={5}
+                  placeholder="Add a short description about yourself."
                 />
                 <div className="grid gap-4 md:grid-cols-2">
                   <Input
@@ -549,7 +739,7 @@ export function ProfilePage({ ownerView = false }) {
                     <span>Active listings</span>
                   </div>
                   <p className="text-sm leading-7 text-app-soft">
-                    Manage your current listings.
+                    Manage what you currently have posted.
                   </p>
                 </div>
                 <Link to="/favorites" className="no-underline">
