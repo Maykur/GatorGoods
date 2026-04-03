@@ -50,6 +50,14 @@ export async function getOffers({participantId, role}) {
   );
 }
 
+export async function getIndividualOffer(offerId) {
+  return fetchFromApi(
+    `${API_BASE_URL}/api/offers/${encodeURIComponent(offerId)}`,
+    undefined,
+    'Failed to load offer'
+  );
+}
+
 export async function updateOfferStatus(offerId, payload) {
   return fetchFromApi(
     `${API_BASE_URL}/api/offers/${encodeURIComponent(offerId)}`,

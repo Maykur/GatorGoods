@@ -14,6 +14,7 @@ import { ChatThreadPage } from './pages/ChatThreadPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ItemPage } from './pages/ItemPage';
+import {TransactPage} from './pages/transactPage'
 
 function ProtectedRoute({ children }) {
   return (
@@ -79,6 +80,15 @@ function App() {
                 />
                 <Route path="/profile/:id" element={<ProfilePage />} />
                 <Route path="/items/:id" element={<ItemPage />} />
+                <Route
+                  path="transact/:orderId"
+                  element={
+                    <ProtectedRoute>
+                      <TransactPage />
+                    </ProtectedRoute>
+                  }
+                
+                />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>

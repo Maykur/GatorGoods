@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { getOffers, updateOfferStatus } from '../lib/offersApi';
+import { getOffers, updateOfferStatus, getIndividualOffer} from '../lib/offersApi';
 import { toOfferCardViewModel } from '../lib/viewModels';
 import {
   AppIcon,
@@ -149,6 +149,12 @@ export function OffersPage() {
           participantId: user.id,
           role: mode,
         });
+        
+        // REMOVE THIS
+        // const individualOffer = await(getIndividualOffer(rawOffers[0]['_id']))
+        // {console.log(rawOffers)}
+        // {console.log(individualOffer)}
+
 
         const offerViews = await Promise.all(
           rawOffers.map(async (offer) => {

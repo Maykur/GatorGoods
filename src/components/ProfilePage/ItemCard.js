@@ -94,6 +94,10 @@ function ItemCard({
               <Button variant="secondary" leadingIcon="open">View details</Button>
             </Link>
 
+            <Link to={`/items/${item.id}`} className="no-underline">
+              <Button variant="secondary" leadingIcon="offers">Transact View</Button>
+            </Link>
+
             {isOwner ? (
               <Button
                 variant="danger"
