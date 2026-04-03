@@ -9,6 +9,7 @@ const DEFAULT_LOCATION = 'Campus pickup';
 const DEFAULT_SELLER_NAME = 'GatorGoods Seller';
 const DEFAULT_LISTING_TITLE = 'Untitled listing';
 const DEFAULT_LISTING_STATUS = 'active';
+const API_BASE_URL = 'http://localhost:5000';
 const MAX_CONVERSATION_ITEM_TITLE_LENGTH = 25;
 const MAX_CONVERSATION_PREVIEW_LENGTH = 75;
 const LISTING_STATUS_LABELS = {
@@ -36,6 +37,28 @@ export const LISTING_CATEGORIES = [
 
 function normalizeText(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeImageUrl(value) {
+  const normalizedValue = normalizeText(value);
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  if (
+    normalizedValue.startsWith('http://') ||
+    normalizedValue.startsWith('https://') ||
+    normalizedValue.startsWith('data:')
+  ) {
+    return normalizedValue;
+  }
+
+  if (normalizedValue.startsWith('/')) {
+    return `${API_BASE_URL}${normalizedValue}`;
+  }
+
+  return normalizedValue;
 }
 
 function getFirstName(value) {
@@ -181,7 +204,7 @@ export function toListingCardViewModel(raw) {
     location: publicPickup.location,
     pickupHubId: publicPickup.pickupHubId,
     pickupArea: publicPickup.pickupArea,
-    imageUrl: normalizeText(raw?.itemPictureUrl, normalizeText(raw?.itemPicture, '')),
+    imageUrl: normalizeImageUrl(normalizeText(raw?.itemPictureUrl, normalizeText(raw?.itemPicture, ''))),
     category: normalizeCategory(raw?.itemCat),
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
     status: normalizeListingStatus(raw?.status),

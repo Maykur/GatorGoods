@@ -397,6 +397,12 @@ export function ChatThreadPage() {
   const messageRefs = useRef(new Map());
   const pendingScrollBehaviorRef = useRef(null);
   const composerContextClearedRef = useRef(false);
+  const otherParticipantProfileRef = useRef({
+    id: '',
+    name: 'Conversation',
+    avatarUrl: '',
+    loaded: false,
+  });
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [otherParticipantId, setOtherParticipantId] = useState('');
@@ -587,9 +593,31 @@ export function ChatThreadPage() {
         const otherId = threadData.conversation.participantIds.find(
           (participantId) => participantId !== user.id
         );
-        const profileData = await (
-          otherId ? fetchOptionalJson(`${API_BASE_URL}/profile/${otherId}`) : Promise.resolve(null)
-        );
+        let otherParticipantProfile = {
+          id: otherId || '',
+          name: otherId || 'Conversation',
+          avatarUrl: '',
+          loaded: false,
+        };
+
+        if (otherId) {
+          const cachedProfile = otherParticipantProfileRef.current;
+
+          if (cachedProfile.id === otherId && cachedProfile.loaded) {
+            otherParticipantProfile = cachedProfile;
+          } else {
+            const profileData = await fetchOptionalJson(`${API_BASE_URL}/profile/${otherId}`);
+            otherParticipantProfile = {
+              id: otherId,
+              name: profileData?.profile?.profileName || otherId,
+              avatarUrl: profileData?.profile?.profilePicture || '',
+              loaded: Boolean(profileData?.profile),
+            };
+            otherParticipantProfileRef.current = otherParticipantProfile;
+          }
+        } else {
+          otherParticipantProfileRef.current = otherParticipantProfile;
+        }
 
         if (!isMounted) {
           return;
@@ -639,8 +667,8 @@ export function ChatThreadPage() {
           return '';
         });
         setOtherParticipantId(otherId || '');
-        setOtherParticipantName(profileData?.profile?.profileName || otherId || 'Conversation');
-        setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
+        setOtherParticipantName(otherParticipantProfile.name);
+        setOtherParticipantAvatarUrl(otherParticipantProfile.avatarUrl);
         setPageError('');
         pendingScrollBehaviorRef.current = shouldAutoScroll
           ? (showLoadingState ? 'auto' : 'smooth')

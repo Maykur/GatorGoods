@@ -329,7 +329,6 @@ export function HomePage({ forceSignedOutView = false }) {
             {meta.totalItems} {meta.totalItems === 1 ? 'listing' : 'listings'}
             {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}
             {selectedPickupLocation !== 'All' ? `${selectedCategory !== 'All' ? ' near ' : ' in '}${selectedPickupLocation}` : ''}.
-            .
           </p>
           <div className="flex items-center gap-3">
             {isRefreshing ? (

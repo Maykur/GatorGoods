@@ -111,7 +111,7 @@ test('GET /items supports paginated query mode', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.items.length, 1);
   assert.equal(response.body.items[0].itemName, 'Bike Helmet');
-  assert.match(response.body.items[0].itemPictureUrl, /\/items\/.*\/image$/);
+  assert.equal(response.body.items[0].itemPictureUrl, `/items/${response.body.items[0]._id}/image`);
   assert.equal(response.body.items[0].itemPicture, undefined);
   assert.equal(response.body.items[0].itemDescription, undefined);
   assert.equal(response.body.items[0].itemDetails, undefined);
@@ -750,6 +750,42 @@ test('GET /api/conversations returns paginated preview context with participant 
   assert.equal(response.body.conversations[0].lastMessageSenderClerkUserId, 'buyer_1');
 });
 
+test('GET /api/conversations clamps the requested page to the last available page', async () => {
+  const { item, profile } = await seedProfileAndItem();
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id],
+    activeListingId: item._id,
+    lastMessageText: 'Still interested in the lamp.',
+    lastMessageAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: 'buyer_1',
+    body: 'Still interested in the lamp.',
+    attachedListingId: item._id,
+    attachedListingTitle: item.itemName,
+    attachedListingImageUrl: item.itemPicture,
+    createdAt: new Date('2026-04-02T15:00:00.000Z'),
+    updatedAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  const response = await request(app)
+    .get('/api/conversations')
+    .query({
+      participantId: 'buyer_1',
+      page: 3,
+      pageSize: 5,
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.page, 1);
+  assert.equal(response.body.totalPages, 1);
+  assert.equal(response.body.conversations.length, 1);
+  assert.equal(response.body.conversations[0]._id.toString(), conversation._id.toString());
+});
+
 test('GET /api/conversations derives preview items without eagerly repairing legacy threads', async () => {
   const {item, profile} = await seedProfileAndItem();
   const conversation = await Conversation.create({
@@ -1076,7 +1112,15 @@ test('GET /api/conversations/:id/messages makes accepted and rejected offer titl
   const acceptedBuyerMessage = buyerViewResponse.body.messages.find(
     (message) => message.offerContext?.eventType === 'accepted'
   );
+  const sentSellerMessage = sellerViewResponse.body.messages.find(
+    (message) => message.offerContext?.eventType === 'sent'
+  );
+  const sentBuyerMessage = buyerViewResponse.body.messages.find(
+    (message) => message.offerContext?.eventType === 'sent'
+  );
 
+  assert.equal(sentSellerMessage.offerContext.title, 'Jasmine sent an offer');
+  assert.equal(sentBuyerMessage.offerContext.title, 'You sent an offer');
   assert.equal(acceptedSellerMessage.offerContext.title, "You accepted Jasmine's offer");
   assert.equal(acceptedBuyerMessage.offerContext.title, 'Seller accepted your offer');
 

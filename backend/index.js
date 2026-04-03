@@ -509,17 +509,17 @@ const ITEM_FEED_SELECT =
   'itemName itemCost itemCondition itemLocation pickupHubId originalPickupHubId pickupArea ' +
   'originalPickupArea originalItemLocation userPublishingName itemCat status date';
 
-function buildItemImageUrl(req, itemId) {
+function buildItemImageUrl(itemId) {
   const normalizedItemId = toIdString(itemId);
 
   if (!normalizedItemId) {
     return '';
   }
 
-  return `${req.protocol}://${req.get('host')}/items/${normalizedItemId}/image`;
+  return `/items/${normalizedItemId}/image`;
 }
 
-function buildItemFeedSummary(rawItem, req) {
+function buildItemFeedSummary(rawItem) {
   const item = rawItem?.toObject ? rawItem.toObject() : rawItem;
   const itemId = toIdString(item?._id || item?.id);
 
@@ -538,7 +538,7 @@ function buildItemFeedSummary(rawItem, req) {
     itemCat: item?.itemCat || '',
     status: item?.status || 'active',
     date: item?.date || null,
-    itemPictureUrl: buildItemImageUrl(req, itemId),
+    itemPictureUrl: buildItemImageUrl(itemId),
   };
 }
 
@@ -767,7 +767,7 @@ async function createOfferSystemMessage({
   return Message.create({
     conversationId,
     senderClerkUserId: 'system',
-    body: `${getOfferEventTitle(eventType, offerSnapshot)}.`,
+    body: `${getOfferEventBody(eventType, offerSnapshot)}.`,
     attachedListingId: attachedListingFields.attachedListingId,
     attachedListingTitle: attachedListingFields.attachedListingTitle,
     attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
@@ -1184,12 +1184,13 @@ function getOfferEventTitle(eventType, offerSnapshot = {}, viewerParticipantId =
   if (eventType === 'sent') {
     const normalizedViewerId = toIdString(viewerParticipantId);
     const normalizedBuyerId = toIdString(offerSnapshot.buyerClerkUserId);
+    const buyerName = getFirstName(offerSnapshot.buyerDisplayName) || 'Buyer';
 
     if (normalizedViewerId && normalizedViewerId === normalizedBuyerId) {
       return 'You sent an offer';
     }
 
-    return `${offerSnapshot.buyerDisplayName || 'Buyer'} sent an offer`;
+    return `${buyerName} sent an offer`;
   }
 
   if (eventType === 'accepted') {
@@ -1219,6 +1220,14 @@ function getOfferEventTitle(eventType, offerSnapshot = {}, viewerParticipantId =
   }
 
   return 'Offer sent';
+}
+
+function getOfferEventBody(eventType, offerSnapshot = {}) {
+  if (eventType === 'sent') {
+    return `${offerSnapshot.buyerDisplayName || 'Buyer'} sent an offer`;
+  }
+
+  return getOfferEventTitle(eventType, offerSnapshot);
 }
 
 function resolveBuyerDisplayName(offerSnapshot = {}, participantNamesById = new Map()) {
@@ -1758,7 +1767,7 @@ app.get('/', (req, resp) => {
 app.get('/api/conversations', async (req, resp) => {
   try {
     const participantId = req.query.participantId?.trim();
-    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const requestedPage = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(50, Math.max(1, Number.parseInt(req.query.pageSize, 10) || 5));
 
     if (!participantId) {
@@ -1769,6 +1778,8 @@ app.get('/api/conversations', async (req, resp) => {
       participantIds: participantId,
     };
     const totalCount = await Conversation.countDocuments(conversationQuery);
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const page = Math.min(requestedPage, totalPages);
     const conversations = await Conversation.find(conversationQuery)
       .select(
         'participantIds linkedListingIds activeListingId lastMessageText lastMessageAt lastReadAtByUser ' +
@@ -1843,7 +1854,7 @@ app.get('/api/conversations', async (req, resp) => {
       page,
       pageSize,
       totalCount,
-      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+      totalPages,
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch conversations', error: e.message});
@@ -2620,7 +2631,7 @@ app.get('/items', async (req, resp) => {
           .lean();
 
     resp.json({
-      items: items.map((item) => buildItemFeedSummary(item, req)),
+      items: items.map((item) => buildItemFeedSummary(item)),
       meta: {
         page: safePage,
         limit,

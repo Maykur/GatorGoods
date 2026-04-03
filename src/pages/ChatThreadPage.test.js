@@ -1270,6 +1270,9 @@ test('polling refresh does not auto-scroll when the reader is away from the bott
   });
 
   expect(await screen.findByText('New reply')).toBeInTheDocument();
+  expect(
+    global.fetch.mock.calls.filter(([url]) => url === 'http://localhost:5000/profile/seller-1')
+  ).toHaveLength(1);
   expect(scrollIntoViewMock).not.toHaveBeenCalled();
   expect(scrollToMock).not.toHaveBeenCalled();
 

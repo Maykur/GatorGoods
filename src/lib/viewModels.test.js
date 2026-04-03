@@ -101,7 +101,7 @@ test('toListingCardViewModel prefers feed image URLs over raw stored image data'
       originalPickupArea: 'Historic Core',
       originalItemLocation: 'Library West',
       itemPicture: 'data:image/png;base64,abc123',
-      itemPictureUrl: 'http://localhost:5000/items/item-3/image',
+      itemPictureUrl: '/items/item-3/image',
       userPublishingName: 'Seller One',
     })
   ).toEqual(
