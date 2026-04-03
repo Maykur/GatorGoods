@@ -2606,7 +2606,6 @@ app.get('/items', async (req, resp) => {
           {$limit: limit},
           {
             $project: {
-              itemCostNumeric: 0,
               itemName: 1,
               itemCost: 1,
               itemCondition: 1,
