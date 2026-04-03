@@ -3,7 +3,8 @@ import { TransactPage } from './transactPage';
 import { resetClerkState, setClerkState } from '../testUtils/mockClerk';
 
 const mockGetTransactionByOfferId = jest.fn();
-const mockSubmitTransactionDecision = jest.fn();
+const mockNavigate = jest.fn();
+const mockConfirm = jest.fn(() => Promise.resolve(true));
 let mockCurrentParams = { orderId: 'offer-1' };
 
 jest.mock('@clerk/react', () => {
@@ -16,8 +17,18 @@ jest.mock('@clerk/react', () => {
 
 jest.mock('../lib/transactionsApi', () => ({
   getTransactionByOfferId: (...args) => mockGetTransactionByOfferId(...args),
-  submitTransactionDecision: (...args) => mockSubmitTransactionDecision(...args),
 }));
+
+jest.mock('../components/ui', () => {
+  const actual = jest.requireActual('../components/ui');
+
+  return {
+    ...actual,
+    useConfirmDialog: () => ({
+      confirm: mockConfirm,
+    }),
+  };
+});
 
 jest.mock(
   'react-router-dom',
@@ -27,6 +38,7 @@ jest.mock(
     return {
       Link: ({ children, to, ...props }) => React.createElement('a', { href: to, ...props }, children),
       useParams: () => mockCurrentParams,
+      useNavigate: () => mockNavigate,
     };
   },
   { virtual: true }
@@ -74,7 +86,9 @@ beforeEach(() => {
     },
   });
   mockGetTransactionByOfferId.mockReset();
-  mockSubmitTransactionDecision.mockReset();
+  mockNavigate.mockReset();
+  mockConfirm.mockReset();
+  mockConfirm.mockResolvedValue(true);
   mockGetTransactionByOfferId.mockResolvedValue(buildRawTransaction());
 
   global.fetch = jest.fn((url) => {

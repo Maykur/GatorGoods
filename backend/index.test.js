@@ -1275,6 +1275,85 @@ test('PATCH /api/transactions/:id/decision preserves mixed outcomes as problemRe
   assert.equal(secondResponse.body.buyerDecision, 'problemReported');
 });
 
+test('PATCH /api/transactions/:id/review only allows participants to submit a transaction review', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'random_user',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 5,
+        safety: 5,
+      },
+    });
+
+  assert.equal(response.status, 403);
+  assert.equal(response.body.message, 'Only transaction participants can submit transaction reviews');
+});
+
+test('PATCH /api/transactions/:id/review stores buyer feedback with an accuracy score', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 4,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Everything matched the listing.',
+      },
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, 'buyerConfirmed');
+  assert.equal(response.body.buyerReview.metricScores.accuracy, 4);
+  assert.equal(response.body.buyerReview.answers.accuracy, 4);
+  assert.ok(response.body.buyerReviewedAt);
+});
+
+test('PATCH /api/transactions/:id/review stores seller feedback without an accuracy score', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const response = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Smooth handoff.',
+      },
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, 'sellerConfirmed');
+  assert.equal(response.body.sellerReview.metricScores.accuracy, undefined);
+  assert.equal(response.body.sellerReview.answers.accuracy, undefined);
+  assert.ok(response.body.sellerReviewedAt);
+});
+
 test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {
   const {item, profile} = await seedProfileAndItem();
   const firstOfferResponse = await createOffer(item.id, {

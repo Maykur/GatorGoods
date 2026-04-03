@@ -131,13 +131,6 @@ beforeEach(() => {
       });
     }
 
-    if (url === 'http://localhost:5000/update_score/seller-1' && options.method === 'POST') {
-      return jsonResponse({
-        ...mockProfileResponse.profile,
-        profileRating: 4.7,
-      });
-    }
-
     if (url === 'http://localhost:5000/user/seller-1' && options.method === 'PATCH') {
       return jsonResponse({
         ...mockProfileResponse.profile,
@@ -240,7 +233,7 @@ test('signed-in owners can save lightweight public profile edits', async () => {
   );
 });
 
-test('signed-in non-owners can submit a seller review', async () => {
+test('public profiles no longer show the generic review form', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -250,25 +243,9 @@ test('signed-in non-owners can submit a seller review', async () => {
 
   render(<ProfilePage />);
 
-  fireEvent.change(await screen.findByLabelText(/review rating/i), {
-    target: { value: '5' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: /submit review score/i }));
-
-  await waitFor(() => {
-    expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:5000/update_score/seller-1',
-      expect.objectContaining({
-        method: 'POST',
-      })
-    );
-  });
-  expect(mockShowToast).toHaveBeenCalledWith(
-    expect.objectContaining({
-      title: 'Review submitted',
-      variant: 'success',
-    })
-  );
+  expect(await screen.findByText('Desk Lamp')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/review rating/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /submit review score/i })).not.toBeInTheDocument();
 });
 
 test('owner view shows a transaction CTA only for the seller item scheduled today', async () => {

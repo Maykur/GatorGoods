@@ -16,6 +16,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ItemPage } from './pages/ItemPage';
 import {TransactPage} from './pages/transactPage'
+import { TransactionReviewPage } from './pages/TransactionReviewPage';
 
 function ProtectedRoute({ children }) {
   return (
@@ -97,6 +98,14 @@ function App() {
                     </ProtectedRoute>
                   }
                 
+                />
+                <Route
+                  path="transact/:orderId/review"
+                  element={
+                    <ProtectedRoute>
+                      <TransactionReviewPage />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>

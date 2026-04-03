@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { getTransactionByOfferId, submitTransactionDecision } from '../lib/transactionsApi';
+import { getTransactionByOfferId } from '../lib/transactionsApi';
 import { toTransactionViewModel } from '../lib/viewModels';
 import {
   AppIcon,
@@ -12,6 +12,7 @@ import {
   ErrorBanner,
   PageHeader,
   Skeleton,
+  useConfirmDialog,
 } from '../components/ui';
 
 const API_BASE_URL = 'http://localhost:5000';
@@ -148,11 +149,12 @@ function TransactionStateBanner({ status }) {
 
 export function TransactPage() {
   const { orderId } = useParams();
+  const navigate = useNavigate();
   const { user, isLoaded } = useUser();
+  const { confirm } = useConfirmDialog();
   const [transaction, setTransaction] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -211,27 +213,36 @@ export function TransactPage() {
     loadOrder();
   }, [loadOrder]);
 
-  const handleDecision = useCallback(async (decision) => {
-    if (!transaction?.transactionId || !user?.id) {
+  const isSeller = Boolean(user?.id && transaction?.sellerId === user.id);
+
+  const handleReviewRoute = useCallback(async (decision) => {
+    if (!orderId || !transaction || !user?.id) {
       return;
     }
 
-    try {
-      setIsSubmittingDecision(true);
-      setError('');
-      await submitTransactionDecision(transaction.transactionId, {
-        requesterClerkUserId: user.id,
-        decision,
-      });
-      await loadOrder();
-    } catch (submissionError) {
-      setError(submissionError.message || 'Failed to update this transaction.');
-    } finally {
-      setIsSubmittingDecision(false);
-    }
-  }, [loadOrder, transaction?.transactionId, user?.id]);
+    if (decision === 'problemReported') {
+      const otherParticipantConfirmed = isSeller
+        ? transaction.buyerDecision === 'confirmed'
+        : transaction.sellerDecision === 'confirmed';
 
-  const isSeller = Boolean(user?.id && transaction?.sellerId === user.id);
+      if (otherParticipantConfirmed) {
+        const shouldContinue = await confirm({
+          title: 'Report a problem anyway?',
+          description: 'The other person already confirmed the exchange went well. Continue only if you need to record a different outcome.',
+          confirmLabel: 'Yes, continue',
+          cancelLabel: 'Go back',
+          tone: 'danger',
+        });
+
+        if (!shouldContinue) {
+          return;
+        }
+      }
+    }
+
+    navigate(`/transact/${orderId}/review?decision=${encodeURIComponent(decision)}`);
+  }, [confirm, isSeller, navigate, orderId, transaction, user?.id]);
+
   const counterpartRoleLabel = isSeller ? 'Buyer' : 'Seller';
   const counterpartName = isSeller ? transaction?.buyerName : transaction?.sellerName;
   const counterpartId = isSeller ? transaction?.buyerId : transaction?.sellerId;
@@ -368,17 +379,15 @@ export function TransactPage() {
                 <div className="flex flex-col gap-3">
                   <Button
                     leadingIcon="verified"
-                    onClick={() => handleDecision('confirmed')}
-                    disabled={isSubmittingDecision}
+                    onClick={() => handleReviewRoute('confirmed')}
                     className="bg-gatorOrange text-white hover:bg-gatorOrange/90"
                   >
-                    {isSubmittingDecision ? 'Saving...' : primaryActionLabel}
+                    {primaryActionLabel}
                   </Button>
                   <Button
                     variant="danger"
                     className="bg-red-600 hover:bg-red-500"
-                    onClick={() => handleDecision('problemReported')}
-                    disabled={isSubmittingDecision}
+                    onClick={() => handleReviewRoute('problemReported')}
                   >
                     {problemActionLabel}
                   </Button>

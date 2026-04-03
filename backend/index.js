@@ -19,6 +19,7 @@ const {
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const MIN_TRANSACTION_REVIEW_DETAILS_LENGTH = 8;
 const PAYMENT_METHOD_LABELS = {
   cash: 'Cash',
   externalApp: 'External app',
@@ -33,6 +34,8 @@ const TRANSACTION_STATUSES = [
   'cancelled',
 ];
 const TRANSACTION_DECISIONS = ['confirmed', 'problemReported'];
+const REVIEW_SCORE_MIN = 1;
+const REVIEW_SCORE_MAX = 5;
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -621,6 +624,150 @@ const transactionSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    buyerReview: {
+      type: new mongoose.Schema(
+        {
+          decision: {
+            type: String,
+            enum: TRANSACTION_DECISIONS,
+            default: '',
+            trim: true,
+          },
+          questionnaireType: {
+            type: String,
+            enum: ['success', 'problem'],
+            default: 'success',
+          },
+          answers: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                accuracy: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+                details: {
+                  type: String,
+                  default: '',
+                  trim: true,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          metricScores: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                accuracy: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          submittedAt: {
+            type: Date,
+            default: null,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
+    sellerReview: {
+      type: new mongoose.Schema(
+        {
+          decision: {
+            type: String,
+            enum: TRANSACTION_DECISIONS,
+            default: '',
+            trim: true,
+          },
+          questionnaireType: {
+            type: String,
+            enum: ['success', 'problem'],
+            default: 'success',
+          },
+          answers: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+                details: {
+                  type: String,
+                  default: '',
+                  trim: true,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          metricScores: {
+            type: new mongoose.Schema(
+              {
+                reliability: {
+                  type: Number,
+                  default: null,
+                },
+                responsiveness: {
+                  type: Number,
+                  default: null,
+                },
+                safety: {
+                  type: Number,
+                  default: null,
+                },
+              },
+              {_id: false}
+            ),
+            default: null,
+          },
+          submittedAt: {
+            type: Date,
+            default: null,
+          },
+        },
+        {_id: false}
+      ),
+      default: null,
+    },
     seedTag: {
       type: String,
       default: null,
@@ -883,6 +1030,57 @@ function deriveTransactionStatus({buyerDecision = '', sellerDecision = ''} = {})
   return 'scheduled';
 }
 
+function parseReviewScore(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isInteger(numericValue) || numericValue < REVIEW_SCORE_MIN || numericValue > REVIEW_SCORE_MAX) {
+    return null;
+  }
+
+  return numericValue;
+}
+
+function buildTransactionReviewSubmission({participantRole, decision, answers = {}} = {}) {
+  const questionnaireType = decision === 'problemReported' ? 'problem' : 'success';
+  const details = normalizeOptionalString(answers.details);
+  const nextAnswers = {
+    reliability: parseReviewScore(answers.reliability),
+    responsiveness: parseReviewScore(answers.responsiveness),
+    safety: parseReviewScore(answers.safety),
+    details,
+  };
+  const metricScores = {
+    reliability: nextAnswers.reliability,
+    responsiveness: nextAnswers.responsiveness,
+    safety: nextAnswers.safety,
+  };
+
+  if (!nextAnswers.reliability || !nextAnswers.responsiveness || !nextAnswers.safety) {
+    throw new Error('Review scores for reliability, responsiveness, and safety are required');
+  }
+
+  if (participantRole === 'buyer') {
+    nextAnswers.accuracy = parseReviewScore(answers.accuracy);
+    metricScores.accuracy = nextAnswers.accuracy;
+
+    if (!nextAnswers.accuracy) {
+      throw new Error('Buyer reviews must include an accuracy score');
+    }
+  }
+
+  if (decision === 'problemReported' && details.length < MIN_TRANSACTION_REVIEW_DETAILS_LENGTH) {
+    throw new Error(`Problem details must be at least ${MIN_TRANSACTION_REVIEW_DETAILS_LENGTH} characters`);
+  }
+
+  return {
+    decision,
+    questionnaireType,
+    answers: nextAnswers,
+    metricScores,
+    submittedAt: new Date(),
+  };
+}
+
 function buildTransactionAcceptedTermsSnapshot(offer = {}, {pickupSpecifics = ''} = {}) {
   return {
     price: Number.isFinite(Number(offer.offeredPrice)) ? Number(offer.offeredPrice) : null,
@@ -923,6 +1121,8 @@ function serializeTransaction(transaction) {
     sellerDecision: transaction.sellerDecision || '',
     buyerReviewedAt: transaction.buyerReviewedAt || null,
     sellerReviewedAt: transaction.sellerReviewedAt || null,
+    buyerReview: transaction.buyerReview || null,
+    sellerReview: transaction.sellerReview || null,
     createdAt: transaction.createdAt || null,
     updatedAt: transaction.updatedAt || null,
   };
@@ -2903,6 +3103,79 @@ app.patch('/api/transactions/:id/decision', async (req, resp) => {
     resp.json(serializeTransaction(transaction));
   } catch (e) {
     resp.status(500).json({message: 'Failed to update transaction', error: e.message});
+  }
+});
+
+app.patch('/api/transactions/:id/review', async (req, resp) => {
+  try {
+    const transactionId = toObjectId(req.params.id);
+    const requesterClerkUserId = normalizeOptionalString(req.body.requesterClerkUserId);
+    const decision = normalizeOptionalString(req.body.decision);
+    const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
+
+    if (!transactionId) {
+      return resp.status(400).json({message: 'Valid transaction id is required'});
+    }
+
+    if (!requesterClerkUserId) {
+      return resp.status(400).json({message: 'requesterClerkUserId is required'});
+    }
+
+    if (!TRANSACTION_DECISIONS.includes(decision)) {
+      return resp.status(400).json({message: 'decision must be confirmed or problemReported'});
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+
+    if (!transaction) {
+      return resp.status(404).json({message: 'Transaction not found'});
+    }
+
+    const participantRole = getTransactionParticipantRole(transaction, requesterClerkUserId);
+
+    if (!participantRole) {
+      return resp.status(403).json({message: 'Only transaction participants can submit transaction reviews'});
+    }
+
+    if (
+      (participantRole === 'buyer' && transaction.buyerReviewedAt) ||
+      (participantRole === 'seller' && transaction.sellerReviewedAt)
+    ) {
+      return resp.status(409).json({message: 'You have already submitted a review for this transaction'});
+    }
+
+    let reviewSubmission;
+
+    try {
+      reviewSubmission = buildTransactionReviewSubmission({
+        participantRole,
+        decision,
+        answers,
+      });
+    } catch (validationError) {
+      return resp.status(400).json({message: validationError.message});
+    }
+
+    if (participantRole === 'buyer') {
+      transaction.buyerDecision = decision;
+      transaction.buyerReview = reviewSubmission;
+      transaction.buyerReviewedAt = reviewSubmission.submittedAt;
+    } else {
+      transaction.sellerDecision = decision;
+      transaction.sellerReview = reviewSubmission;
+      transaction.sellerReviewedAt = reviewSubmission.submittedAt;
+    }
+
+    transaction.status = deriveTransactionStatus({
+      buyerDecision: transaction.buyerDecision,
+      sellerDecision: transaction.sellerDecision,
+    });
+
+    await transaction.save();
+
+    resp.json(serializeTransaction(transaction));
+  } catch (e) {
+    resp.status(500).json({message: 'Failed to submit transaction review', error: e.message});
   }
 });
 

@@ -50,3 +50,17 @@ export async function submitTransactionDecision(transactionId, payload) {
     'Failed to update transaction'
   );
 }
+
+export async function submitTransactionReview(transactionId, payload) {
+  return fetchFromApi(
+    `${API_BASE_URL}/api/transactions/${encodeURIComponent(transactionId)}/review`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+    'Failed to submit transaction review'
+  );
+}

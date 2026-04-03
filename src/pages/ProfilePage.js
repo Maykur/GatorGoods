@@ -12,7 +12,6 @@ import {
   ErrorBanner,
   Input,
   PageHeader,
-  Select,
   Skeleton,
   Textarea,
   useConfirmDialog,
@@ -27,7 +26,6 @@ import { getOffers } from '../lib/offersApi';
 import { isMeetupScheduledToday } from '../lib/meetupSchedule';
 
 const API_BASE_URL = 'http://localhost:5000';
-const REVIEW_OPTIONS = ['0', '1', '2', '3', '4', '5'];
 
 function getEditableProfileValues(profileHeader) {
   return {
@@ -140,20 +138,17 @@ function TrustMetricSurface({ icon, label, value, description }) {
 }
 
 export function ProfilePage({ ownerView = false }) {
-  const { user, isSignedIn } = useUser();
+  const { user } = useUser();
   const { id } = useParams();
   const profileId = ownerView ? user?.id || '' : id;
   const { confirm } = useConfirmDialog();
   const { showToast } = useToast();
   const [info, setInfo] = useState(null);
   const [error, setError] = useState('');
-  const [reviewError, setReviewError] = useState('');
-  const [reviewScore, setReviewScore] = useState('');
   const [ownerTodayTransactionOfferIdsByListingId, setOwnerTodayTransactionOfferIdsByListingId] = useState({});
   const [profileForm, setProfileForm] = useState(getEditableProfileValues(null));
   const [profileFormError, setProfileFormError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [activeActionId, setActiveActionId] = useState('');
   const [overlay, setOverlay] = useState(false);
@@ -256,13 +251,6 @@ export function ProfilePage({ ownerView = false }) {
       }),
     [info, ownerTodayTransactionOfferIdsByListingId, ownerView]
   );
-  const canReview = Boolean(
-    !ownerView &&
-      isSignedIn &&
-      user?.id &&
-      info?.profile?.profileID &&
-      info.profile.profileID !== user.id
-  );
 
   useEffect(() => {
     if (!ownerView || !profileHeader) {
@@ -314,49 +302,6 @@ export function ProfilePage({ ownerView = false }) {
     },
     [confirm, refreshProfile, showToast]
   );
-
-  const handleReviewSubmit = async (event) => {
-    event.preventDefault();
-
-    if (!reviewScore) {
-      setReviewError('Choose a review score before submitting.');
-      return;
-    }
-
-    try {
-      setIsSubmittingReview(true);
-      const response = await fetch(`${API_BASE_URL}/update_score/${profileId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reviewScore: Number(reviewScore),
-        }),
-      });
-      const updatedProfile = await readJson(response, 'Unable to submit review');
-
-      setInfo((currentInfo) =>
-        currentInfo
-          ? {
-              profile: updatedProfile,
-              listings: currentInfo.listings || [],
-            }
-          : currentInfo
-      );
-      setReviewScore('');
-      setReviewError('');
-      showToast({
-        title: 'Review submitted',
-        description: 'Thanks for leaving seller feedback.',
-        variant: 'success',
-      });
-    } catch (submitError) {
-      setReviewError(submitError.message || 'Unable to submit review');
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  };
 
   const handleProfileFieldChange = (field) => (event) => {
     setProfileForm((currentForm) => ({
@@ -640,47 +585,6 @@ export function ProfilePage({ ownerView = false }) {
             />
           )}
 
-          {canReview ? (
-            <Card className="space-y-5">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
-                  <AppIcon icon="rating" className="text-sm" />
-                  <span>Leave feedback</span>
-                </div>
-                <h2 className="text-2xl font-semibold text-white">Rate this seller</h2>
-                <p className="text-sm leading-7 text-app-soft">
-                  Share a quick rating after your purchase.
-                </p>
-              </div>
-
-              <form className="space-y-4" onSubmit={handleReviewSubmit}>
-                <Select
-                  id="review-score"
-                  label="Review rating"
-                  leadingIcon="rating"
-                  value={reviewScore}
-                  onChange={(event) => {
-                    setReviewScore(event.target.value);
-                    if (reviewError) {
-                      setReviewError('');
-                    }
-                  }}
-                  error={reviewError}
-                >
-                  <option value="">Select a score</option>
-                  {REVIEW_OPTIONS.map((score) => (
-                    <option key={score} value={score}>
-                      {score}
-                    </option>
-                  ))}
-                </Select>
-
-                <Button type="submit" leadingIcon="verified" loading={isSubmittingReview}>
-                  Submit review score
-                </Button>
-              </form>
-            </Card>
-          ) : null}
         </>
       ) : null}
     </section>

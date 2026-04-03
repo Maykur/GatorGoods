@@ -1,4 +1,4 @@
-import {getTransactionByOfferId, submitTransactionDecision} from './transactionsApi';
+import {getTransactionByOfferId, submitTransactionDecision, submitTransactionReview} from './transactionsApi';
 
 function jsonResponse(body, status = 200) {
   return Promise.resolve({
@@ -41,6 +41,32 @@ test('submitTransactionDecision sends the latest participant decision', async ()
 
   expect(global.fetch).toHaveBeenCalledWith(
     'http://localhost:5000/api/transactions/transaction-1/decision',
+    expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  );
+});
+
+test('submitTransactionReview sends questionnaire answers to the review endpoint', async () => {
+  global.fetch.mockImplementation(() => jsonResponse({_id: 'transaction-1', status: 'completed'}));
+
+  const payload = {
+    requesterClerkUserId: 'buyer-1',
+    decision: 'confirmed',
+    answers: {
+      reliability: 5,
+      accuracy: 4,
+      responsiveness: 5,
+      safety: 5,
+      details: 'Everything matched the listing.',
+    },
+  };
+
+  await submitTransactionReview('transaction-1', payload);
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:5000/api/transactions/transaction-1/review',
     expect.objectContaining({
       method: 'PATCH',
       body: JSON.stringify(payload),
