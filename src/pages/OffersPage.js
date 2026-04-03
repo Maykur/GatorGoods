@@ -149,11 +149,6 @@ export function OffersPage() {
           participantId: user.id,
           role: mode,
         });
-        
-        // REMOVE THIS
-        // const individualOffer = await(getIndividualOffer(rawOffers[0]['_id']))
-        // {console.log(rawOffers)}
-        // {console.log(individualOffer)}
 
 
         const offerViews = await Promise.all(
