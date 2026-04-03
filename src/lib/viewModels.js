@@ -223,9 +223,10 @@ export function getListingActualPickup(raw) {
   };
 }
 
-export function toListingDetailViewModel(raw, viewerId = null) {
+export function toListingDetailViewModel(raw, viewerId = null, sellerProfile = null) {
   const cardView = toListingCardViewModel(raw);
   const sellerId = normalizeText(raw?.userPublishingID, '');
+  const normalizedSellerProfile = sellerProfile?.profile || sellerProfile || {};
 
   return {
     id: cardView.id,
@@ -244,7 +245,7 @@ export function toListingDetailViewModel(raw, viewerId = null) {
     seller: {
       id: sellerId,
       name: cardView.sellerName,
-      avatarUrl: null,
+      avatarUrl: normalizeImageUrl(normalizeText(normalizedSellerProfile?.profilePicture, '')),
     },
     isOwner: Boolean(viewerId && sellerId && sellerId === viewerId),
   };

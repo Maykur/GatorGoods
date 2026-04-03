@@ -11,6 +11,7 @@ import {
   toOfferCardViewModel,
   toConversationPreviewViewModel,
   toListingCardViewModel,
+  toListingDetailViewModel,
   toProfileHeaderViewModel,
   toTrustMetricsViewModel,
 } from './viewModels';
@@ -51,6 +52,7 @@ test('toListingCardViewModel normalizes core listing fields', () => {
     sellerName: 'GatorGoods Seller',
     status: 'active',
     statusLabel: 'Active',
+    offerId: '',
   });
 });
 
@@ -266,6 +268,38 @@ test('toProfileHeaderViewModel computes counts and owner state', () => {
   });
 });
 
+test('toListingDetailViewModel uses the seller profile picture when available', () => {
+  expect(
+    toListingDetailViewModel(
+      {
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        itemCost: '20',
+        itemCondition: 'Good',
+        itemLocation: 'Library West',
+        itemDescription: 'Lamp for studying',
+        itemDetails: 'Warm bulb included',
+        userPublishingID: 'seller-1',
+        userPublishingName: 'Seller One',
+      },
+      'buyer-1',
+      {
+        profile: {
+          profilePicture: 'https://example.com/seller-one.png',
+        },
+      }
+    )
+  ).toEqual(
+    expect.objectContaining({
+      seller: expect.objectContaining({
+        id: 'seller-1',
+        name: 'Seller One',
+        avatarUrl: 'https://example.com/seller-one.png',
+      }),
+    })
+  );
+});
+
 test('helpers preserve stable fallbacks', () => {
   expect(normalizeCategory('')).toBe('Miscellaneous');
   expect(normalizeListingStatus('unknown')).toBe('active');
@@ -356,6 +390,7 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     buyerName: 'Buyer One',
     sellerId: 'seller-1',
     sellerName: 'Seller One',
+    sellerAvatarUrl: '',
     offeredPrice: 45,
     offeredPriceLabel: '$45',
     meetupLocation: 'Reitz Union',
@@ -364,6 +399,7 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     meetupWindow: 'Fri 2:00 PM - 3:00 PM',
     paymentMethod: 'cash',
     paymentMethodLabel: 'Cash',
+    listingImageUrl: '',
     message: 'Can pick up after class.',
     status: 'pending',
     conversationId: 'conversation-1',

@@ -143,6 +143,21 @@ test("landing hero keeps auth CTAs visible while Clerk is still loading", () => 
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
+test("signed-in users see browse next to post a listing in the landing hero", () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "buyer-1",
+    },
+  });
+
+  render(<HomePage forceSignedOutView />);
+
+  expect(screen.getByRole("link", {name: /post a listing/i})).toHaveAttribute("href", "/create");
+  expect(screen.getByRole("link", {name: /^browse$/i})).toHaveAttribute("href", "/listings");
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
 test("signed-out users can browse the listings feed, category chips, and cards", async () => {
   mockItems = [
     {

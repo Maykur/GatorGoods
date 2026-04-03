@@ -97,6 +97,7 @@ beforeEach(() => {
     if (url === 'http://localhost:5000/profile/seller-1') {
       return jsonResponse({
         profile: {
+          profilePicture: 'https://example.com/seller-one.png',
           profileFavorites: [],
           profileRating: 4.3,
           profileTotalRating: 9,
@@ -136,6 +137,9 @@ test('signed-out users can view the item and see an offer-first login CTA', asyn
   render(<ItemPage />);
 
   expect(await screen.findByRole('heading', { name: 'Desk Lamp' })).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByAltText('Seller One')).toHaveAttribute('src', 'https://example.com/seller-one.png');
+  });
   expect(screen.getByRole('button', { name: /log in to make offer/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /favorite/i })).not.toBeInTheDocument();
   expect(await screen.findByText('4.3/5')).toBeInTheDocument();
