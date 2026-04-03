@@ -3,7 +3,9 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Show, UserButton, useUser } from '@clerk/react';
 import { AppIcon, Button } from './ui';
 
-const publicNavItems = [{ to: '/', label: 'Landing', icon: 'home', end: true }];
+const publicNavItems = [{ to: '/', label: 'Landing', icon: 'home', end: true },
+  { to: '/listings', label: 'Browse', icon: 'browse' }
+];
 
 function getNavLinkClass(isActive) {
   return [
@@ -42,7 +44,6 @@ export function Layout() {
   const location = useLocation();
 
   const signedInNavItems = user ? [
-    { to: '/listings', label: 'Browse', icon: 'browse' },
     { to: '/messages', label: 'Messages', icon: 'messages' },
     { to: '/offers', label: 'Offers', icon: 'offers' },
     { to: '/favorites', label: 'Favorites', icon: 'favorite' },
@@ -84,16 +85,6 @@ export function Layout() {
             </span>
           </button>
           <nav id="primary-nav" className="ml-auto hidden items-center gap-2 text-sm sm:flex">
-            {publicNavItems.map(({ to, label, icon, end }) => (
-              <NavItemLink
-                key={to}
-                to={to}
-                label={label}
-                icon={icon}
-                end={end}
-                onClick={() => setIsMenuOpen(false)}
-              />
-            ))}
             <Show when="signed-in">
               {signedInNavItems.map(({ to, label, icon, end }) => (
                 <NavItemLink
@@ -107,6 +98,16 @@ export function Layout() {
               ))}
             </Show>
             <Show when="signed-out">
+              {publicNavItems.map(({ to, label, icon, end }) => (
+              <NavItemLink
+                key={to}
+                to={to}
+                label={label}
+                icon={icon}
+                end={end}
+                onClick={() => setIsMenuOpen(false)}
+              />
+            ))}
               <Link to="/login" className="no-underline">
                 <Button type="button" variant="secondary" size="sm" leadingIcon="profile">
                   Log in
