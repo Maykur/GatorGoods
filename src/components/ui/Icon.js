@@ -5,6 +5,7 @@ import {
   faArrowUpWideShort,
   faFileLines,
   faBars,
+  faBan,
   faBolt,
   faBullseye,
   faCamera,
@@ -44,6 +45,7 @@ import { cn } from '../../lib/ui';
 
 export const APP_ICONS = {
   browse: faStore,
+  unavailable: faBan,
   category: faTag,
   clear: faRotateLeft,
   createListing: faCirclePlus,

@@ -8,6 +8,15 @@ import { getConversationMessages, sendMessage, updateConversationPickup } from '
 
 const API_BASE_URL = 'http://localhost:5000';
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const NEAR_BOTTOM_THRESHOLD_PX = 96;
+
+function normalizeId(value) {
+  if (!value) {
+    return '';
+  }
+
+  return typeof value === 'string' ? value : value.toString();
+}
 
 function ThreadSkeleton() {
   return (
@@ -63,17 +72,112 @@ function getFirstName(name) {
   return trimmedName.split(/\s+/)[0];
 }
 
+function isNearBottom(element) {
+  if (!element) {
+    return true;
+  }
+
+  const remainingDistance = element.scrollHeight - element.scrollTop - element.clientHeight;
+  return remainingDistance <= NEAR_BOTTOM_THRESHOLD_PX;
+}
+
+function getChipStyle(state, isSelected) {
+  if (isSelected) {
+    return 'border-brand-blue/70 bg-brand-blue/20 text-white';
+  }
+
+  if (state === 'completedHere') {
+    return 'border-white/10 bg-white/6 text-app-muted';
+  }
+
+  if (state === 'unavailable') {
+    return 'border-white/10 bg-white/6 text-app-muted';
+  }
+
+  return 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white';
+}
+
+function getChipIcon(state) {
+  if (state === 'pending') {
+    return 'time';
+  }
+
+  if (state === 'completedHere') {
+    return 'verified';
+  }
+
+  if (state === 'unavailable') {
+    return 'unavailable';
+  }
+
+  return 'listing';
+}
+
+function getChipStatusLabel(state) {
+  if (state === 'pending') {
+    return 'Pending in this thread';
+  }
+
+  if (state === 'completedHere') {
+    return 'Completed here';
+  }
+
+  if (state === 'unavailable') {
+    return 'Unavailable';
+  }
+
+  return 'Active';
+}
+
+function getRailPriority(state) {
+  if (state === 'pending') {
+    return 0;
+  }
+
+  if (state === 'active') {
+    return 1;
+  }
+
+  return 2;
+}
+
+function getTimestamp(value) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function sortLinkedItemsForRail(linkedItems = []) {
+  return [...linkedItems].sort((firstItem, secondItem) => {
+    const firstPriority = getRailPriority(firstItem.state);
+    const secondPriority = getRailPriority(secondItem.state);
+
+    if (firstPriority !== secondPriority) {
+      return firstPriority - secondPriority;
+    }
+
+    const firstTimestamp = getTimestamp(firstItem.lastContextAt);
+    const secondTimestamp = getTimestamp(secondItem.lastContextAt);
+
+    return secondTimestamp - firstTimestamp;
+  });
+}
+
 export function ChatThreadPage() {
   const { conversationId } = useParams();
   const { user } = useUser();
   const messagesEndRef = useRef(null);
+  const messagesScrollRef = useRef(null);
+  const messageRefs = useRef(new Map());
+  const pendingScrollBehaviorRef = useRef(null);
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [otherParticipantId, setOtherParticipantId] = useState('');
   const [otherParticipantName, setOtherParticipantName] = useState('Conversation');
   const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
-  const [listingId, setListingId] = useState('');
-  const [listingName, setListingName] = useState('');
   const [listingOriginalPickupHubId, setListingOriginalPickupHubId] = useState('');
   const [listingOriginalPickupLabel, setListingOriginalPickupLabel] = useState('');
   const [listingCurrentPickupHubId, setListingCurrentPickupHubId] = useState('');
@@ -92,9 +196,25 @@ export function ChatThreadPage() {
   const [isSending, setIsSending] = useState(false);
   const [isPickupEditorOpen, setIsPickupEditorOpen] = useState(false);
   const [isUpdatingPickup, setIsUpdatingPickup] = useState(false);
-  const conversationListings = listingName && listingId
-    ? [{ id: listingId, name: listingName }]
-    : [];
+  const [selectedListingId, setSelectedListingId] = useState('');
+  const [highlightedMessageId, setHighlightedMessageId] = useState('');
+  const conversationLinkedItems = Array.isArray(conversation?.linkedItems) ? conversation.linkedItems : [];
+  const orderedConversationLinkedItems = sortLinkedItemsForRail(conversationLinkedItems);
+  const selectedActiveItem = conversationLinkedItems.find(
+    (linkedItem) =>
+      linkedItem.state === 'active' &&
+      normalizeId(linkedItem.listingId) === normalizeId(selectedListingId)
+  ) || null;
+  const focusedItem =
+    selectedActiveItem ||
+    conversation?.activeItem ||
+    conversationLinkedItems.find((linkedItem) => linkedItem.state === 'active') ||
+    conversationLinkedItems[0] ||
+    null;
+  const composerListingId =
+    normalizeId(selectedActiveItem?.listingId) ||
+    (conversation?.activeItem?.state === 'active' ? normalizeId(conversation.activeItem.listingId) : '') ||
+    '';
   const activePickupHubId =
     conversation?.activePickupHubId ||
     (conversation?.activePickupSpecifics ? listingCurrentPickupHubId : '') ||
@@ -115,11 +235,30 @@ export function ChatThreadPage() {
     pickupError && !pickupHubError ? pickupError : '';
 
   useEffect(() => {
+    if (!pendingScrollBehaviorRef.current) {
+      return;
+    }
+
     messagesEndRef.current?.scrollIntoView({
-      behavior: 'smooth',
+      behavior: pendingScrollBehaviorRef.current,
       block: 'end',
     });
+    pendingScrollBehaviorRef.current = null;
   }, [messages]);
+
+  useEffect(() => {
+    if (!highlightedMessageId) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedMessageId('');
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [highlightedMessageId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -137,6 +276,7 @@ export function ChatThreadPage() {
         }
 
         const threadData = await getConversationMessages(conversationId, user.id);
+        const shouldAutoScroll = showLoadingState || isNearBottom(messagesScrollRef.current);
         const otherId = threadData.conversation.participantIds.find(
           (participantId) => participantId !== user.id
         );
@@ -153,11 +293,31 @@ export function ChatThreadPage() {
 
         setConversation(threadData.conversation);
         setMessages(threadData.messages);
+        setSelectedListingId((currentListingId) => {
+          const nextLinkedItems = Array.isArray(threadData.conversation.linkedItems)
+            ? threadData.conversation.linkedItems
+            : [];
+          const hasCurrentActiveSelection = nextLinkedItems.some(
+            (linkedItem) =>
+              linkedItem.state === 'active' &&
+              normalizeId(linkedItem.listingId) === normalizeId(currentListingId)
+          );
+
+          if (hasCurrentActiveSelection) {
+            return currentListingId;
+          }
+
+          if (threadData.conversation.activeItem?.state === 'active') {
+            return normalizeId(threadData.conversation.activeItem.listingId);
+          }
+
+          return normalizeId(
+            nextLinkedItems.find((linkedItem) => linkedItem.state === 'active')?.listingId
+          );
+        });
         setOtherParticipantId(otherId || '');
         setOtherParticipantName(profileData?.profile?.profileName || otherId || 'Conversation');
         setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
-        setListingName(listingData?.itemName || '');
-        setListingId(listingData?._id || threadData.conversation.activeListingId?.toString?.() || '');
         setListingOriginalPickupHubId(
           listingData?.originalPickupHubId ||
             listingData?.pickupHubId ||
@@ -181,6 +341,9 @@ export function ChatThreadPage() {
         );
         setListingSellerId(listingData?.userPublishingID || '');
         setPageError('');
+        pendingScrollBehaviorRef.current = shouldAutoScroll
+          ? (showLoadingState ? 'auto' : 'smooth')
+          : null;
       } catch (loadError) {
         if (isMounted) {
           setPageError(loadError.message || 'Failed to load conversation');
@@ -230,14 +393,16 @@ export function ChatThreadPage() {
         conversationId,
         senderClerkUserId: user.id,
         body: draftMessage,
-        attachedListingId: conversation?.activeListingId || null,
+        attachedListingId: composerListingId || null,
       });
 
+      pendingScrollBehaviorRef.current = 'smooth';
       setMessages((currentMessages) => [...currentMessages, newMessage]);
       setConversation((currentConversation) =>
         currentConversation
           ? {
               ...currentConversation,
+              activeListingId: composerListingId || currentConversation.activeListingId,
               lastMessageText: newMessage.body,
               lastMessageAt: newMessage.createdAt,
               lastReadAtByUser: {
@@ -255,6 +420,30 @@ export function ChatThreadPage() {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleItemChipClick = (linkedItem) => {
+    if (!linkedItem) {
+      return;
+    }
+
+    if (linkedItem.state === 'active') {
+      setSelectedListingId(normalizeId(linkedItem.listingId));
+      setHighlightedMessageId('');
+      return;
+    }
+
+    const anchorMessageId = normalizeId(linkedItem.latestContextMessageId);
+
+    if (!anchorMessageId) {
+      return;
+    }
+
+    setHighlightedMessageId(anchorMessageId);
+    messageRefs.current.get(anchorMessageId)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
   };
 
   const handlePickupHubChange = (pickupHubId) => {
@@ -371,25 +560,70 @@ export function ChatThreadPage() {
         />
       ) : null}
 
-      {conversationListings.length > 0 ? (
+      {conversationLinkedItems.length > 0 ? (
         <Card variant="subtle" className="space-y-3">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
               <AppIcon icon="listing" className="text-[0.95em]" />
-              <span>Listings in this conversation</span>
+              <span>Items in this conversation</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {conversationListings.map((listing) => (
-                <Link
-                  key={listing.id}
-                  to={`/items/${listing.id}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-app-soft no-underline transition hover:border-white/20 hover:text-white"
-                >
-                  <AppIcon icon="listing" className="text-[0.95em]" />
-                  <span>{listing.name}</span>
-                </Link>
-              ))}
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {orderedConversationLinkedItems.map((linkedItem) => {
+                const isSelected = normalizeId(linkedItem.listingId) === normalizeId(selectedListingId);
+
+                return (
+                  <button
+                    key={normalizeId(linkedItem.listingId)}
+                    type="button"
+                    onClick={() => handleItemChipClick(linkedItem)}
+                    className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${getChipStyle(linkedItem.state, isSelected)}`}
+                    aria-pressed={isSelected}
+                    aria-label={`${linkedItem.title}. ${getChipStatusLabel(linkedItem.state)}.`}
+                  >
+                    <AppIcon icon={getChipIcon(linkedItem.state)} className="text-[0.95em]" />
+                    <span>{linkedItem.title}</span>
+                  </button>
+                );
+              })}
             </div>
+            {focusedItem ? (
+              <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-4">
+                    {focusedItem.imageUrl ? (
+                      <img
+                        src={focusedItem.imageUrl}
+                        alt={focusedItem.title}
+                        className="h-16 w-16 rounded-[1rem] object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-[1rem] border border-white/10 bg-white/5">
+                        <AppIcon icon={getChipIcon(focusedItem.state)} className="text-app-muted" />
+                      </div>
+                    )}
+                    <div className="min-w-0 space-y-1">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+                        <AppIcon icon={getChipIcon(focusedItem.state)} className="text-[0.95em]" />
+                        <span>{getChipStatusLabel(focusedItem.state)}</span>
+                      </span>
+                      <h2 className="truncate text-xl font-semibold text-white">{focusedItem.title}</h2>
+                      <p className="text-sm text-app-soft">
+                        {focusedItem.state === 'active'
+                          ? 'Selected for your next tagged message in this thread.'
+                          : 'This item stays in the rail so you can jump back to its latest thread context.'}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/items/${normalizeId(focusedItem.listingId)}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-app-soft no-underline transition hover:border-white/20 hover:text-white"
+                  >
+                    <AppIcon icon="open" className="text-[0.95em]" />
+                    <span>Open item</span>
+                  </Link>
+                </div>
+              </div>
+            ) : null}
           </div>
         </Card>
       ) : null}
@@ -498,7 +732,11 @@ export function ChatThreadPage() {
       </Card>
 
       <Card padding="none" className="overflow-hidden">
-        <div className="max-h-[32rem] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+        <div
+          ref={messagesScrollRef}
+          data-testid="thread-messages-scroll-region"
+          className="max-h-[32rem] space-y-4 overflow-y-auto px-5 py-5 sm:px-6"
+        >
           {messages.length === 0 ? (
             <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-white/5 px-5 py-10 text-center">
               <h2 className="text-xl font-semibold text-white">No messages yet</h2>
@@ -521,8 +759,25 @@ export function ChatThreadPage() {
                   : 'text-app-muted';
 
                 return (
-                  <div key={message._id} className="flex justify-center">
-                    <div className={`max-w-[85%] rounded-full border px-4 py-2 text-center ${systemMessageClassName}`}>
+                  <div
+                    key={message._id}
+                    ref={(node) => {
+                      if (node) {
+                        messageRefs.current.set(normalizeId(message._id), node);
+                      } else {
+                        messageRefs.current.delete(normalizeId(message._id));
+                      }
+                    }}
+                    data-message-id={normalizeId(message._id)}
+                    className="flex justify-center"
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-full border px-4 py-2 text-center transition ${
+                        highlightedMessageId === normalizeId(message._id)
+                          ? 'ring-2 ring-gatorOrange/60 ring-offset-2 ring-offset-app-bg'
+                          : ''
+                      } ${systemMessageClassName}`}
+                    >
                       <p className="text-sm font-medium text-white">{message.body}</p>
                       <p className={`mt-1 text-xs ${systemTimestampClassName}`}>{formatMessageTime(message.createdAt)}</p>
                     </div>
@@ -533,6 +788,14 @@ export function ChatThreadPage() {
               return (
                 <div
                   key={message._id}
+                  ref={(node) => {
+                    if (node) {
+                      messageRefs.current.set(normalizeId(message._id), node);
+                    } else {
+                      messageRefs.current.delete(normalizeId(message._id));
+                    }
+                  }}
+                  data-message-id={normalizeId(message._id)}
                   className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`flex max-w-[85%] items-end gap-3 sm:max-w-[75%] ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
@@ -545,7 +808,11 @@ export function ChatThreadPage() {
                       />
                     ) : null}
                     <div
-                      className={`rounded-[1.5rem] px-4 py-3 shadow-card ${
+                      className={`rounded-[1.5rem] px-4 py-3 shadow-card transition ${
+                        highlightedMessageId === normalizeId(message._id)
+                          ? 'ring-2 ring-gatorOrange/60 ring-offset-2 ring-offset-app-bg'
+                          : ''
+                      } ${
                         isOwnMessage
                           ? 'bg-brand-blue text-white'
                           : 'border border-white/10 bg-app-elevated text-app-text'
