@@ -74,7 +74,7 @@ const COMMUNITY_PROFILES = [
     profileName: 'Angela Moss',
     profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
     profileBanner: 'https://images.unsplash.com/photo-1497366412874-3415097a27e7?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Trying to furnish a cleaner apartment setup and prefers straightforward, well-documented pickups.',
+    profileBio: 'Trying to build a cleaner, more put-together apartment setup and likes plans that are clear, polished, and actually happen.',
     instagramUrl: 'https://instagram.com/angelamoss.market',
     linkedinUrl: '',
     profileRating: 4.7,
@@ -128,7 +128,7 @@ const COMMUNITY_PROFILES = [
     profileName: 'Whiterose',
     profilePicture: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
     profileBanner: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Schedules are precise. If we agree on a time, expect the handoff to happen exactly then.',
+    profileBio: 'Time is the only thing that matters. If we agree on a handoff, expect precision, not improvisation.',
     instagramUrl: 'https://instagram.com/whiterose.market',
     linkedinUrl: '',
     profileRating: 4.9,
@@ -146,7 +146,7 @@ const COMMUNITY_PROFILES = [
     profileName: 'Mr. Robot',
     profilePicture: 'https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=400&q=80',
     profileBanner: 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Selling repaired gear, a few clothes, and anything that still works without pretending to be new.',
+    profileBio: 'Selling repaired gear, worn-in layers, and hardware that still works. No glossy nonsense, no fake upgrades.',
     instagramUrl: 'https://instagram.com/mrrobot.market',
     linkedinUrl: '',
     profileRating: 4.6,
@@ -182,7 +182,7 @@ const COMMUNITY_PROFILES = [
     profileName: 'Phillip Price',
     profilePicture: 'https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=400&q=80',
     profileBanner: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Selling a few high-end accessories and reference materials. Prefers direct offers and punctual buyers.',
+    profileBio: 'Selling a few sharp accessories and expensive-looking essentials. Prefers direct offers, punctual buyers, and no wasted sentences.',
     instagramUrl: '',
     linkedinUrl: 'https://linkedin.com/in/phillipprice-demo',
     profileRating: 4.9,
@@ -218,7 +218,7 @@ const COMMUNITY_PROFILES = [
     profileName: 'Darlene Alderson',
     profilePicture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
     profileBanner: 'https://images.unsplash.com/photo-1497366412874-3415097a27e7?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Usually flipping desk gear, cables, and odd tech extras. Fast replies, low patience for flaky meetups.',
+    profileBio: 'Usually flipping desk gear, cables, and strange tech leftovers. Fast replies, low patience, zero tolerance for flaky meetups.',
     instagramUrl: '',
     linkedinUrl: 'https://linkedin.com/in/cameronwells-uf',
     profileRating: 4.6,
@@ -251,6 +251,13 @@ const COMMUNITY_PROFILES = [
 ];
 
 const THEMED_PROFILE_KEYS = new Set(['ava', 'jasmine', 'noah', 'mateo', 'cameron']);
+const AUTO_ASSIGNABLE_PROFILE_KEYS = [
+  'presenter',
+  'leo',
+  'priya',
+  'sofia',
+  'nina',
+];
 
 function defaultDependencies() {
   return {
@@ -297,16 +304,125 @@ function sortedParticipantIds(participantIds = []) {
   return uniqueStrings(participantIds).sort();
 }
 
+function normalizeDemoUserSelection(rawSelection, entryLabel = 'DEMO_USER entry') {
+  if (typeof rawSelection === 'string') {
+    const normalizedValue = trimEnvValue(rawSelection);
+
+    if (!normalizedValue) {
+      return null;
+    }
+
+    return normalizedValue.includes('@')
+      ? {email: normalizedValue}
+      : {id: normalizedValue};
+  }
+
+  if (!rawSelection || typeof rawSelection !== 'object' || Array.isArray(rawSelection)) {
+    throw new Error(`${entryLabel} must be a string or object.`);
+  }
+
+  const email = trimEnvValue(rawSelection.email || rawSelection.emailAddress);
+  const id = trimEnvValue(rawSelection.id || rawSelection.userId || rawSelection.profileID);
+  const profileName = trimEnvValue(rawSelection.profileName || rawSelection.name);
+  const profilePicture = trimEnvValue(
+    rawSelection.profilePicture || rawSelection.picture || rawSelection.imageUrl
+  );
+  const clerkSecretKey = trimEnvValue(rawSelection.clerkSecretKey || rawSelection.secretKey);
+  const clerkSecretKeyEnv = trimEnvValue(rawSelection.clerkSecretKeyEnv || rawSelection.secretKeyEnv);
+
+  if (!email && !id) {
+    throw new Error(`${entryLabel} must include an email or id.`);
+  }
+
+  return {
+    ...(email ? {email} : {}),
+    ...(id ? {id} : {}),
+    ...(profileName ? {profileName} : {}),
+    ...(profilePicture ? {profilePicture} : {}),
+    ...(clerkSecretKey ? {clerkSecretKey} : {}),
+    ...(clerkSecretKeyEnv ? {clerkSecretKeyEnv} : {}),
+  };
+}
+
+function parseDemoUserMap(value) {
+  const trimmedValue = trimEnvValue(value);
+
+  if (!trimmedValue) {
+    return {};
+  }
+
+  let parsedValue;
+
+  try {
+    parsedValue = JSON.parse(trimmedValue);
+  } catch (error) {
+    throw new Error('DEMO_USER_MAP must be valid JSON.');
+  }
+
+  if (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue)) {
+    throw new Error('DEMO_USER_MAP must be a JSON object keyed by seed profile key.');
+  }
+
+  return Object.entries(parsedValue).reduce((result, [profileKey, rawSelection]) => {
+    const normalizedProfileKey = trimEnvValue(profileKey);
+
+    if (!normalizedProfileKey) {
+      return result;
+    }
+
+    const normalizedSelection = normalizeDemoUserSelection(
+      rawSelection,
+      `DEMO_USER_MAP entry for "${normalizedProfileKey}"`
+    );
+
+    if (normalizedSelection) {
+      result[normalizedProfileKey] = normalizedSelection;
+    }
+
+    return result;
+  }, {});
+}
+
+function parseDemoUserAssignments(value) {
+  const trimmedValue = trimEnvValue(value);
+
+  if (!trimmedValue) {
+    return [];
+  }
+
+  let parsedValue;
+
+  try {
+    parsedValue = JSON.parse(trimmedValue);
+  } catch (error) {
+    throw new Error('DEMO_USER_ASSIGNMENTS must be valid JSON.');
+  }
+
+  if (!Array.isArray(parsedValue)) {
+    throw new Error('DEMO_USER_ASSIGNMENTS must be a JSON array.');
+  }
+
+  return parsedValue
+    .map((entry, index) =>
+      normalizeDemoUserSelection(entry, `DEMO_USER_ASSIGNMENTS entry at index ${index}`)
+    )
+    .filter(Boolean);
+}
+
 function buildSeedConfigFromEnv(env = process.env) {
   return {
     demoUserEmail: trimEnvValue(env.DEMO_USER_EMAIL),
     demoUserId: trimEnvValue(env.DEMO_USER_ID),
+    demoUserMap: parseDemoUserMap(env.DEMO_USER_MAP),
+    demoUserAssignments: parseDemoUserAssignments(env.DEMO_USER_ASSIGNMENTS),
     clerkSecretKey: trimEnvValue(env.CLERK_SECRET_KEY),
     fullReset: parseBooleanEnv(env.SEED_FULL_RESET),
     seedTag: trimEnvValue(env.SEED_TAG) || DEFAULT_SEED_TAG,
     fakerSeed: parseFakerSeed(env.FAKER_SEED),
     now: new Date(),
+    envValues: {...env},
     presenterIdentity: null,
+    profileIdentityOverrides: {},
   };
 }
 
@@ -344,6 +460,49 @@ function buildDisplayNameFromClerkUser(user = {}) {
   return PRESENTER_PROFILE_DEFAULTS.profileName;
 }
 
+function getClerkUserEmails(user = {}) {
+  const primaryEmailObject = user.primaryEmailAddress || user.primary_email_address || null;
+  const emailAddresses = Array.isArray(user.emailAddresses)
+    ? user.emailAddresses
+    : Array.isArray(user.email_addresses)
+      ? user.email_addresses
+      : [];
+
+  return uniqueStrings([
+    primaryEmailObject?.emailAddress,
+    primaryEmailObject?.email_address,
+    ...emailAddresses.map((emailObject) => emailObject?.emailAddress || emailObject?.email_address),
+  ].map((email) => trimEnvValue(email).toLowerCase()).filter(Boolean));
+}
+
+function getClerkUserPrimaryEmail(user = {}) {
+  return trimEnvValue(
+    user?.primaryEmailAddress?.emailAddress ||
+    user?.primaryEmailAddress?.email_address ||
+    user?.primary_email_address?.emailAddress ||
+    user?.primary_email_address?.email_address
+  ).toLowerCase();
+}
+
+function formatSeedOfferEventBody(eventType, {buyerDisplayName = '', sellerDisplayName = ''} = {}) {
+  const normalizedBuyerName = trimEnvValue(buyerDisplayName) || 'Buyer';
+  const normalizedSellerName = trimEnvValue(sellerDisplayName) || 'Seller';
+
+  if (eventType === 'sent') {
+    return `${normalizedBuyerName} sent an offer.`;
+  }
+
+  if (eventType === 'accepted') {
+    return `${normalizedSellerName} accepted your offer.`;
+  }
+
+  if (eventType === 'declined') {
+    return `${normalizedSellerName} rejected your offer.`;
+  }
+
+  return '';
+}
+
 async function resolveClerkUserByEmail(
   email,
   {
@@ -367,7 +526,6 @@ async function resolveClerkUserByEmail(
 
   const requestUrl = new URL(CLERK_USERS_URL);
   requestUrl.searchParams.append('email_address[]', normalizedEmail);
-  requestUrl.searchParams.set('limit', '1');
 
   const response = await fetchImpl(requestUrl, {
     method: 'GET',
@@ -383,7 +541,24 @@ async function resolveClerkUserByEmail(
   }
 
   const users = await response.json();
-  const clerkUser = Array.isArray(users) ? users[0] : null;
+  const matchingUsers = (Array.isArray(users) ? users : []).filter((user) =>
+    getClerkUserEmails(user).includes(normalizedEmail.toLowerCase())
+  );
+
+  if (matchingUsers.length === 0) {
+    throw new Error(`No Clerk user was found for ${normalizedEmail}.`);
+  }
+
+  const primaryEmailMatches = matchingUsers.filter(
+    (user) => getClerkUserPrimaryEmail(user) === normalizedEmail.toLowerCase()
+  );
+  const resolvedMatches = primaryEmailMatches.length > 0 ? primaryEmailMatches : matchingUsers;
+
+  if (resolvedMatches.length > 1) {
+    throw new Error(`Multiple Clerk users matched ${normalizedEmail}. Use a direct Clerk id instead.`);
+  }
+
+  const clerkUser = resolvedMatches[0] || null;
 
   if (!clerkUser) {
     throw new Error(`No Clerk user was found for ${normalizedEmail}.`);
@@ -398,22 +573,179 @@ async function resolveClerkUserByEmail(
   };
 }
 
-async function resolvePresenterIdentity(config, {fetchImpl = global.fetch} = {}) {
-  if (config.demoUserEmail) {
-    return resolveClerkUserByEmail(config.demoUserEmail, {
+async function resolveClerkUserById(
+  userId,
+  {
+    fetchImpl = global.fetch,
+    clerkSecretKey = process.env.CLERK_SECRET_KEY,
+    fallbackName = PRESENTER_PROFILE_DEFAULTS.profileName,
+    fallbackPicture = PRESENTER_PROFILE_DEFAULTS.profilePicture,
+    profileName = '',
+    profilePicture = '',
+  } = {}
+) {
+  const normalizedUserId = trimEnvValue(userId);
+
+  if (!normalizedUserId) {
+    throw new Error('A Clerk user id is required.');
+  }
+
+  const resolvedFallbackName = trimEnvValue(profileName) || fallbackName;
+  const resolvedFallbackPicture = trimEnvValue(profilePicture) || fallbackPicture;
+
+  if (!trimEnvValue(clerkSecretKey) || typeof fetchImpl !== 'function') {
+    return {
+      profileID: normalizedUserId,
+      profileName: resolvedFallbackName,
+      profilePicture: resolvedFallbackPicture,
+      source: 'clerk-id',
+      email: '',
+    };
+  }
+
+  const response = await fetchImpl(`${CLERK_USERS_URL}/${normalizedUserId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${clerkSecretKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const responseText = typeof response.text === 'function' ? await response.text() : '';
+    throw new Error(`Clerk lookup failed (${response.status}): ${responseText || 'Unable to fetch user'}`);
+  }
+
+  const clerkUser = await response.json();
+  const emailAddresses = Array.isArray(clerkUser?.emailAddresses)
+    ? clerkUser.emailAddresses
+    : Array.isArray(clerkUser?.email_addresses)
+      ? clerkUser.email_addresses
+      : [];
+  const primaryEmailObject = clerkUser?.primaryEmailAddress || clerkUser?.primary_email_address || null;
+
+  return {
+    profileID: clerkUser.id || normalizedUserId,
+    profileName: buildDisplayNameFromClerkUser(clerkUser) || resolvedFallbackName,
+    profilePicture:
+      trimEnvValue(clerkUser?.imageUrl || clerkUser?.image_url) || resolvedFallbackPicture,
+    source: 'clerk-id',
+    email:
+      trimEnvValue(primaryEmailObject?.emailAddress || primaryEmailObject?.email_address) ||
+      trimEnvValue(emailAddresses[0]?.emailAddress || emailAddresses[0]?.email_address) ||
+      '',
+  };
+}
+
+function buildSeedProfileDefaultsByKey() {
+  return COMMUNITY_PROFILES.reduce(
+    (result, profile) => {
+      result[profile.key] = {
+        profileName: profile.profileName,
+        profilePicture: profile.profilePicture,
+      };
+      return result;
+    },
+    {
+      presenter: {
+        profileName: PRESENTER_PROFILE_DEFAULTS.profileName,
+        profilePicture: PRESENTER_PROFILE_DEFAULTS.profilePicture,
+      },
+    }
+  );
+}
+
+function resolveSelectionClerkSecretKey(selection, envValues = {}, fallbackSecretKey = '') {
+  const inlineSecretKey = trimEnvValue(selection?.clerkSecretKey);
+
+  if (inlineSecretKey) {
+    return inlineSecretKey;
+  }
+
+  const secretKeyEnvName = trimEnvValue(selection?.clerkSecretKeyEnv);
+
+  if (secretKeyEnvName) {
+    const envSecretKey = trimEnvValue(envValues?.[secretKeyEnvName]);
+
+    if (!envSecretKey) {
+      throw new Error(`Missing Clerk secret key in env var "${secretKeyEnvName}" for DEMO_USER_MAP entry.`);
+    }
+
+    return envSecretKey;
+  }
+
+  return trimEnvValue(fallbackSecretKey);
+}
+
+async function resolveSeedProfileIdentities(config, {fetchImpl = global.fetch} = {}) {
+  const defaultProfilesByKey = buildSeedProfileDefaultsByKey();
+  const identitySelections = (config.demoUserAssignments || []).reduce((result, selection, index) => {
+    const profileKey = AUTO_ASSIGNABLE_PROFILE_KEYS[index];
+
+    if (!profileKey) {
+      throw new Error(
+        `DEMO_USER_ASSIGNMENTS only supports up to ${AUTO_ASSIGNABLE_PROFILE_KEYS.length} users.`
+      );
+    }
+
+    result[profileKey] = selection;
+    return result;
+  }, {
+    ...config.demoUserMap,
+  });
+
+  Object.entries(config.demoUserMap || {}).forEach(([profileKey, selection]) => {
+    identitySelections[profileKey] = selection;
+  });
+
+  if (!identitySelections.presenter && config.demoUserEmail) {
+    identitySelections.presenter = {email: config.demoUserEmail};
+  }
+
+  if (!identitySelections.presenter && config.demoUserId) {
+    identitySelections.presenter = {id: config.demoUserId};
+  }
+
+  const resolvedIdentities = {};
+
+  for (const [profileKey, selection] of Object.entries(identitySelections)) {
+    const defaults = defaultProfilesByKey[profileKey];
+    const resolvedClerkSecretKey = resolveSelectionClerkSecretKey(
+      selection,
+      config.envValues,
+      config.clerkSecretKey
+    );
+
+    if (!defaults) {
+      throw new Error(`Unknown seed profile key "${profileKey}" in DEMO_USER_MAP.`);
+    }
+
+    if (selection.email) {
+      resolvedIdentities[profileKey] = await resolveClerkUserByEmail(selection.email, {
+        fetchImpl,
+        clerkSecretKey: resolvedClerkSecretKey,
+      });
+      continue;
+    }
+
+    resolvedIdentities[profileKey] = await resolveClerkUserById(selection.id, {
       fetchImpl,
-      clerkSecretKey: config.clerkSecretKey,
+      clerkSecretKey: resolvedClerkSecretKey,
+      fallbackName: defaults.profileName,
+      fallbackPicture: defaults.profilePicture,
+      profileName: selection.profileName,
+      profilePicture: selection.profilePicture,
     });
   }
 
-  if (config.demoUserId) {
-    return {
-      profileID: config.demoUserId,
-      profileName: PRESENTER_PROFILE_DEFAULTS.profileName,
-      profilePicture: PRESENTER_PROFILE_DEFAULTS.profilePicture,
-      source: 'demo-user-id',
-      email: '',
-    };
+  return resolvedIdentities;
+}
+
+async function resolvePresenterIdentity(config, {fetchImpl = global.fetch} = {}) {
+  const resolvedIdentities = await resolveSeedProfileIdentities(config, {fetchImpl});
+
+  if (resolvedIdentities.presenter) {
+    return resolvedIdentities.presenter;
   }
 
   return {
@@ -439,6 +771,7 @@ function buildSeedDataset(config) {
     profilePicture: PRESENTER_PROFILE_DEFAULTS.profilePicture,
     source: 'fallback',
   };
+  const profileIdentityOverrides = config.profileIdentityOverrides || {};
 
   const presenterProfile = {
     key: 'presenter',
@@ -511,11 +844,14 @@ function buildSeedDataset(config) {
 
   const communityProfiles = COMMUNITY_PROFILES.map((profile) => ({
     ...profile,
+    profileID: profileIdentityOverrides[profile.key]?.profileID || profile.profileID,
+    profileName: profileIdentityOverrides[profile.key]?.profileName || profile.profileName,
+    profilePicture: profileIdentityOverrides[profile.key]?.profilePicture || profile.profilePicture,
     profileBio: THEMED_PROFILE_KEYS.has(profile.key)
       ? profile.profileBio
       : addFiller(profile.profileBio, BIO_VARIANTS),
     ufVerified: true,
-    seedTag: config.seedTag,
+    seedTag: profileIdentityOverrides[profile.key] ? null : config.seedTag,
   }));
 
   const profilesByKey = {
@@ -596,8 +932,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Excellent',
       pickupHubId: 'honors-village',
       itemPicture: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Private furnished room in a 4x4 with in-unit laundry and a quick bike ride to campus.',
-      itemDetails: 'Available May through July with parking and utilities mostly included. Public meetup defaults to Honors Village for tours and key handoff coordination.',
+      itemDescription: 'Private furnished room in a 4x4 with clean lines, in-unit laundry, and enough distance from campus noise to think clearly.',
+      itemDetails: 'Available May through July. Parking and most utilities are covered. Tours and key handoff are coordinated with exact timing, not vague windows.',
       itemCat: 'Property Rentals',
       status: 'active',
       date: subtractHours(now, 12),
@@ -611,8 +947,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'turlington-hall',
       itemPicture: 'https://images.unsplash.com/photo-1558997519-83ea9252edf8?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Clean modular drawers that keep small parts, cables, and documents exactly where they belong.',
-      itemDetails: 'Reserved for pickup later this week after a tightly scheduled afternoon meetup near Turlington Hall.',
+      itemDescription: 'Modular drawers for cables, documents, adapters, and anything else that should stop cluttering a surface.',
+      itemDetails: 'Reserved for pickup later this week after a tightly scheduled afternoon meetup near Turlington Hall. Everything is already packed and labeled.',
       itemCat: 'Miscellaneous',
       status: 'reserved',
       date: subtractHours(now, 28),
@@ -626,8 +962,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'honors-village',
       itemPicture: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'A small adjustable standing desk that fits well in a dorm or apartment bedroom.',
-      itemDetails: 'Already sold through the same relationship thread, but it stays useful as a completed-history example.',
+      itemDescription: 'Compact adjustable desk with a clean silhouette and just enough surface area for focused work.',
+      itemDetails: 'Already sold through the same relationship thread, but it stays in the seed as a completed-history example. The mechanism still moves smoothly and precisely.',
       itemCat: 'Home & Garden',
       status: 'sold',
       date: subtractHours(now, 34),
@@ -641,7 +977,7 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'honors-village',
       itemPicture: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Slim entryway shoe rack that keeps a small apartment from getting cluttered near the door.',
+      itemDescription: 'Slim entryway rack for shoes, umbrellas, and the illusion that chaos can be neatly contained near the door.',
       itemDetails: 'This listing is intentionally deleted after seeding so the messaging thread keeps a historical deleted-item example.',
       itemCat: 'Home & Garden',
       status: 'active',
@@ -656,8 +992,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'plaza-americas',
       itemPicture: 'https://images.unsplash.com/photo-1543076447-215ad9ba6923?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Soft black hoodie that has held up well and still fits like a comfortable medium.',
-      itemDetails: 'No stains, no weird branding, and the zipper still runs clean.',
+      itemDescription: 'Soft black hoodie that looks lived-in without looking trashed.',
+      itemDetails: 'No stains, no giant logo, and the zipper still runs clean. It does what a hoodie is supposed to do and then gets out of the way.',
       itemCat: 'Apparel & Accessories',
       status: 'active',
       date: subtractHours(now, 20),
@@ -671,8 +1007,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'broward',
       itemPicture: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Compact keyboard synth with a moody sound bank and a power adapter included.',
-      itemDetails: 'A little worn around the edges, but every key works and it still sounds great through headphones.',
+      itemDescription: 'Compact synth keyboard with a darker sound bank, a working adapter, and enough character to justify the desk space.',
+      itemDetails: 'A little worn around the edges, but every key works and it still sounds great through headphones. Good for late-night loops and bad ideas.',
       itemCat: 'Entertainment & Hobbies',
       status: 'active',
       date: subtractHours(now, 24),
@@ -716,8 +1052,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Fair',
       pickupHubId: 'marston',
       itemPicture: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'A tidy set of business case studies, notes, and leadership reading for someone who likes marked-up margins.',
-      itemDetails: 'A few pages are highlighted, but the set is organized and still worth more than the asking price.',
+      itemDescription: 'A curated set of strategy case studies, annotated notes, and leadership reading for someone who prefers leverage over busywork.',
+      itemDetails: 'Some pages are highlighted, naturally. The useful parts usually are. The set is organized, complete, and priced below what it should be.',
       itemCat: 'Miscellaneous',
       status: 'active',
       date: subtractHours(now, 15),
@@ -731,8 +1067,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'turlington-hall',
       itemPicture: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Structured leather briefcase with room for a laptop, notebook, and the illusion of control.',
-      itemDetails: 'Professional enough for interviews and still clean inside, with only light wear on the corners.',
+      itemDescription: 'Structured leather briefcase with room for a laptop, notebook, charger, and a carefully managed impression.',
+      itemDetails: 'Professional enough for interviews, clean inside, and only lightly worn at the corners. It looks like it belongs in a better office than Gainesville.',
       itemCat: 'Apparel & Accessories',
       status: 'active',
       date: subtractHours(now, 30),
@@ -822,8 +1158,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       pickupHubId: 'turlington-hall',
       itemPicture: 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Raspberry Pi starter bundle with a case, spare cables, and a microSD adapter still in the pouch.',
-      itemDetails: 'Active listing with no accepted buyer yet, but a couple of shoppers already bookmarked it.',
+      itemDescription: 'Raspberry Pi starter bundle with a case, spare cables, and the adapters people always lose first.',
+      itemDetails: 'Active listing with no accepted buyer yet, but a couple of shoppers already bookmarked it. Everything is tested, because of course it is.',
       itemCat: 'Electronics & Computers',
       status: 'active',
       date: subtractHours(now, 16),
@@ -837,8 +1173,8 @@ function buildSeedDataset(config) {
       itemCondition: 'Like New',
       pickupHubId: 'reitz',
       itemPicture: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Low-profile riser that clears desk clutter and works well with a two-screen setup.',
-      itemDetails: 'Still active, with one fresh offer waiting for a reply and no damage around the feet.',
+      itemDescription: 'Low-profile riser that clears desk clutter and plays nicely with a two-screen setup, external drives, and too many sticky notes.',
+      itemDetails: 'Still active, with one fresh offer waiting for a reply and no damage around the feet. Looks boring, works perfectly.',
       itemCat: 'Home & Garden',
       status: 'active',
       date: subtractHours(now, 13),
@@ -979,39 +1315,6 @@ function buildSeedDataset(config) {
       },
     },
     {
-      key: 'conv-desk-lamp-leo',
-      listingKey: 'desk-lamp',
-      participantKeys: ['presenter', 'leo'],
-      messages: [
-        {
-          senderKey: 'system',
-          attachedListingKey: 'desk-lamp',
-          offerKey: 'offer-desk-lamp-leo',
-          offerEventType: 'sent',
-          body: 'Leo sent an offer.',
-          createdAt: subtractHours(now, 23),
-        },
-        {
-          senderKey: 'presenter',
-          attachedListingKey: 'desk-lamp',
-          body: addFiller('Thanks for the offer. Reitz could work if the lamp is still available tomorrow afternoon.', MESSAGE_VARIANTS),
-          createdAt: subtractHours(now, 22.4),
-        },
-        {
-          senderKey: 'system',
-          attachedListingKey: 'desk-lamp',
-          offerKey: 'offer-desk-lamp-leo',
-          offerEventType: 'declined',
-          body: 'Scott rejected your offer.',
-          createdAt: subtractHours(now, 18.6),
-        },
-      ],
-      lastReadHoursAgoByParticipant: {
-        presenter: 18.6,
-        leo: 18.6,
-      },
-    },
-    {
       key: 'conv-mini-fridge-noah',
       activeListingKey: 'mini-fridge',
       linkedListingKeys: ['desk-lamp', 'mini-fridge'],
@@ -1048,7 +1351,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'noah',
           attachedListingKey: 'mini-fridge',
-          body: 'Good. I will bring cash, keep it quick, and message when I am on the move.',
+          body: 'Good. I will bring cash, keep it quick, and message when I am moving. No reason to turn a fridge pickup into a committee meeting.',
           createdAt: subtractHours(now, 13.4),
         },
         {
@@ -1102,7 +1405,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'jasmine',
           attachedListingKey: 'sublease-room',
-          body: 'There is one spot open. I can send a walkthrough later today, but timing matters if you want to move quickly.',
+          body: 'There is one spot open. I can send a walkthrough later today, but if you want it, decide quickly. Time has a way of punishing hesitation.',
           createdAt: subtractHours(now, 10.7),
         },
         {
@@ -1128,7 +1431,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'jasmine',
           attachedListingKey: 'sublease-room',
-          body: 'The shoe rack is gone. The sublease remains available, and I can send the walkthrough tonight if you still want it.',
+          body: 'The shoe rack is gone. The sublease remains available, and I can send the walkthrough tonight if you are serious.',
           createdAt: subtractHours(now, 2.7),
         },
       ],
@@ -1154,7 +1457,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'mateo',
           attachedListingKey: 'textbook-bundle',
-          body: 'Yes, it is still available. I can hold it briefly, but I prefer buyers who know what they want.',
+          body: 'Yes, it is still available. I can hold it briefly, but only briefly. Indecision is expensive.',
           createdAt: subtractHours(now, 28.1),
         },
         {
@@ -1168,7 +1471,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'mateo',
           attachedListingKey: 'backpack',
-          body: 'Tomorrow works, but another buyer is ahead of you. If that changes, I will let you know directly.',
+          body: 'Tomorrow works, but another buyer is ahead of you. If that changes, I will let you know directly. I do not enjoy bidding wars conducted through hesitation.',
           createdAt: subtractHours(now, 26.4),
         },
         {
@@ -1188,7 +1491,7 @@ function buildSeedDataset(config) {
     {
       key: 'conv-stroller-ava',
       activeListingKey: 'stroller-organizer',
-      linkedListingKeys: ['board-game', 'stroller-organizer'],
+      linkedListingKeys: ['board-game', 'stroller-organizer', 'storage-drawers'],
       participantKeys: ['ava', 'priya'],
       messages: [
         {
@@ -1235,6 +1538,12 @@ function buildSeedDataset(config) {
           body: 'Angela Moss sent an offer.',
           createdAt: subtractHours(now, 7.1),
         },
+        {
+          senderKey: 'ava',
+          attachedListingKey: 'storage-drawers',
+          body: 'Those storage drawers are nice too. If they somehow open back up, let me know.',
+          createdAt: subtractHours(now, 6.8),
+        },
       ],
       lastReadHoursAgoByParticipant: {
         ava: 7.1,
@@ -1260,7 +1569,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'cameron',
           attachedListingKey: 'air-purifier',
-          body: 'I can meet after class if the purifier is still available. Fast handoff, no drama.',
+          body: 'I can meet after class if the purifier is still available. Fast handoff, no drama, no mystery delays.',
           createdAt: subtractHours(now, 6.2),
         },
         {
@@ -1395,12 +1704,223 @@ function buildSeedDataset(config) {
       },
     },
     {
+      key: 'conv-rolling-cart-leo',
+      activeListingKey: 'rolling-cart',
+      linkedListingKeys: ['desk-lamp', 'headphones', 'scooter', 'mini-fridge', 'rolling-cart'],
+      participantKeys: ['presenter', 'leo'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-leo',
+          offerEventType: 'sent',
+          body: 'Leo sent an offer.',
+          createdAt: subtractHours(now, 23),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'desk-lamp',
+          body: addFiller('Thanks for the offer. Reitz could work if the lamp is still available tomorrow afternoon.', MESSAGE_VARIANTS),
+          createdAt: subtractHours(now, 22.4),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'desk-lamp',
+          offerKey: 'offer-desk-lamp-leo',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 18.6),
+        },
+        {
+          senderKey: 'leo',
+          attachedListingKey: 'headphones',
+          body: 'The headphones from last time have been great, by the way.',
+          createdAt: subtractHours(now, 6.3),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'scooter',
+          body: 'Glad to hear it. I still need to post the scooter if you want me to send that your way too.',
+          createdAt: subtractHours(now, 6.1),
+        },
+        {
+          senderKey: 'leo',
+          attachedListingKey: 'mini-fridge',
+          body: 'If the fridge buyer falls through later, I would at least take a look. I am trying not to keep buying half your room one listing at a time.',
+          createdAt: subtractHours(now, 5.95),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'rolling-cart',
+          offerKey: 'offer-rolling-cart-leo',
+          offerEventType: 'sent',
+          body: 'Leo sent an offer.',
+          createdAt: subtractHours(now, 5.8),
+        },
+        {
+          senderKey: 'leo',
+          attachedListingKey: 'rolling-cart',
+          body: 'I could use the cart for lab gear. If tomorrow at Reitz still works, I can pick it up between classes.',
+          createdAt: subtractHours(now, 5.5),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'rolling-cart',
+          body: 'That timing works. I have another buyer asking too, but I can keep you posted if it stays available.',
+          createdAt: subtractHours(now, 5.1),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 5.1,
+        leo: 5.3,
+      },
+    },
+    {
+      key: 'conv-mini-fridge-priya',
+      activeListingKey: 'mini-fridge',
+      linkedListingKeys: ['board-game', 'stroller-organizer', 'mini-fridge'],
+      participantKeys: ['presenter', 'priya'],
+      messages: [
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'board-game',
+          body: 'I saw the board game handoff went smoothly on your side. Good to know.',
+          createdAt: subtractHours(now, 7.7),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-priya',
+          offerEventType: 'sent',
+          body: 'Priya sent an offer.',
+          createdAt: subtractHours(now, 7.3),
+        },
+        {
+          senderKey: 'priya',
+          attachedListingKey: 'mini-fridge',
+          body: 'If the current buyer backs out, I could pick this up tomorrow and keep the meetup easy.',
+          createdAt: subtractHours(now, 7.0),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'mini-fridge',
+          body: 'Thanks. I have one buyer in front, but I will let you know quickly if it opens back up.',
+          createdAt: subtractHours(now, 6.7),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 6.7,
+        priya: 6.9,
+      },
+    },
+    {
+      key: 'conv-rolling-cart-sofia',
+      activeListingKey: 'rolling-cart',
+      linkedListingKeys: ['gaming-monitor', 'kitchen-cart', 'rolling-cart'],
+      participantKeys: ['presenter', 'sofia'],
+      messages: [
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'gaming-monitor',
+          body: 'I appreciate you documenting the monitor issue clearly in the thread.',
+          createdAt: subtractHours(now, 6.5),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'rolling-cart',
+          offerKey: 'offer-rolling-cart-sofia',
+          offerEventType: 'sent',
+          body: 'Sofia sent an offer.',
+          createdAt: subtractHours(now, 6.2),
+        },
+        {
+          senderKey: 'sofia',
+          attachedListingKey: 'rolling-cart',
+          body: 'The cart would fit perfectly in my studio. I can meet tomorrow if you still have it.',
+          createdAt: subtractHours(now, 5.9),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'rolling-cart',
+          body: 'It is still available for now. Tomorrow should be fine if the earlier buyer does not confirm first.',
+          createdAt: subtractHours(now, 5.5),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 5.5,
+        sofia: 5.8,
+      },
+    },
+    {
+      key: 'conv-air-purifier-nina',
+      activeListingKey: 'air-purifier',
+      linkedListingKeys: ['vanity-mirror', 'lab-stool', 'air-purifier'],
+      participantKeys: ['presenter', 'nina'],
+      messages: [
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'vanity-mirror',
+          body: 'The mirror pickup worked out really well, so I wanted to check back in on your newer listings too.',
+          createdAt: subtractHours(now, 8.1),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'air-purifier',
+          offerKey: 'offer-air-purifier-nina',
+          offerEventType: 'sent',
+          body: 'Nina sent an offer.',
+          createdAt: subtractHours(now, 7.8),
+        },
+        {
+          senderKey: 'nina',
+          attachedListingKey: 'air-purifier',
+          body: 'If the timing still works tonight, I could meet near Marston and pick it up after class.',
+          createdAt: subtractHours(now, 7.4),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'air-purifier',
+          body: 'I have a same-day buyer lined up, but I wanted to answer quickly in case that changes.',
+          createdAt: subtractHours(now, 7.1),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 7.1,
+        nina: 7.3,
+      },
+    },
+    {
       key: 'conv-leo-ava-calculator',
       activeListingKey: 'graphing-calculator',
+      linkedListingKeys: ['headphones', 'scooter', 'graphing-calculator'],
       participantKeys: ['leo', 'ava'],
       activePickupHubId: 'marston',
       activePickupSpecifics: 'By the ground-floor tables near the entrance.',
       messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'headphones',
+          body: 'Sale completed. Pickup finished near Reitz and both sides confirmed the handoff.',
+          createdAt: subtractHours(now, 43.8),
+        },
+        {
+          senderKey: 'ava',
+          attachedListingKey: 'headphones',
+          body: 'Thanks again. The headphones were exactly what I needed for study sessions.',
+          createdAt: subtractHours(now, 43.5),
+        },
+        {
+          senderKey: 'ava',
+          attachedListingKey: 'scooter',
+          body: 'Also, is the scooter still available, or did somebody else beat me to it?',
+          createdAt: subtractHours(now, 12.6),
+        },
+        {
+          senderKey: 'leo',
+          attachedListingKey: 'scooter',
+          body: 'Still available, but I have one other person asking. I can keep you posted after the calculator meetup.',
+          createdAt: subtractHours(now, 12.3),
+        },
         {
           senderKey: 'system',
           attachedListingKey: 'graphing-calculator',
@@ -1438,7 +1958,7 @@ function buildSeedDataset(config) {
     {
       key: 'conv-sofia-presenter',
       activeListingKey: 'kitchen-cart',
-      linkedListingKeys: ['gaming-monitor', 'kitchen-cart'],
+      linkedListingKeys: ['gaming-monitor', 'kitchen-cart', 'rolling-cart'],
       participantKeys: ['presenter', 'sofia'],
       messages: [
         {
@@ -1478,6 +1998,12 @@ function buildSeedDataset(config) {
           createdAt: subtractHours(now, 10.2),
         },
         {
+          senderKey: 'presenter',
+          attachedListingKey: 'rolling-cart',
+          body: 'Also, if you are still rearranging the studio, the rolling cart from the other thread is still around for now.',
+          createdAt: subtractHours(now, 10.0),
+        },
+        {
           senderKey: 'sofia',
           attachedListingKey: 'kitchen-cart',
           body: 'The cart is still available. I can meet at Reitz tomorrow afternoon if you still want it.',
@@ -1492,7 +2018,7 @@ function buildSeedDataset(config) {
     {
       key: 'conv-nina-presenter',
       activeListingKey: 'lab-stool',
-      linkedListingKeys: ['vanity-mirror', 'lab-stool'],
+      linkedListingKeys: ['vanity-mirror', 'lab-stool', 'air-purifier'],
       participantKeys: ['presenter', 'nina'],
       messages: [
         {
@@ -1526,6 +2052,12 @@ function buildSeedDataset(config) {
           createdAt: subtractHours(now, 8.6),
         },
         {
+          senderKey: 'presenter',
+          attachedListingKey: 'air-purifier',
+          body: 'The purifier from your other listing still comes up in my apartment conversations, so I figured I would ask about the stool too.',
+          createdAt: subtractHours(now, 8.4),
+        },
+        {
           senderKey: 'nina',
           attachedListingKey: 'lab-stool',
           body: 'The stool is still available and I can probably meet near Architecture tomorrow morning.',
@@ -1553,7 +2085,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'cameron',
           attachedListingKey: 'monitor-stand',
-          body: 'That seems reasonable. I am finishing up class now and can answer later tonight if nobody starts acting weird.',
+          body: 'That seems reasonable. I am finishing up class now and can answer later tonight if nobody starts acting weird or sending me five follow-ups in a row.',
           createdAt: subtractHours(now, 6.4),
         },
         {
@@ -1602,7 +2134,7 @@ function buildSeedDataset(config) {
       key: 'offer-desk-lamp-leo',
       listingKey: 'desk-lamp',
       buyerKey: 'leo',
-      conversationKey: 'conv-desk-lamp-leo',
+      conversationKey: 'conv-rolling-cart-leo',
       offeredPrice: 26,
       meetupHubId: 'reitz',
       ...schedule(1, '14:00'),
@@ -1633,7 +2165,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'hume-hall',
       ...schedule(0, '18:00'),
       paymentMethod: 'cash',
-      message: 'I will pay asking if the pickup happens tonight. No need to overcomplicate it.',
+      message: 'I will pay asking if the pickup happens tonight. No need to dress up a fridge handoff like it is a diplomatic summit.',
       status: 'pending',
       createdAt: subtractHours(now, 14),
     },
@@ -1646,7 +2178,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'hume-hall',
       ...schedule(1, '11:30'),
       paymentMethod: 'externalApp',
-      message: 'I can be a backup buyer if your current pickup fails, but only if the timing is explicit.',
+      message: 'I can be a backup buyer if your current pickup fails, but only if the timing is explicit. Vague plans are a waste of everybody\'s time.',
       status: 'declined',
       createdAt: subtractHours(now, 17),
     },
@@ -1713,7 +2245,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'marston',
       ...schedule(1, '13:00'),
       paymentMethod: 'cash',
-      message: 'I am still considering the set if it has not moved yet.',
+      message: 'I am still considering the set if it has not moved yet. If it is gone, I assume it went to someone decisive.',
       status: 'pending',
       createdAt: subtractHours(now, 28.4),
     },
@@ -1766,7 +2298,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'marston',
       ...schedule(0, '17:45'),
       paymentMethod: 'cash',
-      message: 'I can come by tonight and keep the handoff short. In and out.',
+      message: 'I can come by tonight and keep the handoff short. In and out. No need to make this weird.',
       status: 'accepted',
       acceptedPickupSpecifics: 'North entrance under the shade trees.',
       createdAt: subtractHours(now, 6.5),
@@ -1793,7 +2325,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'marston',
       ...schedule(0, '18:15'),
       paymentMethod: 'cash',
-      message: 'I could still meet this evening if the earlier buyer falls through. Just keep me posted.',
+      message: 'I could still meet this evening if the earlier buyer falls through. Just keep me posted and keep it honest.',
       status: 'declined',
       createdAt: subtractHours(now, 8.2),
     },
@@ -1822,6 +2354,58 @@ function buildSeedDataset(config) {
       message: 'Sending a lower first pass in case you want it moved fast.',
       status: 'declined',
       createdAt: subtractHours(now, 10.4),
+    },
+    {
+      key: 'offer-rolling-cart-leo',
+      listingKey: 'rolling-cart',
+      buyerKey: 'leo',
+      conversationKey: 'conv-rolling-cart-leo',
+      offeredPrice: 22,
+      meetupHubId: 'reitz',
+      ...schedule(1, '12:45'),
+      paymentMethod: 'cash',
+      message: 'I could use the cart for cables and lab gear. Happy to meet at Reitz tomorrow if it is still available.',
+      status: 'pending',
+      createdAt: subtractHours(now, 5.8),
+    },
+    {
+      key: 'offer-mini-fridge-priya',
+      listingKey: 'mini-fridge',
+      buyerKey: 'priya',
+      conversationKey: 'conv-mini-fridge-priya',
+      offeredPrice: 69,
+      meetupHubId: 'hume-hall',
+      ...schedule(1, '14:30'),
+      paymentMethod: 'externalApp',
+      message: 'If your current buyer falls through, I can pick this up tomorrow and keep the handoff easy.',
+      status: 'pending',
+      createdAt: subtractHours(now, 7.3),
+    },
+    {
+      key: 'offer-rolling-cart-sofia',
+      listingKey: 'rolling-cart',
+      buyerKey: 'sofia',
+      conversationKey: 'conv-rolling-cart-sofia',
+      offeredPrice: 23,
+      meetupHubId: 'reitz',
+      ...schedule(1, '15:15'),
+      paymentMethod: 'cash',
+      message: 'The cart would work perfectly in my studio. I can meet tomorrow if it is still around.',
+      status: 'pending',
+      createdAt: subtractHours(now, 6.2),
+    },
+    {
+      key: 'offer-air-purifier-nina',
+      listingKey: 'air-purifier',
+      buyerKey: 'nina',
+      conversationKey: 'conv-air-purifier-nina',
+      offeredPrice: 47,
+      meetupHubId: 'marston',
+      ...schedule(0, '18:30'),
+      paymentMethod: 'cash',
+      message: 'If the same-day buyer drops, I could meet near Marston tonight and keep this simple.',
+      status: 'declined',
+      createdAt: subtractHours(now, 7.8),
     },
     {
       key: 'offer-graphing-calculator-ava',
@@ -2338,6 +2922,21 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
 
   const conversationIdByKey = new Map();
 
+  function resolveSeedMessageBody(message, offerSeed, listingDocument) {
+    if (message?.offerEventType && offerSeed) {
+      const buyerProfile = dataset.profilesByKey[offerSeed.buyerKey];
+
+      return (
+        formatSeedOfferEventBody(message.offerEventType, {
+          buyerDisplayName: buyerProfile?.profileName || '',
+          sellerDisplayName: listingDocument?.userPublishingName || '',
+        }) || message.body
+      );
+    }
+
+    return message?.body || '';
+  }
+
   for (const conversation of dataset.conversations) {
     const participantIds = sortedParticipantIds(
       conversation.participantKeys.map((participantKey) => profileIdByKey.get(participantKey))
@@ -2349,13 +2948,15 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       .filter(Boolean);
     const activeListingId = activeListingKey ? itemIdByKey.get(activeListingKey) || null : null;
     const lastMessage = conversation.messages[conversation.messages.length - 1];
+    const lastMessageOfferSeed = lastMessage?.offerKey ? offerSeedByKey.get(lastMessage.offerKey) : null;
+    const lastMessageListingDocument = lastMessageOfferSeed ? itemByKey.get(lastMessageOfferSeed.listingKey) : null;
     const createdConversation = await deps.models.Conversation.create({
       participantIds,
       linkedListingIds,
       activeListingId,
       activePickupHubId: conversation.activePickupHubId || null,
       activePickupSpecifics: conversation.activePickupSpecifics || '',
-      lastMessageText: lastMessage.body,
+      lastMessageText: resolveSeedMessageBody(lastMessage, lastMessageOfferSeed, lastMessageListingDocument),
       lastMessageAt: lastMessage.createdAt,
       lastReadAtByUser: buildLastReadAtMap(conversation, dataset, now),
       seedTag: config.seedTag,
@@ -2373,10 +2974,11 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       const resolvedOfferPickup = offerSeed ? resolveSeedOfferPickup(offerSeed) : null;
       const buyerProfile = offerSeed ? dataset.profilesByKey[offerSeed.buyerKey] : null;
       const listingDocument = offerSeed ? itemByKey.get(offerSeed.listingKey) : null;
+      const resolvedMessageBody = resolveSeedMessageBody(message, offerSeed, listingDocument);
       await deps.models.Message.create({
         conversationId: createdConversation._id,
         senderClerkUserId: message.senderKey === 'system' ? 'system' : profileIdByKey.get(message.senderKey),
-        body: message.body,
+        body: resolvedMessageBody,
         attachedListingId,
         attachedListingTitle: attachedListing?.itemName || '',
         attachedListingImageUrl: attachedListing?.itemPicture || '',
@@ -2469,32 +3071,41 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       continue;
     }
 
-    await deps.models.Transaction.create({
-      offerId: offerDocument._id,
-      listingId: listingDocument._id,
-      conversationId,
-      buyerClerkUserId: profileIdByKey.get(offerSeed.buyerKey),
-      sellerClerkUserId: listingDocument.userPublishingID,
-      acceptedTerms: {
-        price: offerSeed.offeredPrice,
-        paymentMethod: offerSeed.paymentMethod,
-        meetupHubId: resolvedMeetup?.meetupHubId || '',
-        meetupLocation: resolvedMeetup?.meetupLocation || '',
-        pickupSpecifics: transaction.pickupSpecifics || offerSeed.acceptedPickupSpecifics || '',
-        meetupDate: offerSeed.meetupDate,
-        meetupTime: offerSeed.meetupTime,
+    await deps.models.Transaction.findOneAndUpdate(
+      {offerId: offerDocument._id},
+      {
+        $set: {
+          listingId: listingDocument._id,
+          conversationId,
+          buyerClerkUserId: profileIdByKey.get(offerSeed.buyerKey),
+          sellerClerkUserId: listingDocument.userPublishingID,
+          acceptedTerms: {
+            price: offerSeed.offeredPrice,
+            paymentMethod: offerSeed.paymentMethod,
+            meetupHubId: resolvedMeetup?.meetupHubId || '',
+            meetupLocation: resolvedMeetup?.meetupLocation || '',
+            pickupSpecifics: transaction.pickupSpecifics || offerSeed.acceptedPickupSpecifics || '',
+            meetupDate: offerSeed.meetupDate,
+            meetupTime: offerSeed.meetupTime,
+          },
+          status: transaction.status,
+          buyerDecision: transaction.buyerDecision || '',
+          sellerDecision: transaction.sellerDecision || '',
+          buyerReviewedAt: transaction.buyerReviewedAt || null,
+          sellerReviewedAt: transaction.sellerReviewedAt || null,
+          buyerReview: transaction.buyerReview || null,
+          sellerReview: transaction.sellerReview || null,
+          seedTag: config.seedTag,
+          createdAt: transaction.createdAt || offerSeed.createdAt,
+          updatedAt: transaction.updatedAt || transaction.createdAt || offerSeed.createdAt,
+        },
       },
-      status: transaction.status,
-      buyerDecision: transaction.buyerDecision || '',
-      sellerDecision: transaction.sellerDecision || '',
-      buyerReviewedAt: transaction.buyerReviewedAt || null,
-      sellerReviewedAt: transaction.sellerReviewedAt || null,
-      buyerReview: transaction.buyerReview || null,
-      sellerReview: transaction.sellerReview || null,
-      seedTag: config.seedTag,
-      createdAt: transaction.createdAt || offerSeed.createdAt,
-      updatedAt: transaction.updatedAt || transaction.createdAt || offerSeed.createdAt,
-    });
+      {
+        upsert: true,
+        returnDocument: 'after',
+        setDefaultsOnInsert: true,
+      }
+    );
 
     if (transaction.status === 'completed' || transaction.status === 'problemReported') {
       await deps.models.Offer.findByIdAndUpdate(offerDocument._id, {
@@ -2614,7 +3225,9 @@ function printSeedSummary(summary, config, logger = console) {
   logger.log(`Outbound offers by presenter: ${summary.outboundOfferCount}`);
   logger.log('');
   logger.log('Reminder commands:');
+  logger.log('  PRESENTER_CLERK_SECRET_KEY=sk_test_presenter SECONDARY_CLERK_SECRET_KEY=sk_test_secondary DEMO_USER_ASSIGNMENTS=\'[{"email":"you@ufl.edu","clerkSecretKeyEnv":"PRESENTER_CLERK_SECRET_KEY"},{"email":"friend@ufl.edu","clerkSecretKeyEnv":"SECONDARY_CLERK_SECRET_KEY"}]\' npm run seed:demo');
   logger.log('  DEMO_USER_EMAIL=you@ufl.edu CLERK_SECRET_KEY=sk_test_xxx npm run seed:demo');
+  logger.log('  PRESENTER_CLERK_SECRET_KEY=sk_test_presenter DEMO_USER_MAP=\'{"presenter":{"email":"you@ufl.edu","clerkSecretKeyEnv":"PRESENTER_CLERK_SECRET_KEY"},"ava":{"id":"user_ava123"}}\' npm run seed:demo');
   logger.log('  SEED_FULL_RESET=true npm run seed:demo');
 }
 
@@ -2624,7 +3237,14 @@ async function seedDemoData({
   deps = defaultDependencies(),
 } = {}) {
   const config = buildSeedConfigFromEnv(env);
-  config.presenterIdentity = await resolvePresenterIdentity(config, {fetchImpl});
+  config.profileIdentityOverrides = await resolveSeedProfileIdentities(config, {fetchImpl});
+  config.presenterIdentity = config.profileIdentityOverrides.presenter || {
+    profileID: 'demo_seller',
+    profileName: PRESENTER_PROFILE_DEFAULTS.profileName,
+    profilePicture: PRESENTER_PROFILE_DEFAULTS.profilePicture,
+    source: 'fallback',
+    email: '',
+  };
   config.cleanupSummary = await deleteExistingSeedData(config, deps);
   const dataset = buildSeedDataset(config);
   const summary = await insertSeedDataset(dataset, config, deps);
@@ -2649,8 +3269,12 @@ module.exports = {
   buildSeedDataset,
   deleteExistingSeedData,
   insertSeedDataset,
+  parseDemoUserAssignments,
+  parseDemoUserMap,
   printSeedSummary,
   resolveClerkUserByEmail,
+  resolveClerkUserById,
+  resolveSeedProfileIdentities,
   resolvePresenterIdentity,
   seedDemoData,
 };
