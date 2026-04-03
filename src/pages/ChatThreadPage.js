@@ -129,6 +129,26 @@ function getChipStatusLabel(state) {
   return 'Active';
 }
 
+function isSelectableComposerState(state) {
+  return state === 'active' || state === 'pending';
+}
+
+function getFocusedItemStatusLabel(state) {
+  if (state === 'pending') {
+    return 'Pending';
+  }
+
+  if (state === 'completedHere') {
+    return 'Purchased';
+  }
+
+  if (state === 'unavailable') {
+    return 'Unavailable';
+  }
+
+  return 'Available';
+}
+
 function getRailPriority(state) {
   if (state === 'pending') {
     return 0;
@@ -148,6 +168,20 @@ function getTimestamp(value) {
 
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function truncateText(value, maxLength) {
+  const trimmedValue = typeof value === 'string' ? value.trim() : '';
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  if (trimmedValue.length <= maxLength) {
+    return trimmedValue;
+  }
+
+  return `${trimmedValue.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
 }
 
 function sortLinkedItemsForRail(linkedItems = []) {
@@ -172,11 +206,13 @@ export function ChatThreadPage() {
   const messagesScrollRef = useRef(null);
   const messageRefs = useRef(new Map());
   const pendingScrollBehaviorRef = useRef(null);
+  const composerContextClearedRef = useRef(false);
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [otherParticipantId, setOtherParticipantId] = useState('');
   const [otherParticipantName, setOtherParticipantName] = useState('Conversation');
   const [otherParticipantAvatarUrl, setOtherParticipantAvatarUrl] = useState('');
+  const [activeListingDescription, setActiveListingDescription] = useState('');
   const [listingOriginalPickupHubId, setListingOriginalPickupHubId] = useState('');
   const [listingOriginalPickupLabel, setListingOriginalPickupLabel] = useState('');
   const [listingCurrentPickupHubId, setListingCurrentPickupHubId] = useState('');
@@ -194,25 +230,46 @@ export function ChatThreadPage() {
   const [isSending, setIsSending] = useState(false);
   const [isPickupEditorOpen, setIsPickupEditorOpen] = useState(false);
   const [isUpdatingPickup, setIsUpdatingPickup] = useState(false);
+  const [focusedListingId, setFocusedListingId] = useState('');
+  const [focusedListingDescription, setFocusedListingDescription] = useState('');
   const [selectedListingId, setSelectedListingId] = useState('');
+  const [isComposerContextCleared, setIsComposerContextCleared] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState('');
   const conversationLinkedItems = Array.isArray(conversation?.linkedItems) ? conversation.linkedItems : [];
   const orderedConversationLinkedItems = sortLinkedItemsForRail(conversationLinkedItems);
-  const selectedActiveItem = conversationLinkedItems.find(
+  const locallyFocusedItem = conversationLinkedItems.find(
+    (linkedItem) => normalizeId(linkedItem.listingId) === normalizeId(focusedListingId)
+  ) || null;
+  const selectedComposerItem = conversationLinkedItems.find(
     (linkedItem) =>
-      linkedItem.state === 'active' &&
+      isSelectableComposerState(linkedItem.state) &&
       normalizeId(linkedItem.listingId) === normalizeId(selectedListingId)
   ) || null;
+  const sharedComposerItem =
+    !isComposerContextCleared && conversation?.activeItem && isSelectableComposerState(conversation.activeItem.state)
+      ? conversation.activeItem
+      : null;
+  const composerContextItem = selectedComposerItem || sharedComposerItem || null;
   const focusedItem =
-    selectedActiveItem ||
+    locallyFocusedItem ||
+    selectedComposerItem ||
     conversation?.activeItem ||
-    conversationLinkedItems.find((linkedItem) => linkedItem.state === 'active') ||
+    conversationLinkedItems.find((linkedItem) => isSelectableComposerState(linkedItem.state)) ||
     conversationLinkedItems[0] ||
     null;
-  const composerListingId =
-    normalizeId(selectedActiveItem?.listingId) ||
-    (conversation?.activeItem?.state === 'active' ? normalizeId(conversation.activeItem.listingId) : '') ||
-    '';
+  const composerListingId = normalizeId(composerContextItem?.listingId);
+  const shouldShowMessageItemPill = conversationLinkedItems.length > 1;
+  const derivedFocusedListingDescription =
+    normalizeId(focusedItem?.listingId) === normalizeId(conversation?.activeItem?.listingId)
+      ? activeListingDescription
+      : focusedListingDescription;
+  const focusedItemDescription = truncateText(
+    derivedFocusedListingDescription ||
+      (focusedItem?.state === 'unavailable'
+        ? 'This item is no longer available on the marketplace, but it remains in your shared history.'
+        : 'No item description is available right now.'),
+    50
+  );
   const activePickupHubId =
     conversation?.activePickupHubId ||
     (conversation?.activePickupSpecifics ? listingCurrentPickupHubId : '') ||
@@ -304,27 +361,50 @@ export function ChatThreadPage() {
           const nextLinkedItems = Array.isArray(threadData.conversation.linkedItems)
             ? threadData.conversation.linkedItems
             : [];
-          const hasCurrentActiveSelection = nextLinkedItems.some(
+          const hasCurrentSelectableSelection = nextLinkedItems.some(
             (linkedItem) =>
-              linkedItem.state === 'active' &&
+              isSelectableComposerState(linkedItem.state) &&
               normalizeId(linkedItem.listingId) === normalizeId(currentListingId)
           );
 
-          if (hasCurrentActiveSelection) {
+          if (hasCurrentSelectableSelection) {
             return currentListingId;
           }
 
-          if (threadData.conversation.activeItem?.state === 'active') {
+          if (composerContextClearedRef.current) {
+            return '';
+          }
+
+          if (threadData.conversation.activeItem?.state && isSelectableComposerState(threadData.conversation.activeItem.state)) {
             return normalizeId(threadData.conversation.activeItem.listingId);
           }
 
           return normalizeId(
-            nextLinkedItems.find((linkedItem) => linkedItem.state === 'active')?.listingId
+            nextLinkedItems.find((linkedItem) => isSelectableComposerState(linkedItem.state))?.listingId
           );
+        });
+        setFocusedListingId((currentListingId) => {
+          const nextLinkedItems = Array.isArray(threadData.conversation.linkedItems)
+            ? threadData.conversation.linkedItems
+            : [];
+          const hasCurrentFocusedItem = nextLinkedItems.some(
+            (linkedItem) => normalizeId(linkedItem.listingId) === normalizeId(currentListingId)
+          );
+
+          if (hasCurrentFocusedItem) {
+            return currentListingId;
+          }
+
+          if (threadData.conversation.activeItem?.listingId) {
+            return normalizeId(threadData.conversation.activeItem.listingId);
+          }
+
+          return normalizeId(nextLinkedItems[0]?.listingId);
         });
         setOtherParticipantId(otherId || '');
         setOtherParticipantName(profileData?.profile?.profileName || otherId || 'Conversation');
         setOtherParticipantAvatarUrl(profileData?.profile?.profilePicture || '');
+        setActiveListingDescription(listingData?.itemDescription || '');
         setListingOriginalPickupHubId(
           listingData?.originalPickupHubId ||
             listingData?.pickupHubId ||
@@ -373,6 +453,37 @@ export function ChatThreadPage() {
       window.clearInterval(intervalId);
     };
   }, [conversationId, user?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFocusedListingDetails = async () => {
+      const normalizedFocusedListingId = normalizeId(focusedItem?.listingId);
+
+      if (!normalizedFocusedListingId) {
+        if (isMounted) {
+          setFocusedListingDescription('');
+        }
+        return;
+      }
+
+      if (normalizedFocusedListingId === normalizeId(conversation?.activeItem?.listingId)) {
+        return;
+      }
+
+      const listingData = await fetchOptionalJson(`${API_BASE_URL}/items/${normalizedFocusedListingId}`);
+
+      if (isMounted) {
+        setFocusedListingDescription(listingData?.itemDescription || '');
+      }
+    };
+
+    loadFocusedListingDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeListingDescription, conversation?.activeItem?.listingId, focusedItem?.listingId]);
 
   useEffect(() => {
     if (isPickupEditorOpen) {
@@ -433,8 +544,18 @@ export function ChatThreadPage() {
       return;
     }
 
-    if (linkedItem.state === 'active') {
-      setSelectedListingId(normalizeId(linkedItem.listingId));
+    const normalizedListingId = normalizeId(linkedItem.listingId);
+    setFocusedListingId(normalizedListingId);
+
+    if (isSelectableComposerState(linkedItem.state)) {
+      if (normalizedListingId === normalizeId(composerContextItem?.listingId)) {
+        handleClearComposerContext();
+        return;
+      }
+
+      composerContextClearedRef.current = false;
+      setIsComposerContextCleared(false);
+      setSelectedListingId(normalizedListingId);
       setHighlightedMessageId('');
       return;
     }
@@ -450,6 +571,13 @@ export function ChatThreadPage() {
       behavior: 'smooth',
       block: 'center',
     });
+  };
+
+  const handleClearComposerContext = () => {
+    composerContextClearedRef.current = true;
+    setIsComposerContextCleared(true);
+    setSelectedListingId('');
+    setHighlightedMessageId('');
   };
 
   const handlePickupHubChange = (pickupHubId) => {
@@ -602,14 +730,10 @@ export function ChatThreadPage() {
                     <div className="min-w-0 space-y-1">
                       <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
                         <AppIcon icon={getChipIcon(focusedItem.state)} className="text-[0.95em]" />
-                        <span>{getChipStatusLabel(focusedItem.state)}</span>
+                        <span>{getFocusedItemStatusLabel(focusedItem.state)}</span>
                       </span>
                       <h2 className="truncate text-xl font-semibold text-white">{focusedItem.title}</h2>
-                      <p className="text-sm text-app-soft">
-                        {focusedItem.state === 'active'
-                          ? 'Selected for your next tagged message in this thread.'
-                          : 'This item stays in the rail so you can jump back to its latest thread context.'}
-                      </p>
+                      <p className="text-sm text-app-soft">{focusedItemDescription}</p>
                     </div>
                   </div>
                   <Link
@@ -776,6 +900,15 @@ export function ChatThreadPage() {
                           : ''
                       } ${systemMessageClassName}`}
                     >
+                      {shouldShowMessageItemPill && message.attachedItem ? (
+                        <div
+                          data-testid="message-attached-item-pill"
+                          className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/12 px-3 py-1 text-xs font-semibold text-white/88"
+                        >
+                          <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                          <span className="truncate">{message.attachedItem.title}</span>
+                        </div>
+                      ) : null}
                       <p className="text-sm font-medium text-white">{message.body}</p>
                       <p className={`mt-1 text-xs ${systemTimestampClassName}`}>{formatMessageTime(message.createdAt)}</p>
                     </div>
@@ -816,6 +949,19 @@ export function ChatThreadPage() {
                           : 'border border-white/10 bg-app-elevated text-app-text'
                       }`}
                     >
+                      {shouldShowMessageItemPill && message.attachedItem ? (
+                        <div
+                          data-testid="message-attached-item-pill"
+                          className={`mb-2 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                            isOwnMessage
+                              ? 'border-white/15 bg-white/10 text-white/90'
+                              : 'border-white/10 bg-white/6 text-app-soft'
+                          }`}
+                        >
+                          <AppIcon icon={getChipIcon(message.attachedItem.state)} className="text-[0.9em]" />
+                          <span className="truncate">{message.attachedItem.title}</span>
+                        </div>
+                      ) : null}
                       <p className="whitespace-pre-wrap text-sm leading-7">{message.body}</p>
                       <p
                         className={`mt-2 text-xs ${
@@ -835,6 +981,28 @@ export function ChatThreadPage() {
 
       <Card className="space-y-4">
         <form className="space-y-4" onSubmit={handleSendMessage}>
+          {composerContextItem ? (
+            <div
+              data-testid="composer-item-context"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-white/10 bg-white/5 px-4 py-3"
+            >
+              <p className="inline-flex min-w-0 items-center gap-2 text-sm text-app-soft">
+                <span className="font-semibold text-app-muted">Discussing:</span>
+                <span className="inline-flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white">
+                  <AppIcon icon={getChipIcon(composerContextItem.state)} className="text-[0.95em]" />
+                  <span className="truncate">{composerContextItem.title}</span>
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={handleClearComposerContext}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-3 py-1.5 text-sm font-semibold text-app-soft transition hover:border-white/20 hover:text-white"
+              >
+                <AppIcon icon="clear" className="text-[0.9em]" />
+                <span>Clear</span>
+              </button>
+            </div>
+          ) : null}
           <Textarea
             id="thread-message"
             label="Message"

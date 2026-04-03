@@ -1371,8 +1371,9 @@ app.post('/api/conversations/:id/messages', async (req, resp) => {
     }
 
     await conversation.save();
+    const [serializedMessage] = await serializeMessages([message], conversation);
 
-    resp.status(201).json(message);
+    resp.status(201).json(serializedMessage);
   } catch (e) {
     resp.status(500).json({message: 'Failed to send message', error: e.message});
   }
@@ -1488,12 +1489,13 @@ app.patch('/api/conversations/:id/pickup', async (req, resp) => {
     });
 
     await conversation.save();
+    const [serializedSystemMessage] = await serializeMessages([systemMessage], conversation);
 
     resp.json({
       conversation: await serializeConversation(conversation, {
         isMeetupHubLocked: Boolean(reservedOffer),
       }),
-      systemMessage,
+      systemMessage: serializedSystemMessage,
     });
   } catch (e) {
     resp.status(500).json({message: 'Failed to update pickup details', error: e.message});

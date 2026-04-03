@@ -100,12 +100,24 @@ beforeEach(() => {
         senderClerkUserId: 'seller-1',
         body: 'Hi there',
         createdAt: '2026-03-29T12:00:00.000Z',
+        attachedItem: {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+        },
       },
       {
         _id: 'message-2',
         senderClerkUserId: 'seller-1',
         body: 'The chair is still available too.',
         createdAt: '2026-03-29T12:20:00.000Z',
+        attachedItem: {
+          listingId: 'item-2',
+          title: 'Study Chair',
+          imageUrl: 'chair.png',
+          state: 'active',
+        },
       },
     ],
   });
@@ -114,6 +126,12 @@ beforeEach(() => {
     senderClerkUserId: 'buyer-1',
     body: 'I can pick it up today.',
     createdAt: '2026-03-29T13:05:00.000Z',
+    attachedItem: {
+      listingId: 'item-1',
+      title: 'Desk Lamp',
+      imageUrl: 'lamp.png',
+      state: 'active',
+    },
   });
 
   global.fetch = jest.fn((url) => {
@@ -131,6 +149,7 @@ beforeEach(() => {
         itemName: 'Desk Lamp',
         pickupHubId: 'library-west',
         itemLocation: 'Library West',
+        itemDescription: 'Matte black desk lamp with an adjustable neck for late-night study sessions.',
         userPublishingID: 'seller-1',
       });
     }
@@ -139,6 +158,7 @@ beforeEach(() => {
   });
 
   window.HTMLElement.prototype.scrollIntoView = jest.fn();
+  window.HTMLElement.prototype.scrollTo = jest.fn();
 });
 
 afterEach(() => {
@@ -158,7 +178,9 @@ test('thread view renders participant and listing context', async () => {
   expect(screen.getByText('Hi there')).toBeInTheDocument();
   expect(screen.getByText('Reitz Union')).toBeInTheDocument();
   expect(screen.getByText(/meet outside the food court doors\./i)).toBeInTheDocument();
-  expect(screen.getByText(/selected for your next tagged message/i)).toBeInTheDocument();
+  expect(screen.getByText('Available')).toBeInTheDocument();
+  expect(await screen.findByText(/Matte black desk lamp with an adjustable neck/i)).toBeInTheDocument();
+  expect(screen.getByTestId('composer-item-context')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /edit meetup details/i })).not.toBeInTheDocument();
 });
 
@@ -237,6 +259,39 @@ test('rail keeps pending items first, then active items, then inactive history w
       },
     ],
   });
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        pickupHubId: 'library-west',
+        itemLocation: 'Library West',
+        itemDescription: 'Matte black desk lamp with an adjustable neck for late-night study sessions.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-4') {
+      return jsonResponse({
+        _id: 'item-4',
+        itemName: 'Bike Helmet',
+        pickupHubId: 'reitz',
+        itemLocation: 'Reitz Union',
+        itemDescription: 'Matte bike helmet with reflective strips and a secure rear dial.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
 
   render(<ChatThreadPage />);
 
@@ -254,6 +309,141 @@ test('rail keeps pending items first, then active items, then inactive history w
     'Poster Tube',
     'Bike Helmet',
   ]);
+});
+
+test('pending chips behave like selectable message context and can be toggled off by clicking again', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'active',
+        latestContextMessageId: 'message-1',
+      },
+      linkedItemCount: 2,
+      linkedItems: [
+        {
+          listingId: 'item-3',
+          title: 'Mini Fridge',
+          imageUrl: 'fridge.png',
+          state: 'pending',
+          latestContextMessageId: 'message-3',
+        },
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+          latestContextMessageId: 'message-1',
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sounds good',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-1',
+        senderClerkUserId: 'seller-1',
+        body: 'Lamp update',
+        createdAt: '2026-03-29T12:00:00.000Z',
+      },
+      {
+        _id: 'message-3',
+        senderClerkUserId: 'system',
+        body: 'Offer accepted for the fridge.',
+        createdAt: '2026-03-29T12:10:00.000Z',
+      },
+    ],
+  });
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        pickupHubId: 'library-west',
+        itemLocation: 'Library West',
+        itemDescription: 'Matte black desk lamp with an adjustable neck for late-night study sessions.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-3') {
+      return jsonResponse({
+        _id: 'item-3',
+        itemName: 'Mini Fridge',
+        pickupHubId: 'reitz',
+        itemLocation: 'Reitz Union',
+        itemDescription: 'Compact mini fridge with one accepted offer still in progress.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<ChatThreadPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /mini fridge\. pending in this thread\./i }));
+  expect(screen.getByTestId('composer-item-context')).toHaveTextContent('Mini Fridge');
+  expect(screen.getByText('Pending')).toBeInTheDocument();
+  expect(await screen.findByText(/Compact mini fridge with one accepted offer/i)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /mini fridge\. pending in this thread\./i }));
+  expect(screen.queryByTestId('composer-item-context')).not.toBeInTheDocument();
+});
+
+test('composer context can be cleared so the next message sends without an item tag', async () => {
+  render(<ChatThreadPage />);
+
+  expect(await screen.findByTestId('composer-item-context')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /clear/i }));
+
+  expect(screen.queryByTestId('composer-item-context')).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText(/^message$/i), {
+    target: { value: 'Quick question that is not about one item.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /send message/i }));
+
+  await waitFor(() => {
+    expect(mockSendMessage).toHaveBeenCalledWith({
+      conversationId: 'conversation-1',
+      senderClerkUserId: 'buyer-1',
+      body: 'Quick question that is not about one item.',
+      attachedListingId: null,
+    });
+  });
+});
+
+test('message item pills render for tagged messages only when the thread has multiple linked items', async () => {
+  render(<ChatThreadPage />);
+
+  await screen.findByRole('heading', { name: 'Seller One' });
+
+  const attachedItemPills = screen.getAllByTestId('message-attached-item-pill');
+
+  expect(attachedItemPills).toHaveLength(2);
+  expect(attachedItemPills[0]).toHaveTextContent('Desk Lamp');
+  expect(attachedItemPills[1]).toHaveTextContent('Study Chair');
 });
 
 test('tapping another active item chip changes the next message context locally', async () => {
@@ -366,7 +556,8 @@ test('tapping a historical item chip jumps to its latest thread message without 
   fireEvent.click(await screen.findByRole('button', { name: /bike helmet\. completed here\./i }));
 
   expect(scrollIntoViewMock).toHaveBeenCalled();
-  expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-1');
+  expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-4');
+  expect(screen.getByText('Purchased')).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText(/^message$/i), {
     target: { value: 'Still good for the lamp?' },
@@ -381,6 +572,107 @@ test('tapping a historical item chip jumps to its latest thread message without 
       attachedListingId: 'item-1',
     });
   });
+});
+
+test('unavailable chips update the item details card while also jumping to the latest message context', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'active',
+        latestContextMessageId: 'message-1',
+      },
+      linkedItemCount: 2,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+          latestContextMessageId: 'message-1',
+        },
+        {
+          listingId: 'item-5',
+          title: 'Poster Tube',
+          imageUrl: 'tube.png',
+          state: 'unavailable',
+          latestContextMessageId: 'message-5',
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sounds good',
+      lastMessageAt: '2026-03-29T13:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:00:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-1',
+        senderClerkUserId: 'seller-1',
+        body: 'Lamp update',
+        createdAt: '2026-03-29T12:00:00.000Z',
+      },
+      {
+        _id: 'message-5',
+        senderClerkUserId: 'seller-1',
+        body: 'The poster tube is no longer available.',
+        createdAt: '2026-03-29T12:30:00.000Z',
+      },
+    ],
+  });
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        pickupHubId: 'library-west',
+        itemLocation: 'Library West',
+        itemDescription: 'Matte black desk lamp with an adjustable neck for late-night study sessions.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-5') {
+      return jsonResponse({
+        _id: 'item-5',
+        itemName: 'Poster Tube',
+        pickupHubId: 'reitz',
+        itemLocation: 'Reitz Union',
+        itemDescription: 'Rigid poster tube with a shoulder strap for studio transport.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<ChatThreadPage />);
+
+  const scrollIntoViewMock = window.HTMLElement.prototype.scrollIntoView;
+  scrollIntoViewMock.mockClear();
+
+  fireEvent.click(await screen.findByRole('button', { name: /poster tube\. unavailable\./i }));
+
+  expect(scrollIntoViewMock).toHaveBeenCalled();
+  expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-5');
+  expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  expect(await screen.findByText(/Rigid poster tube with a shoulder strap/i)).toBeInTheDocument();
 });
 
 test('threads without an active negotiated hub fall back to the listing original public hub', async () => {
@@ -428,6 +720,61 @@ test('threads without an active negotiated hub fall back to the listing original
 
   expect(await screen.findByText('Library West')).toBeInTheDocument();
   expect(screen.getByText(/seller will add the exact meetup specifics/i)).toBeInTheDocument();
+});
+
+test('single-item threads do not render attached-item pills on messages', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'active',
+        latestContextMessageId: 'message-1',
+      },
+      linkedItemCount: 1,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+          latestContextMessageId: 'message-1',
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Hi there',
+      lastMessageAt: '2026-03-29T12:00:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T12:00:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-1',
+        senderClerkUserId: 'seller-1',
+        body: 'Hi there',
+        createdAt: '2026-03-29T12:00:00.000Z',
+        attachedItem: {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'active',
+        },
+      },
+    ],
+  });
+
+  render(<ChatThreadPage />);
+
+  await screen.findByRole('heading', { name: 'Seller One' });
+
+  expect(screen.queryByTestId('message-attached-item-pill')).not.toBeInTheDocument();
 });
 
 test('accepted threads fall back to the listing current reserved hub when specifics exist but the hub id is missing', async () => {
@@ -601,6 +948,7 @@ test('polling refresh does not auto-scroll when the reader is away from the bott
   expect(await screen.findByText('Hi there')).toBeInTheDocument();
 
   const scrollIntoViewMock = window.HTMLElement.prototype.scrollIntoView;
+  const scrollToMock = window.HTMLElement.prototype.scrollTo;
   const scrollRegion = screen.getByTestId('thread-messages-scroll-region');
 
   Object.defineProperty(scrollRegion, 'scrollHeight', {
@@ -618,6 +966,7 @@ test('polling refresh does not auto-scroll when the reader is away from the bott
   });
 
   scrollIntoViewMock.mockClear();
+  scrollToMock.mockClear();
 
   await act(async () => {
     jest.advanceTimersByTime(5000);
@@ -625,6 +974,7 @@ test('polling refresh does not auto-scroll when the reader is away from the bott
 
   expect(await screen.findByText('New reply')).toBeInTheDocument();
   expect(scrollIntoViewMock).not.toHaveBeenCalled();
+  expect(scrollToMock).not.toHaveBeenCalled();
 
   jest.useRealTimers();
 });
@@ -656,6 +1006,12 @@ test('seller can update meetup specifics while the accepted hub stays locked', a
       senderClerkUserId: 'system',
       body: 'Meetup details updated to Reitz Union. Specifics: I will wait by the benches.',
       createdAt: '2026-03-29T13:10:00.000Z',
+      attachedItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'active',
+      },
     },
   });
 

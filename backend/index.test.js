@@ -602,6 +602,10 @@ test('POST /api/conversations/:id/messages stores attached item snapshots and up
   assert.equal(response.body.attachedListingId.toString(), secondItem.id);
   assert.equal(response.body.attachedListingTitle, secondItem.itemName);
   assert.equal(response.body.attachedListingImageUrl, secondItem.itemPicture);
+  assert.equal(response.body.attachedItem.listingId.toString(), secondItem.id);
+  assert.equal(response.body.attachedItem.title, secondItem.itemName);
+  assert.equal(response.body.attachedItem.imageUrl, secondItem.itemPicture);
+  assert.equal(response.body.attachedItem.state, 'active');
 
   const storedConversation = await Conversation.findById(conversationResponse.body._id);
   const fridgeLinkedItem = storedConversation.linkedItems.find(
@@ -853,6 +857,8 @@ test('PATCH /api/conversations/:id/pickup lets the seller update meetup specific
   assert.equal(response.body.conversation.activePickupSpecifics, 'Meet near the main benches.');
   assert.equal(response.body.systemMessage.senderClerkUserId, 'system');
   assert.match(response.body.systemMessage.body, /Meetup details updated to Reitz Union/);
+  assert.equal(response.body.systemMessage.attachedItem.listingId.toString(), item.id);
+  assert.equal(response.body.systemMessage.attachedItem.title, item.itemName);
 
   const updatedConversation = await Conversation.findById(offerResponse.body.conversationId);
   assert.equal(updatedConversation.activePickupHubId, 'reitz');
