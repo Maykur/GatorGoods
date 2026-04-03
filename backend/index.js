@@ -2255,6 +2255,26 @@ app.get('/api/offers', async (req, resp) => {
   }
 });
 
+app.get('/api/offers/:id', async (req, resp) => {
+  try {
+    const offerId = toObjectId(req.params.id);
+
+    if (!offerId) {
+      return resp.status(400).json({ message: 'Valid offer id is required' });
+    }
+
+    const offer = await Offer.findById(offerId);
+
+    if (!offer) {
+      return resp.status(404).json({ message: 'Offer not found' });
+    }
+
+    resp.json(offer);
+  } catch (e) {
+    resp.status(500).json({ message: 'Failed to fetch offer', error: e.message });
+  }
+});
+
 app.patch('/api/offers/:id', async (req, resp) => {
   try {
     const offerId = toObjectId(req.params.id);

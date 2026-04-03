@@ -209,6 +209,7 @@ export function toListingCardViewModel(raw) {
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
     status: normalizeListingStatus(raw?.status),
     statusLabel: formatListingStatusLabel(raw?.status),
+    offerId: raw?.reservedOfferId || '',
   };
 }
 
@@ -373,6 +374,10 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
       sellerProfile?.profile?.profileName || sellerProfile?.profileName || listing?.userPublishingName,
       DEFAULT_SELLER_NAME
     ),
+    sellerAvatarUrl: normalizeText(
+      sellerProfile?.profile?.profilePicture || sellerProfile?.profilePicture,
+      ''
+    ),
     offeredPrice: Number(rawOffer?.offeredPrice) || 0,
     offeredPriceLabel: formatPriceLabel(rawOffer?.offeredPrice),
     meetupLocation: getPickupHubLabel(meetupHubId, normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION)),
@@ -381,6 +386,7 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     meetupWindow: normalizeText(rawOffer?.meetupWindow, 'Meetup details pending'),
     paymentMethod: rawOffer?.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(rawOffer?.paymentMethod),
+    listingImageUrl: listingCard?.imageUrl || '',
     message: normalizeText(rawOffer?.message, ''),
     status: normalizeText(rawOffer?.status, 'pending'),
     conversationId: rawOffer?.conversationId || '',
