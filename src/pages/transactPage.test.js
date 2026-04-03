@@ -178,3 +178,17 @@ test.each([
 
   expect(await screen.findByText(bannerText)).toBeInTheDocument();
 });
+
+test('transaction page disables review actions after the current user already submitted feedback', async () => {
+  mockGetTransactionByOfferId.mockResolvedValueOnce(
+    buildRawTransaction({
+      buyerReviewedAt: '2026-04-03T17:00:00.000Z',
+    })
+  );
+
+  render(<TransactPage />);
+
+  expect(await screen.findByRole('button', { name: /i received the item/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /there was a problem/i })).toBeDisabled();
+  expect(screen.getByText(/you already submitted your review for this handoff/i)).toBeInTheDocument();
+});

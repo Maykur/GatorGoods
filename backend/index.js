@@ -1489,6 +1489,34 @@ async function appendTransactionCompletionMessage(transaction, requesterClerkUse
   return systemMessage;
 }
 
+async function finalizeCompletedTransaction(transaction, requesterClerkUserId = '') {
+  if (!transaction || transaction.status !== 'completed') {
+    return null;
+  }
+
+  const [offer, listing] = await Promise.all([
+    transaction.offerId ? Offer.findById(transaction.offerId) : null,
+    transaction.listingId ? Item.findById(transaction.listingId) : null,
+  ]);
+
+  if (offer && offer.status !== 'convertedToTransaction') {
+    offer.status = 'convertedToTransaction';
+    await offer.save();
+  }
+
+  if (listing && listing.status !== 'sold') {
+    listing.status = 'sold';
+
+    if (!listing.reservedOfferId && transaction.offerId) {
+      listing.reservedOfferId = transaction.offerId;
+    }
+
+    await listing.save();
+  }
+
+  return appendTransactionCompletionMessage(transaction, requesterClerkUserId);
+}
+
 async function repairConversationLinkedItems(
   conversation,
   {
@@ -2981,8 +3009,8 @@ app.get('/api/offers', async (req, resp) => {
 
     const query =
       role === 'buyer'
-        ? {buyerClerkUserId: participantId}
-        : {sellerClerkUserId: participantId};
+        ? {buyerClerkUserId: participantId, status: {$ne: 'convertedToTransaction'}}
+        : {sellerClerkUserId: participantId, status: {$ne: 'convertedToTransaction'}};
 
     const offers = await Offer.find(query).sort({createdAt: -1, _id: -1});
 
@@ -3040,7 +3068,7 @@ app.get('/api/transactions/by-offer/:offerId', async (req, resp) => {
       return resp.status(404).json({message: 'Offer not found'});
     }
 
-    if (offer.status !== 'accepted') {
+    if (!['accepted', 'convertedToTransaction'].includes(offer.status)) {
       return resp.status(409).json({message: 'Transactions are only available for accepted offers'});
     }
 
@@ -3048,7 +3076,10 @@ app.get('/api/transactions/by-offer/:offerId', async (req, resp) => {
       return resp.status(403).json({message: 'You are not authorized to view this transaction'});
     }
 
-    const transaction = await ensureTransactionForAcceptedOffer(offer);
+    const transaction =
+      offer.status === 'accepted'
+        ? await ensureTransactionForAcceptedOffer(offer)
+        : await Transaction.findOne({offerId: offer._id});
 
     if (!transaction) {
       return resp.status(404).json({message: 'Transaction not found'});
@@ -3314,7 +3345,7 @@ app.patch('/api/transactions/:id/decision', async (req, resp) => {
     await transaction.save();
 
     if (previousStatus !== 'completed' && transaction.status === 'completed') {
-      await appendTransactionCompletionMessage(transaction, requesterClerkUserId);
+      await finalizeCompletedTransaction(transaction, requesterClerkUserId);
     }
 
     resp.json(serializeTransaction(transaction));
@@ -3409,7 +3440,7 @@ app.patch('/api/transactions/:id/review', async (req, resp) => {
     }
 
     if (previousStatus !== 'completed' && transaction.status === 'completed') {
-      await appendTransactionCompletionMessage(transaction, requesterClerkUserId);
+      await finalizeCompletedTransaction(transaction, requesterClerkUserId);
     }
 
     resp.json(serializeTransaction(transaction));

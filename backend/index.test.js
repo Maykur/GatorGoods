@@ -1240,17 +1240,45 @@ test('PATCH /api/transactions/:id/decision marks a transaction completed after b
   assert.equal(sellerResponse.body.status, 'completed');
 
   const updatedTransaction = await Transaction.findById(transaction.id);
+  const updatedOffer = await Offer.findById(offerResponse.body._id);
+  const updatedListing = await Item.findById(item.id);
   const updatedConversation = await Conversation.findById(transaction.conversationId);
   const completionMessage = await Message.findOne({
     conversationId: transaction.conversationId,
     senderClerkUserId: 'system',
     body: 'Sale completed. Both sides confirmed the handoff.',
   });
+  const sellerOffersResponse = await request(app)
+    .get('/api/offers')
+    .query({
+      participantId: profile.profileID,
+      role: 'seller',
+    });
+  const buyerOffersResponse = await request(app)
+    .get('/api/offers')
+    .query({
+      participantId: 'buyer_1',
+      role: 'buyer',
+    });
+  const transactionReadResponse = await request(app)
+    .get(`/api/transactions/by-offer/${offerResponse.body._id}`)
+    .query({
+      participantId: profile.profileID,
+    });
+
   assert.equal(updatedTransaction.buyerDecision, 'confirmed');
   assert.equal(updatedTransaction.sellerDecision, 'confirmed');
   assert.equal(updatedTransaction.status, 'completed');
+  assert.equal(updatedOffer.status, 'convertedToTransaction');
+  assert.equal(updatedListing.status, 'sold');
   assert.ok(completionMessage);
   assert.equal(updatedConversation.lastMessageText, 'Sale completed. Both sides confirmed the handoff.');
+  assert.equal(sellerOffersResponse.status, 200);
+  assert.equal(buyerOffersResponse.status, 200);
+  assert.equal(sellerOffersResponse.body.length, 0);
+  assert.equal(buyerOffersResponse.body.length, 0);
+  assert.equal(transactionReadResponse.status, 200);
+  assert.equal(transactionReadResponse.body.status, 'completed');
 });
 
 test('PATCH /api/transactions/:id/decision preserves mixed outcomes as problemReported', async () => {
@@ -1470,12 +1498,16 @@ test('PATCH /api/transactions/:id/review adds a completion system message when b
     body: 'Sale completed. Both sides confirmed the handoff.',
   });
   const updatedConversation = await Conversation.findById(transaction.conversationId);
+  const updatedOffer = await Offer.findById(offerResponse.body._id);
+  const updatedListing = await Item.findById(item.id);
 
   assert.equal(firstResponse.status, 200);
   assert.equal(secondResponse.status, 200);
   assert.equal(secondResponse.body.status, 'completed');
   assert.ok(completionMessage);
   assert.equal(updatedConversation.lastMessageText, 'Sale completed. Both sides confirmed the handoff.');
+  assert.equal(updatedOffer.status, 'convertedToTransaction');
+  assert.equal(updatedListing.status, 'sold');
 });
 
 test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {

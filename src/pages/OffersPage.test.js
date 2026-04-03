@@ -423,6 +423,56 @@ test('chat-style transaction cards are not shown for empty transactions state', 
   expect(await screen.findByText(/no active transactions yet/i)).toBeInTheDocument();
 });
 
+test('completed transactions do not appear in the transactions tab', async () => {
+  const today = new Date();
+
+  mockGetOffers
+    .mockResolvedValueOnce([
+      {
+        _id: 'offer-completed',
+        listingId: 'item-1',
+        buyerClerkUserId: 'buyer-1',
+        sellerClerkUserId: 'seller-1',
+        buyerDisplayName: 'Buyer One',
+        offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
+        meetupLocation: 'Plaza of the Americas',
+        meetupDate: toLocalDateInputValue(today),
+        meetupTime: '13:00',
+        paymentMethod: 'cash',
+        message: 'Can meet after class.',
+        status: 'accepted',
+        conversationId: 'conversation-1',
+      },
+    ])
+    .mockResolvedValueOnce([]);
+  mockGetTransactionByOfferId.mockResolvedValueOnce({
+    _id: 'transaction-1',
+    offerId: 'offer-completed',
+    listingId: 'item-1',
+    conversationId: 'conversation-1',
+    buyerClerkUserId: 'buyer-1',
+    sellerClerkUserId: 'seller-1',
+    acceptedTerms: {
+      price: 18,
+      paymentMethod: 'cash',
+      meetupHubId: 'plaza-americas',
+      meetupLocation: 'Plaza of the Americas',
+      pickupSpecifics: 'Meet by the benches.',
+      meetupDate: toLocalDateInputValue(today),
+      meetupTime: '13:00',
+    },
+    status: 'completed',
+  });
+
+  render(<OffersPage />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /transactions/i }));
+
+  expect(await screen.findByText(/no active transactions yet/i)).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /open transaction/i })).not.toBeInTheDocument();
+});
+
 test('offers page scrolls to a requested buyer offer from the query string', async () => {
   window.history.pushState({}, '', '/offers?mode=buyer&offer=offer-1');
   mockGetOffers

@@ -183,7 +183,7 @@ function sortTransactions(firstTransaction, secondTransaction) {
 }
 
 function isRelevantTransaction(transaction) {
-  if (!transaction || transaction.status === 'cancelled') {
+  if (!transaction || transaction.status === 'cancelled' || transaction.status === 'completed') {
     return false;
   }
 
@@ -747,6 +747,7 @@ export function OffersPage() {
           {transactions.map((transaction) => {
             const counterpartLabel = transaction.sellerId === user?.id ? 'Buyer' : 'Seller';
             const counterpartName = transaction.sellerId === user?.id ? transaction.buyerName : transaction.sellerName;
+            const canOpenTransaction = transaction.status !== 'completed';
 
             return (
               <Card key={transaction.transactionId} className="space-y-4">
@@ -773,9 +774,11 @@ export function OffersPage() {
                         <Button variant="ghost" size="sm" leadingIcon="messages">Conversation</Button>
                       </Link>
                     ) : null}
-                    <Link to={`/transact/${transaction.offerId}`} className="no-underline">
-                      <Button size="sm" leadingIcon="verified">Open transaction</Button>
-                    </Link>
+                    {canOpenTransaction ? (
+                      <Link to={`/transact/${transaction.offerId}`} className="no-underline">
+                        <Button size="sm" leadingIcon="verified">Open transaction</Button>
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
 

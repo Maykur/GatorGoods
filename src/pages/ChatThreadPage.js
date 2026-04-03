@@ -544,6 +544,8 @@ export function ChatThreadPage() {
   const focusedItemCurrentOffer = focusedItem?.currentOffer || null;
   const canOpenTransaction =
     !isPreviewingAlternateContext &&
+    focusedItem?.state !== 'completedHere' &&
+    focusedItem?.state !== 'unavailable' &&
     focusedItemCurrentOffer?.status === 'accepted' &&
     Boolean(focusedItemCurrentOffer?.offerId) &&
     isMeetupScheduledToday(focusedItemCurrentOffer);

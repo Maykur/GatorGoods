@@ -249,6 +249,7 @@ export function TransactPage() {
   const counterpartAvatarUrl = isSeller ? '' : transaction?.sellerAvatarUrl;
   const primaryActionLabel = isSeller ? 'I handed off the item' : 'I received the item';
   const problemActionLabel = 'There was a problem';
+  const hasSubmittedReview = isSeller ? Boolean(transaction?.sellerReviewedAt) : Boolean(transaction?.buyerReviewedAt);
 
   return (
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
@@ -381,6 +382,7 @@ export function TransactPage() {
                     leadingIcon="verified"
                     onClick={() => handleReviewRoute('confirmed')}
                     className="bg-gatorOrange text-white hover:bg-gatorOrange/90"
+                    disabled={hasSubmittedReview}
                   >
                     {primaryActionLabel}
                   </Button>
@@ -388,9 +390,15 @@ export function TransactPage() {
                     variant="danger"
                     className="bg-red-600 hover:bg-red-500"
                     onClick={() => handleReviewRoute('problemReported')}
+                    disabled={hasSubmittedReview}
                   >
                     {problemActionLabel}
                   </Button>
+                  {hasSubmittedReview ? (
+                    <p className="text-sm leading-7 text-app-muted">
+                      You already submitted your review for this handoff, so these actions are now locked.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>
