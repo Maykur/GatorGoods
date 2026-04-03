@@ -368,6 +368,18 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
     2
   );
   assert.ok(dataset.offers.some((offer) => offer.buyerKey === 'presenter'));
+  assert.equal(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-desk-lamp-ava').lastReadHoursAgoByParticipant.presenter > 18.4,
+    true
+  );
+  assert.equal(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-presenter-jasmine').lastReadHoursAgoByParticipant.presenter > 2.7,
+    true
+  );
+  assert.equal(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-mini-fridge-noah').lastReadHoursAgoByParticipant.noah > 12.9,
+    true
+  );
 });
 
 test('insertSeedDataset wires accepted offers, conversations, and favorites correctly', async () => {
@@ -423,6 +435,10 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
   assert.equal(presenterNoahConversation.linkedListingIds.length, 2);
   assert.equal(presenterMateoConversation.linkedListingIds.length, 2);
   assert.equal(avaPriyaConversation.linkedListingIds.length, 2);
+  assert.ok(presenterJasmineConversation.lastReadAtByUser[dataset.presenterProfile.profileID]);
+  assert.ok(presenterNoahConversation.lastReadAtByUser[dataset.profilesByKey.noah.profileID]);
+  assert.ok(new Date(presenterJasmineConversation.lastReadAtByUser[dataset.presenterProfile.profileID]) < new Date(presenterJasmineConversation.lastMessageAt));
+  assert.ok(new Date(presenterNoahConversation.lastReadAtByUser[dataset.profilesByKey.noah.profileID]) < new Date(presenterNoahConversation.lastMessageAt));
   assert.ok(deletedItemMessage);
   assert.equal(deletedItemMessage.attachedListingImageUrl.length > 0, true);
   assert.equal(await Item.countDocuments({_id: deletedItemMessage.attachedListingId}), 0);

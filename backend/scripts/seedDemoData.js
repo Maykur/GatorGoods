@@ -662,7 +662,7 @@ function buildSeedDataset(config) {
         },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 18.4,
+        presenter: 19,
         ava: 18.4,
       },
     },
@@ -804,7 +804,7 @@ function buildSeedDataset(config) {
       ],
       lastReadHoursAgoByParticipant: {
         presenter: 12.9,
-        noah: 12.9,
+        noah: 13.2,
       },
     },
     {
@@ -877,7 +877,7 @@ function buildSeedDataset(config) {
         },
       ],
       lastReadHoursAgoByParticipant: {
-        presenter: 2.7,
+        presenter: 3.1,
         jasmine: 3.2,
       },
     },

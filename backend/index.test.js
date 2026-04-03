@@ -710,6 +710,59 @@ test('GET /api/conversations returns active item summaries and linked item count
   assert.equal(response.body[0].activeItem.state, 'active');
 });
 
+test('opening a thread updates the inbox read timestamp in a JSON-safe shape', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const conversation = await Conversation.create({
+    participantIds: ['buyer_1', profile.profileID],
+    linkedListingIds: [item._id],
+    activeListingId: item._id,
+    lastMessageText: 'Still available?',
+    lastMessageAt: new Date('2026-04-02T15:00:00.000Z'),
+    lastReadAtByUser: {
+      buyer_1: new Date('2026-04-02T14:00:00.000Z'),
+    },
+  });
+
+  await Message.create({
+    conversationId: conversation._id,
+    senderClerkUserId: profile.profileID,
+    body: 'Still available?',
+    attachedListingId: item._id,
+    attachedListingTitle: item.itemName,
+    attachedListingImageUrl: item.itemPicture,
+    createdAt: new Date('2026-04-02T15:00:00.000Z'),
+    updatedAt: new Date('2026-04-02T15:00:00.000Z'),
+  });
+
+  const beforeOpenResponse = await request(app)
+    .get('/api/conversations')
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(beforeOpenResponse.status, 200);
+  assert.equal(beforeOpenResponse.body[0].lastReadAtByUser.buyer_1, '2026-04-02T14:00:00.000Z');
+
+  const openThreadResponse = await request(app)
+    .get(`/api/conversations/${conversation._id}/messages`)
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(openThreadResponse.status, 200);
+
+  const afterOpenResponse = await request(app)
+    .get('/api/conversations')
+    .query({
+      participantId: 'buyer_1',
+    });
+
+  assert.equal(afterOpenResponse.status, 200);
+  assert.equal(typeof afterOpenResponse.body[0].lastReadAtByUser, 'object');
+  assert.ok(afterOpenResponse.body[0].lastReadAtByUser.buyer_1);
+  assert.notEqual(afterOpenResponse.body[0].lastReadAtByUser.buyer_1, '2026-04-02T14:00:00.000Z');
+});
+
 test('POST /api/listings/:id/offers derives canonical meetup fields from an approved hub id', async () => {
   const {item} = await seedProfileAndItem();
 

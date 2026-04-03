@@ -1325,7 +1325,7 @@ async function serializeConversation(conversation, extras = {}) {
   }
 
   const {viewerParticipantId = '', ...serializedExtras} = extras;
-  const conversationObject = conversation.toObject();
+  const conversationObject = conversation.toObject({flattenMaps: true});
   const linkedItems = Array.isArray(conversationObject.linkedItems) ? conversationObject.linkedItems : [];
   const stateMaps = await buildLinkedItemStateMaps(linkedItems, conversationObject._id);
   const linkedItemSummaries = linkedItems

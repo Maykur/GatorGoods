@@ -437,6 +437,38 @@ test('composer context can be cleared so the next message sends without an item 
   });
 });
 
+test('pressing Enter sends the message while Shift+Enter still allows multiline drafts', async () => {
+  render(<ChatThreadPage />);
+
+  const messageField = await screen.findByLabelText(/^message$/i);
+
+  fireEvent.change(messageField, {
+    target: { value: 'Line one' },
+  });
+
+  fireEvent.keyDown(messageField, {
+    key: 'Enter',
+    code: 'Enter',
+    shiftKey: true,
+  });
+
+  expect(mockSendMessage).not.toHaveBeenCalled();
+
+  fireEvent.keyDown(messageField, {
+    key: 'Enter',
+    code: 'Enter',
+  });
+
+  await waitFor(() => {
+    expect(mockSendMessage).toHaveBeenCalledWith({
+      conversationId: 'conversation-1',
+      senderClerkUserId: 'buyer-1',
+      body: 'Line one',
+      attachedListingId: 'item-1',
+    });
+  });
+});
+
 test('message item pills render for tagged messages only when the thread has multiple linked items', async () => {
   render(<ChatThreadPage />);
 
@@ -543,12 +575,48 @@ test('offer system messages render compact summaries and the focused item card s
   render(<ChatThreadPage />);
 
   expect(await screen.findByText('You sent an offer')).toBeInTheDocument();
-  expect(screen.getAllByText('$45 • Cash • Reitz Union').length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText('Offer pending')).toBeInTheDocument();
+  expect(screen.getByText('$45')).toBeInTheDocument();
+  expect(screen.getByText('Cash')).toBeInTheDocument();
+  expect(screen.getAllByText('Reitz Union').length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText('Offer rejected')).toBeInTheDocument();
 });
 
 test('mixed-direction threads surface buying and selling context in the focused item card', async () => {
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        pickupHubId: 'library-west',
+        itemLocation: 'Library West',
+        itemDescription: 'Matte black desk lamp with an adjustable neck for late-night study sessions.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-2') {
+      return jsonResponse({
+        _id: 'item-2',
+        itemName: 'Study Chair',
+        pickupHubId: 'hume',
+        itemLocation: 'Hume Hall',
+        itemDescription: 'Rolling study chair with a padded seat.',
+        userPublishingID: 'buyer-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
   mockGetConversationMessages.mockResolvedValue({
     conversation: {
       _id: 'conversation-1',
@@ -627,9 +695,47 @@ test('mixed-direction threads surface buying and selling context in the focused 
   fireEvent.click(screen.getByRole('button', { name: /study chair\. active\./i }));
 
   expect(await screen.findByText('Selling')).toBeInTheDocument();
+  expect(screen.getByText('Meetup specifics appear here after you confirm an offer for this item.')).toBeInTheDocument();
+  expect(screen.getByText('Need a different meetup hub? The buyer can suggest one in their offer.')).toBeInTheDocument();
 });
 
 test('tapping another active item chip changes the next message context locally', async () => {
+  global.fetch.mockImplementation((url) => {
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+        },
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-1') {
+      return jsonResponse({
+        _id: 'item-1',
+        itemName: 'Desk Lamp',
+        pickupHubId: 'library-west',
+        itemLocation: 'Library West',
+        itemDescription: 'Matte black desk lamp with an adjustable neck for late-night study sessions.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    if (url === 'http://localhost:5000/items/item-2') {
+      return jsonResponse({
+        _id: 'item-2',
+        itemName: 'Study Chair',
+        originalPickupHubId: 'reitz',
+        originalItemLocation: 'Reitz Union',
+        pickupHubId: 'honors-village',
+        itemLocation: 'Honors Village',
+        itemDescription: 'Comfortable study chair with a padded seat and rolling base.',
+        userPublishingID: 'seller-1',
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
   render(<ChatThreadPage />);
 
   fireEvent.click(await screen.findByRole('button', { name: /study chair\. active\./i }));
@@ -648,6 +754,10 @@ test('tapping another active item chip changes the next message context locally'
   });
 
   expect(screen.getByRole('link', { name: /open item/i })).toHaveAttribute('href', '/items/item-2');
+  expect(screen.getByText('Selected item location')).toBeInTheDocument();
+  expect(screen.getAllByText('Meetup specifics').length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByText('Meetup specifics appear here after the seller confirms an offer for this item.')).toBeInTheDocument();
+  expect(screen.getByText('Want to meet somewhere else? Suggest a different meetup hub in your offer to the seller.')).toBeInTheDocument();
 });
 
 test('tapping a historical item chip jumps to its latest thread message and clears compose context', async () => {
@@ -906,7 +1016,7 @@ test('threads without an active negotiated hub fall back to the listing original
   render(<ChatThreadPage />);
 
   expect(await screen.findByText('Library West')).toBeInTheDocument();
-  expect(screen.getByText(/seller will add the exact meetup specifics/i)).toBeInTheDocument();
+  expect(screen.getByText('The seller will add meetup specifics when they confirm the offer.')).toBeInTheDocument();
 });
 
 test('single-item threads do not render attached-item pills on messages', async () => {

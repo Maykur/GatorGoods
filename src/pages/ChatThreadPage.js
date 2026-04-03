@@ -45,7 +45,53 @@ function formatMessageTime(value) {
     return 'Just now';
   }
 
-  return new Date(value).toLocaleString();
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Just now';
+  }
+
+  const now = new Date();
+  const isSameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  const timeLabel = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+
+  if (isSameDay) {
+    return timeLabel;
+  }
+
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+
+  return `${dateLabel} • ${timeLabel}`;
+}
+
+function getSystemMessageTitle(message) {
+  const offerTitle = message.offerContext?.title;
+
+  if (offerTitle) {
+    return offerTitle;
+  }
+
+  const body = typeof message.body === 'string' ? message.body.trim() : '';
+
+  if (!body) {
+    return '';
+  }
+
+  if (/^sale completed\.\s*/i.test(body)) {
+    return body.replace(/^sale completed\.\s*/i, '').trim();
+  }
+
+  return body;
 }
 
 async function fetchOptionalJson(url) {
@@ -184,10 +230,10 @@ function getRelationshipRoleTooltip(role) {
 function getOfferEventStyle(eventType) {
   if (eventType === 'accepted') {
     return {
-      container: 'border-brand-blue/25 bg-brand-blue/12',
+      container: 'border-brand-blue/40 bg-brand-blue/20',
       title: 'text-white',
-      detail: 'text-blue-100/85',
-      timestamp: 'text-blue-100/75',
+      detail: 'text-blue-100/90',
+      timestamp: 'text-blue-100/80',
     };
   }
 
@@ -428,6 +474,7 @@ export function ChatThreadPage() {
     getPickupHubById(focusedListingData?.pickupHubId)?.label ||
     focusedListingData?.originalItemLocation ||
     '';
+  const isAcceptedMeetupLocked = Boolean(conversation?.isMeetupHubLocked);
   const displayedPickupHubId =
     !isPreviewingAlternateContext
       ? (
@@ -451,15 +498,20 @@ export function ChatThreadPage() {
     ) ||
     focusedListingOriginalPickupLabel ||
     'Location unavailable';
+  const isSeller = Boolean(user?.id && focusedListingData?.userPublishingID && user.id === focusedListingData.userPublishingID);
   const displayedPickupSpecifics =
     !isPreviewingAlternateContext
       ? (
           conversation?.activePickupSpecifics ||
-          'The seller will add the exact meetup specifics when they confirm the handoff.'
+          (isAcceptedMeetupLocked
+            ? 'Meetup specifics will appear here soon.'
+            : 'The seller will add meetup specifics when they confirm the offer.')
         )
-      : 'Previewing this item location only. Exact meetup specifics stay with the current thread plan.';
-  const isSeller = Boolean(user?.id && focusedListingData?.userPublishingID && user.id === focusedListingData.userPublishingID);
-  const isAcceptedMeetupLocked = Boolean(conversation?.isMeetupHubLocked);
+      : (
+          isSeller
+            ? 'Meetup specifics appear here after you confirm an offer for this item.'
+            : 'Meetup specifics appear here after the seller confirms an offer for this item.'
+        );
   const buyerFirstName = getFirstName(otherParticipantName);
   const meetupHintTarget = buyerFirstName || 'the buyer';
   const pickupHubError = pickupError.toLowerCase().includes('hub') ? pickupError : '';
@@ -743,6 +795,20 @@ export function ChatThreadPage() {
     setHighlightedMessageId('');
   };
 
+  const handleComposerKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent?.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (isSending) {
+      return;
+    }
+
+    handleSendMessage(event);
+  };
+
   const handlePickupHubChange = (pickupHubId) => {
     setPickupValues((currentValues) => ({
       ...currentValues,
@@ -983,7 +1049,7 @@ export function ChatThreadPage() {
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
                 <AppIcon icon="locationDetails" className="text-[0.95em]" />
-                <span>{isPreviewingAlternateContext ? 'Location note' : 'Meetup specifics'}</span>
+                <span>Meetup specifics</span>
               </div>
               <p className="ml-6 text-xl font-semibold text-white">
                 {displayedPickupSpecifics}
@@ -1011,11 +1077,13 @@ export function ChatThreadPage() {
 
         {isPreviewingAlternateContext ? (
           <p className="text-sm leading-7 text-blue-100/80">
-            You are previewing this item's location context locally. Clear the selection to return to the shared thread plan.
+            {isSeller
+              ? 'Need a different meetup hub? The buyer can suggest one in their offer.'
+              : 'Want to meet somewhere else? Suggest a different meetup hub in your offer to the seller.'}
           </p>
         ) : !isSeller ? (
           <p className="text-sm leading-7 text-app-soft">
-            Need a different spot? Suggest it in chat and the seller can update the official meetup details here.
+            Need to change the meetup specifics? Message the seller and they can update them here.
           </p>
         ) : null}
 
@@ -1115,7 +1183,7 @@ export function ChatThreadPage() {
                     className="flex justify-center"
                   >
                     <div
-                      className={`max-w-[85%] rounded-full border px-4 py-2 text-center transition ${
+                      className={`w-full max-w-[36rem] rounded-full border px-4 py-2 text-center transition ${
                         highlightedMessageId === normalizeId(message._id)
                           ? 'ring-2 ring-gatorOrange/60 ring-offset-2 ring-offset-app-bg'
                           : ''
@@ -1158,7 +1226,7 @@ export function ChatThreadPage() {
                         )
                       ) : null}
                       <p className={`text-sm font-semibold ${systemMessageStyle.title}`}>
-                        {message.offerContext?.title || message.body}
+                        {getSystemMessageTitle(message)}
                       </p>
                       {message.offerContext?.detailLine ? (
                         <p className={`mt-1 text-sm ${systemMessageStyle.detail}`}>
@@ -1272,7 +1340,7 @@ export function ChatThreadPage() {
           {composerContextItem ? (
             <div
               data-testid="composer-item-context"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-white/10 bg-white/5 px-4 py-3"
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-white/10 bg-white/5 px-4 py-3"
             >
               <p className="inline-flex min-w-0 items-center gap-2 text-sm text-app-soft">
                 <span className="font-semibold text-app-muted">Discussing:</span>
@@ -1301,8 +1369,13 @@ export function ChatThreadPage() {
           ) : null}
           <Textarea
             id="thread-message"
-            label="Message"
-            leadingIcon="message"
+            className="space-y-4"
+            label={(
+              <span className="inline-flex items-center gap-2">
+                <AppIcon icon="message" className="text-[0.95em] text-app-muted" />
+                <span>Message</span>
+              </span>
+            )}
             rows={4}
             value={draftMessage}
             onChange={(event) => {
@@ -1311,15 +1384,12 @@ export function ChatThreadPage() {
                 setComposerError('');
               }
             }}
+            onKeyDown={handleComposerKeyDown}
             error={composerError}
             placeholder="Write your message here..."
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="inline-flex items-center gap-2 text-sm text-app-soft">
-              <AppIcon icon="location" className="text-[0.95em]" />
-              <span>Use chat for suggestions and questions. The structured meetup details above stay as the source of truth.</span>
-            </p>
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <Button type="submit" leadingIcon="send" loading={isSending}>
               Send message
             </Button>
