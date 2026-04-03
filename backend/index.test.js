@@ -1240,9 +1240,17 @@ test('PATCH /api/transactions/:id/decision marks a transaction completed after b
   assert.equal(sellerResponse.body.status, 'completed');
 
   const updatedTransaction = await Transaction.findById(transaction.id);
+  const updatedConversation = await Conversation.findById(transaction.conversationId);
+  const completionMessage = await Message.findOne({
+    conversationId: transaction.conversationId,
+    senderClerkUserId: 'system',
+    body: 'Sale completed. Both sides confirmed the handoff.',
+  });
   assert.equal(updatedTransaction.buyerDecision, 'confirmed');
   assert.equal(updatedTransaction.sellerDecision, 'confirmed');
   assert.equal(updatedTransaction.status, 'completed');
+  assert.ok(completionMessage);
+  assert.equal(updatedConversation.lastMessageText, 'Sale completed. Both sides confirmed the handoff.');
 });
 
 test('PATCH /api/transactions/:id/decision preserves mixed outcomes as problemReported', async () => {
@@ -1325,10 +1333,30 @@ test('PATCH /api/transactions/:id/review stores buyer feedback with an accuracy 
   assert.equal(response.body.buyerReview.metricScores.accuracy, 4);
   assert.equal(response.body.buyerReview.answers.accuracy, 4);
   assert.ok(response.body.buyerReviewedAt);
+
+  const updatedProfile = await Profile.findOne({profileID: profile.profileID});
+  assert.equal(updatedProfile.profileTotalRating, 1);
+  assert.ok(Math.abs(updatedProfile.profileRating - 4.75) < 0.001);
+  assert.equal(updatedProfile.trustMetrics.reliability, 100);
+  assert.equal(updatedProfile.trustMetrics.accuracy, 80);
+  assert.equal(updatedProfile.trustMetrics.responsiveness, 100);
+  assert.equal(updatedProfile.trustMetrics.safety, 100);
 });
 
 test('PATCH /api/transactions/:id/review stores seller feedback without an accuracy score', async () => {
   const {item, profile} = await seedProfileAndItem();
+  await Profile.create({
+    profileID: 'buyer_1',
+    profileName: 'Buyer One',
+    profileRating: 4.2,
+    profileTotalRating: 2,
+    trustMetrics: {
+      reliability: 90,
+      accuracy: 62,
+      responsiveness: 85,
+      safety: 88,
+    },
+  });
   const offerResponse = await createOffer(item.id);
 
   await acceptOffer(offerResponse.body._id, profile.profileID);
@@ -1352,6 +1380,102 @@ test('PATCH /api/transactions/:id/review stores seller feedback without an accur
   assert.equal(response.body.sellerReview.metricScores.accuracy, undefined);
   assert.equal(response.body.sellerReview.answers.accuracy, undefined);
   assert.ok(response.body.sellerReviewedAt);
+
+  const updatedBuyerProfile = await Profile.findOne({profileID: 'buyer_1'});
+  assert.equal(updatedBuyerProfile.trustMetrics.accuracy, 62);
+  assert.ok(updatedBuyerProfile.trustMetrics.reliability > 90);
+  assert.equal(updatedBuyerProfile.profileTotalRating, 3);
+});
+
+test('PATCH /api/transactions/:id/review blocks duplicate transaction review submissions', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const firstResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Everything looked good.',
+      },
+    });
+
+  const secondResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 4,
+        accuracy: 4,
+        responsiveness: 4,
+        safety: 4,
+        details: 'Trying to submit again.',
+      },
+    });
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 409);
+  assert.equal(secondResponse.body.message, 'You have already submitted a review for this transaction');
+
+  const updatedProfile = await Profile.findOne({profileID: profile.profileID});
+  assert.equal(updatedProfile.profileTotalRating, 1);
+});
+
+test('PATCH /api/transactions/:id/review adds a completion system message when both sides confirm', async () => {
+  const {item, profile} = await seedProfileAndItem();
+  const offerResponse = await createOffer(item.id);
+
+  await acceptOffer(offerResponse.body._id, profile.profileID);
+  const transaction = await Transaction.findOne({offerId: offerResponse.body._id});
+
+  const firstResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: 'buyer_1',
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        accuracy: 4,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Everything matched the listing.',
+      },
+    });
+
+  const secondResponse = await request(app)
+    .patch(`/api/transactions/${transaction.id}/review`)
+    .send({
+      requesterClerkUserId: profile.profileID,
+      decision: 'confirmed',
+      answers: {
+        reliability: 5,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Smooth handoff.',
+      },
+    });
+
+  const completionMessage = await Message.findOne({
+    conversationId: transaction.conversationId,
+    senderClerkUserId: 'system',
+    body: 'Sale completed. Both sides confirmed the handoff.',
+  });
+  const updatedConversation = await Conversation.findById(transaction.conversationId);
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 200);
+  assert.equal(secondResponse.body.status, 'completed');
+  assert.ok(completionMessage);
+  assert.equal(updatedConversation.lastMessageText, 'Sale completed. Both sides confirmed the handoff.');
 });
 
 test('PATCH /api/offers/:id accepts an offer, reserves the listing, and declines competing offers', async () => {

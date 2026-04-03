@@ -36,6 +36,20 @@ const TRANSACTION_STATUSES = [
 const TRANSACTION_DECISIONS = ['confirmed', 'problemReported'];
 const REVIEW_SCORE_MIN = 1;
 const REVIEW_SCORE_MAX = 5;
+const TRUST_METRIC_KEYS = ['reliability', 'accuracy', 'responsiveness', 'safety'];
+
+function buildAggregateMetricSchema() {
+  return {
+    sum: {
+      type: Number,
+      default: 0,
+    },
+    count: {
+      type: Number,
+      default: 0,
+    },
+  };
+}
 
 const ItemSchema = new mongoose.Schema({
   itemName: {
@@ -186,6 +200,13 @@ const profileSchema = new mongoose.Schema({
       type: Number,
       default: null,
     },
+  },
+  reviewAggregate: {
+    overall: buildAggregateMetricSchema(),
+    reliability: buildAggregateMetricSchema(),
+    accuracy: buildAggregateMetricSchema(),
+    responsiveness: buildAggregateMetricSchema(),
+    safety: buildAggregateMetricSchema(),
   },
   date: {
     type: Date,
@@ -629,7 +650,7 @@ const transactionSchema = new mongoose.Schema(
         {
           decision: {
             type: String,
-            enum: TRANSACTION_DECISIONS,
+            enum: ['', ...TRANSACTION_DECISIONS],
             default: '',
             trim: true,
           },
@@ -705,7 +726,7 @@ const transactionSchema = new mongoose.Schema(
         {
           decision: {
             type: String,
-            enum: TRANSACTION_DECISIONS,
+            enum: ['', ...TRANSACTION_DECISIONS],
             default: '',
             trim: true,
           },
@@ -1040,6 +1061,140 @@ function parseReviewScore(value) {
   return numericValue;
 }
 
+function createEmptyAggregateMetric() {
+  return {
+    sum: 0,
+    count: 0,
+  };
+}
+
+function createEmptyReviewAggregate() {
+  return {
+    overall: createEmptyAggregateMetric(),
+    reliability: createEmptyAggregateMetric(),
+    accuracy: createEmptyAggregateMetric(),
+    responsiveness: createEmptyAggregateMetric(),
+    safety: createEmptyAggregateMetric(),
+  };
+}
+
+function normalizeAggregateMetric(metric = {}) {
+  const sum = Number(metric?.sum);
+  const rawCount = Number(metric?.count);
+
+  return {
+    sum: Number.isFinite(sum) ? sum : 0,
+    count: Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 0,
+  };
+}
+
+function hasStoredReviewAggregate(profile) {
+  return ['overall', ...TRUST_METRIC_KEYS].some((metric) => Number(profile?.reviewAggregate?.[metric]?.count) > 0);
+}
+
+function buildReviewAggregateFromProfile(profile = {}) {
+  const aggregate = createEmptyReviewAggregate();
+  const baselineCount = Math.max(0, Number(profile?.profileTotalRating) || 0);
+  const baselineRating = Number(profile?.profileRating);
+
+  if (baselineCount > 0 && Number.isFinite(baselineRating) && baselineRating > 0) {
+    aggregate.overall = {
+      sum: baselineRating * baselineCount,
+      count: baselineCount,
+    };
+  }
+
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    const rawMetricValue = profile?.trustMetrics?.[metric];
+
+    if (rawMetricValue === null || typeof rawMetricValue === 'undefined' || rawMetricValue === '') {
+      return;
+    }
+
+    const metricValue = Number(rawMetricValue);
+
+    if (!Number.isFinite(metricValue) || metricValue < 0) {
+      return;
+    }
+
+    const metricCount = baselineCount > 0 ? baselineCount : 1;
+    const averageScore = (Math.min(metricValue, 100) / 100) * REVIEW_SCORE_MAX;
+
+    aggregate[metric] = {
+      sum: averageScore * metricCount,
+      count: metricCount,
+    };
+  });
+
+  return aggregate;
+}
+
+function getProfileReviewAggregate(profile = {}) {
+  if (!hasStoredReviewAggregate(profile)) {
+    return buildReviewAggregateFromProfile(profile);
+  }
+
+  const aggregate = createEmptyReviewAggregate();
+  aggregate.overall = normalizeAggregateMetric(profile?.reviewAggregate?.overall);
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    aggregate[metric] = normalizeAggregateMetric(profile?.reviewAggregate?.[metric]);
+  });
+  return aggregate;
+}
+
+function getAggregateAverage(metric = {}) {
+  const normalizedMetric = normalizeAggregateMetric(metric);
+
+  if (!normalizedMetric.count) {
+    return null;
+  }
+
+  return normalizedMetric.sum / normalizedMetric.count;
+}
+
+function applyTransactionReviewToProfile(profile, reviewSubmission) {
+  if (!profile || !reviewSubmission?.metricScores) {
+    return profile;
+  }
+
+  const aggregate = getProfileReviewAggregate(profile);
+  const includedScores = [];
+
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    const score = parseReviewScore(reviewSubmission.metricScores?.[metric]);
+
+    if (!score) {
+      return;
+    }
+
+    aggregate[metric].sum += score;
+    aggregate[metric].count += 1;
+    includedScores.push(score);
+  });
+
+  if (includedScores.length === 0) {
+    profile.reviewAggregate = aggregate;
+    return profile;
+  }
+
+  const overallScore = includedScores.reduce((sum, score) => sum + score, 0) / includedScores.length;
+  aggregate.overall.sum += overallScore;
+  aggregate.overall.count += 1;
+
+  profile.reviewAggregate = aggregate;
+  profile.profileTotalRating = aggregate.overall.count;
+  profile.profileRating = aggregate.overall.count > 0 ? aggregate.overall.sum / aggregate.overall.count : 0;
+
+  const nextTrustMetrics = {};
+  TRUST_METRIC_KEYS.forEach((metric) => {
+    const averageScore = getAggregateAverage(aggregate[metric]);
+    nextTrustMetrics[metric] = averageScore === null ? null : (averageScore / REVIEW_SCORE_MAX) * 100;
+  });
+  profile.trustMetrics = nextTrustMetrics;
+
+  return profile;
+}
+
 function buildTransactionReviewSubmission({participantRole, decision, answers = {}} = {}) {
   const questionnaireType = decision === 'problemReported' ? 'problem' : 'success';
   const details = normalizeOptionalString(answers.details);
@@ -1276,6 +1431,62 @@ async function createOfferSystemMessage({
     attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
     offerSnapshot,
   });
+}
+
+async function createTransactionCompletedSystemMessage({
+  conversationId,
+  listingId,
+} = {}) {
+  const attachedListingFields = await buildAttachedListingMessageFields(listingId);
+
+  return Message.create({
+    conversationId,
+    senderClerkUserId: 'system',
+    body: 'Sale completed. Both sides confirmed the handoff.',
+    attachedListingId: attachedListingFields.attachedListingId,
+    attachedListingTitle: attachedListingFields.attachedListingTitle,
+    attachedListingImageUrl: attachedListingFields.attachedListingImageUrl,
+  });
+}
+
+async function appendTransactionCompletionMessage(transaction, requesterClerkUserId = '') {
+  if (!transaction || transaction.status !== 'completed') {
+    return null;
+  }
+
+  const conversation =
+    (transaction.conversationId ? await Conversation.findById(transaction.conversationId) : null) ||
+    (await findConversationByParticipantIds([
+      transaction.buyerClerkUserId,
+      transaction.sellerClerkUserId,
+    ]));
+
+  if (!conversation) {
+    return null;
+  }
+
+  const systemMessage = await createTransactionCompletedSystemMessage({
+    conversationId: conversation._id,
+    listingId: transaction.listingId,
+  });
+
+  conversation.lastMessageText = systemMessage.body;
+  conversation.lastMessageAt = systemMessage.createdAt;
+
+  if (normalizeOptionalString(requesterClerkUserId)) {
+    conversation.lastReadAtByUser.set(requesterClerkUserId, systemMessage.createdAt);
+  }
+
+  await repairConversationLinkedItems(conversation, {
+    touchedListingId: systemMessage.attachedListingId,
+    contextAt: systemMessage.createdAt,
+    contextMessageId: systemMessage._id,
+    fallbackTitle: systemMessage.attachedListingTitle,
+    fallbackImageUrl: systemMessage.attachedListingImageUrl,
+  });
+  await conversation.save();
+
+  return systemMessage;
 }
 
 async function repairConversationLinkedItems(
@@ -3087,6 +3298,8 @@ app.patch('/api/transactions/:id/decision', async (req, resp) => {
       return resp.status(403).json({message: 'Only transaction participants can update this transaction'});
     }
 
+    const previousStatus = transaction.status || 'scheduled';
+
     if (participantRole === 'buyer') {
       transaction.buyerDecision = decision;
     } else {
@@ -3099,6 +3312,10 @@ app.patch('/api/transactions/:id/decision', async (req, resp) => {
     });
 
     await transaction.save();
+
+    if (previousStatus !== 'completed' && transaction.status === 'completed') {
+      await appendTransactionCompletionMessage(transaction, requesterClerkUserId);
+    }
 
     resp.json(serializeTransaction(transaction));
   } catch (e) {
@@ -3144,6 +3361,8 @@ app.patch('/api/transactions/:id/review', async (req, resp) => {
       return resp.status(409).json({message: 'You have already submitted a review for this transaction'});
     }
 
+    const previousStatus = transaction.status || 'scheduled';
+
     let reviewSubmission;
 
     try {
@@ -3171,7 +3390,27 @@ app.patch('/api/transactions/:id/review', async (req, resp) => {
       sellerDecision: transaction.sellerDecision,
     });
 
+    const reviewedProfileId =
+      participantRole === 'buyer'
+        ? normalizeOptionalString(transaction.sellerClerkUserId)
+        : normalizeOptionalString(transaction.buyerClerkUserId);
+    const reviewedProfile = reviewedProfileId
+      ? await Profile.findOne({profileID: reviewedProfileId})
+      : null;
+
+    if (reviewedProfile) {
+      applyTransactionReviewToProfile(reviewedProfile, reviewSubmission);
+    }
+
     await transaction.save();
+
+    if (reviewedProfile) {
+      await reviewedProfile.save();
+    }
+
+    if (previousStatus !== 'completed' && transaction.status === 'completed') {
+      await appendTransactionCompletionMessage(transaction, requesterClerkUserId);
+    }
 
     resp.json(serializeTransaction(transaction));
   } catch (e) {

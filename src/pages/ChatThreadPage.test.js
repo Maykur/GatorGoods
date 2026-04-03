@@ -589,6 +589,61 @@ test('offer system messages render compact summaries and the focused item card s
   expect(screen.getByTestId('system-message-link-message-2')).toHaveAttribute('href', '/offers?mode=buyer&offer=offer-2');
 });
 
+test('completed sale system messages render with the green success styling', async () => {
+  mockGetConversationMessages.mockResolvedValue({
+    conversation: {
+      _id: 'conversation-1',
+      participantIds: ['buyer-1', 'seller-1'],
+      activeListingId: 'item-1',
+      activeItem: {
+        listingId: 'item-1',
+        title: 'Desk Lamp',
+        imageUrl: 'lamp.png',
+        state: 'completedHere',
+      },
+      linkedItemCount: 1,
+      linkedItems: [
+        {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'completedHere',
+        },
+      ],
+      activePickupHubId: 'reitz',
+      activePickupSpecifics: 'Meet outside the food court doors.',
+      isMeetupHubLocked: true,
+      lastMessageText: 'Sale completed. Both sides confirmed the handoff.',
+      lastMessageAt: '2026-03-29T13:10:00.000Z',
+      lastReadAtByUser: {
+        'buyer-1': '2026-03-29T13:10:00.000Z',
+      },
+    },
+    messages: [
+      {
+        _id: 'message-completed',
+        senderClerkUserId: 'system',
+        body: 'Sale completed. Both sides confirmed the handoff.',
+        createdAt: '2026-03-29T13:10:00.000Z',
+        attachedItem: {
+          listingId: 'item-1',
+          title: 'Desk Lamp',
+          imageUrl: 'lamp.png',
+          state: 'completedHere',
+        },
+      },
+    ],
+  });
+
+  render(<ChatThreadPage />);
+
+  const completionTitle = await screen.findByText('Both sides confirmed the handoff.');
+  const completionCard = completionTitle.closest('div.rounded-full');
+
+  expect(completionCard.className).toContain('bg-app-success/15');
+  expect(completionCard.className).toContain('border-app-success/30');
+});
+
 test('mixed-direction threads surface buying and selling context in the focused item card', async () => {
   global.fetch.mockImplementation((url) => {
     if (url === 'http://localhost:5000/profile/seller-1') {
