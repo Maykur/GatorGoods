@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUser } from '@clerk/react';
 import ItemCard from '../components/ProfilePage/ItemCard';
-import FavCard from '../components/ProfilePage/FavCard';
 import {
   AppIcon,
   Avatar,
@@ -26,10 +25,6 @@ import {
 } from '../lib/viewModels';
 
 const API_BASE_URL = 'http://localhost:5000';
-const OWNER_TABS = [
-  { id: 'listings', label: 'Active listings', icon: 'listing' },
-  { id: 'favorites', label: 'Favorites', icon: 'favorite' },
-];
 const REVIEW_OPTIONS = ['0', '1', '2', '3', '4', '5'];
 
 function getEditableProfileValues(profileHeader) {
@@ -83,24 +78,6 @@ async function readJson(response, fallbackMessage) {
   }
 
   return data;
-}
-
-async function fetchOptionalItem(itemId) {
-  if (!itemId) {
-    return null;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/items/${itemId}`);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return response.json();
-  } catch (error) {
-    return null;
-  }
 }
 
 function ProfileConnectorLinks({ profileHeader }) {
@@ -167,13 +144,11 @@ export function ProfilePage({ ownerView = false }) {
   const { confirm } = useConfirmDialog();
   const { showToast } = useToast();
   const [info, setInfo] = useState(null);
-  const [favoriteItems, setFavoriteItems] = useState([]);
   const [error, setError] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [reviewScore, setReviewScore] = useState('');
   const [profileForm, setProfileForm] = useState(getEditableProfileValues(null));
   const [profileFormError, setProfileFormError] = useState('');
-  const [activeTab, setActiveTab] = useState('listings');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -186,34 +161,14 @@ export function ProfilePage({ ownerView = false }) {
     }
 
     const profileResponse = await fetch(`${API_BASE_URL}/profile/${profileId}`);
-    const profileData = await readJson(profileResponse, 'Failed to load profile');
-
-    if (!ownerView) {
-      return {
-        profileData,
-        favorites: [],
-      };
-    }
-
-    const favoriteIds = Array.isArray(profileData.profile?.profileFavorites)
-      ? profileData.profile.profileFavorites
-      : [];
-    const favoriteResults = await Promise.allSettled(favoriteIds.map(fetchOptionalItem));
-
-    return {
-      profileData,
-      favorites: favoriteResults
-        .map((result) => (result.status === 'fulfilled' ? result.value : null))
-        .filter(Boolean),
-    };
-  }, [ownerView, profileId]);
+    return readJson(profileResponse, 'Failed to load profile');
+  }, [profileId]);
 
   useEffect(() => {
     let isMounted = true;
 
     if (!profileId) {
       setInfo(null);
-      setFavoriteItems([]);
       setError(ownerView ? 'Sign in to manage your profile.' : 'Profile not found');
       setIsLoading(false);
       return undefined;
@@ -222,19 +177,17 @@ export function ProfilePage({ ownerView = false }) {
     const load = async () => {
       try {
         setIsLoading(true);
-        const { profileData, favorites } = await loadProfile();
+        const profileData = await loadProfile();
 
         if (!isMounted) {
           return;
         }
 
         setInfo(profileData);
-        setFavoriteItems(favorites);
         setError('');
       } catch (loadError) {
         if (isMounted) {
           setInfo(null);
-          setFavoriteItems([]);
           setError(loadError.message || 'Failed to load profile');
         }
       } finally {
@@ -257,14 +210,6 @@ export function ProfilePage({ ownerView = false }) {
   );
   const trustMetrics = useMemo(() => toTrustMetricsViewModel(info), [info]);
   const listingItems = useMemo(() => (info?.listings || []).map(toListingCardViewModel), [info]);
-  const favoriteCards = useMemo(
-    () =>
-      favoriteItems.map((item) => ({
-        ...toListingCardViewModel(item),
-        sellerId: item.userPublishingID || '',
-      })),
-    [favoriteItems]
-  );
   const canReview = Boolean(
     !ownerView &&
       isSignedIn &&
@@ -283,9 +228,8 @@ export function ProfilePage({ ownerView = false }) {
   }, [ownerView, profileHeader]);
 
   const refreshProfile = useCallback(async () => {
-    const { profileData, favorites } = await loadProfile();
+    const profileData = await loadProfile();
     setInfo(profileData);
-    setFavoriteItems(favorites);
   }, [loadProfile]);
 
   const handleDeleteListing = useCallback(
@@ -323,43 +267,6 @@ export function ProfilePage({ ownerView = false }) {
       }
     },
     [confirm, refreshProfile, showToast]
-  );
-
-  const handleRemoveFavorite = useCallback(
-    async (listingId, listingTitle) => {
-      const shouldRemove = await confirm({
-        title: 'Remove this favorite?',
-        description: `Take ${listingTitle} out of your saved listings.`,
-        confirmLabel: 'Remove favorite',
-      });
-
-      if (!shouldRemove || !profileId) {
-        return;
-      }
-
-      try {
-        setActiveActionId(`favorite-${listingId}`);
-        const response = await fetch(`${API_BASE_URL}/user/${profileId}/fav/${listingId}`, {
-          method: 'DELETE',
-        });
-        await readJson(response, 'Failed to remove favorite');
-        await refreshProfile();
-        showToast({
-          title: 'Favorite removed',
-          description: `${listingTitle} is no longer in your saved items.`,
-          variant: 'success',
-        });
-      } catch (favoriteError) {
-        showToast({
-          title: 'Unable to update favorites',
-          description: favoriteError.message || 'Try again in a moment.',
-          variant: 'danger',
-        });
-      } finally {
-        setActiveActionId('');
-      }
-    },
-    [confirm, profileId, refreshProfile, showToast]
   );
 
   const handleReviewSubmit = async (event) => {
@@ -470,7 +377,7 @@ export function ProfilePage({ ownerView = false }) {
         title={ownerView ? 'Manage your profile' : profileHeader?.displayName || 'Seller profile'}
         description={
           ownerView
-            ? 'Update your photo, bio, links, listings, and saved items in one place.'
+            ? 'Update your photo, bio, links, and listings from one place.'
             : 'See this seller\'s bio, links, and ratings before you decide to buy.'
         }
         actions={
@@ -644,62 +551,36 @@ export function ProfilePage({ ownerView = false }) {
 
           {ownerView ? (
             <Card className="space-y-6">
-              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Profile content sections">
-                {OWNER_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`focus-ring rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                      activeTab === tab.id
-                        ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
-                        : 'border-white/10 bg-white/5 text-app-soft hover:border-white/20 hover:text-white'
-                    }`}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <AppIcon icon={tab.icon} className="text-[0.95em]" />
-                      <span>{tab.label}</span>
-                    </span>
-                  </button>
-                ))}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-gatorOrange">
+                    <AppIcon icon="listing" className="text-sm" />
+                    <span>Active listings</span>
+                  </div>
+                  <p className="text-sm leading-7 text-app-soft">
+                    Manage your current listings.
+                  </p>
+                </div>
+                <Link to="/favorites" className="no-underline">
+                  <Button variant="secondary" leadingIcon="favorite">Open favorites</Button>
+                </Link>
               </div>
 
-              {activeTab === 'listings' ? (
-                listingItems.length > 0 ? (
-                  <ItemCard
-                    items={listingItems}
-                    isOwner
-                    deletingListingId={activeActionId.replace('delete-', '')}
-                    onDelete={handleDeleteListing}
-                  />
-                ) : (
-                  <EmptyState
-                    icon="createListing"
-                    title="No active listings yet"
-                    description="Create your first listing to start selling around campus."
-                    action={
-                      <Link to="/create" className="no-underline">
-                        <Button leadingIcon="createListing">Create listing</Button>
-                      </Link>
-                    }
-                  />
-                )
-              ) : favoriteCards.length > 0 ? (
-                <FavCard
-                  items={favoriteCards}
-                  removingListingId={activeActionId.replace('favorite-', '')}
-                  onRemoveFavorite={handleRemoveFavorite}
+              {listingItems.length > 0 ? (
+                <ItemCard
+                  items={listingItems}
+                  isOwner
+                  deletingListingId={activeActionId.replace('delete-', '')}
+                  onDelete={handleDeleteListing}
                 />
               ) : (
                 <EmptyState
-                  icon="favorite"
-                  title="No favorites saved yet"
-                  description="Save listings you want to revisit and they will show up here."
+                  icon="createListing"
+                  title="No active listings yet"
+                  description="Create your first listing to start selling around campus."
                   action={
-                    <Link to="/listings" className="no-underline">
-                      <Button variant="secondary" leadingIcon="browse">Browse listings</Button>
+                    <Link to="/create" className="no-underline">
+                      <Button leadingIcon="createListing">Create listing</Button>
                     </Link>
                   }
                 />

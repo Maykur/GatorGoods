@@ -158,7 +158,7 @@ test('signed-out users can view a public seller profile with trust metrics and c
   expect(screen.queryByRole('button', { name: /save profile changes/i })).not.toBeInTheDocument();
 });
 
-test('signed-in owners see their dashboard tabs, edit form, and saved favorites', async () => {
+test('signed-in owners see their listings dashboard, edit form, and favorites shortcut', async () => {
   setClerkState({
     isSignedIn: true,
     user: {
@@ -174,12 +174,8 @@ test('signed-in owners see their dashboard tabs, edit form, and saved favorites'
     expect(displayNameInput).toHaveValue('Seller One');
   });
   expect(screen.getByLabelText(/short bio/i)).toHaveValue('Selling a few trusted dorm essentials.');
-  expect(screen.getByRole('tab', { name: /favorites/i })).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('tab', { name: /favorites/i }));
-
-  expect(await screen.findByText('Mini Fridge')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /remove favorite/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /open favorites/i })).toHaveAttribute('href', '/favorites');
+  expect(screen.getByText(/your saved items now live in the main favorites page/i)).toBeInTheDocument();
 });
 
 test('signed-in owners can save lightweight public profile edits', async () => {

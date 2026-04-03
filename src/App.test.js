@@ -143,6 +143,10 @@ jest.mock("./pages/ProfilePage", () => ({
   ProfilePage: () => <div>Profile Page</div>,
 }));
 
+jest.mock("./pages/FavoritesPage", () => ({
+  FavoritesPage: () => <div>Favorites Page</div>,
+}));
+
 jest.mock("./pages/ItemPage", () => ({
   ItemPage: () => <div>Item Page</div>,
 }));
@@ -209,6 +213,14 @@ test("signed-out users are redirected away from offers", () => {
   expect(window.location.pathname).toBe("/login");
 });
 
+test("signed-out users are redirected away from favorites", () => {
+  window.history.pushState({}, "", "/favorites");
+
+  render(<App />);
+
+  expect(window.location.pathname).toBe("/login");
+});
+
 test("signed-out users can continue through nested login routes", () => {
   window.history.pushState({}, "", "/login/factor-one");
 
@@ -266,6 +278,20 @@ test("signed-in users can use the profile shortcut route", () => {
 
   expect(window.location.pathname).toBe("/profile/me");
   expect(screen.getByText("Profile Page")).toBeInTheDocument();
+});
+
+test("signed-in users can access the favorites route", () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: "user-1",
+    },
+  });
+  window.history.pushState({}, "", "/favorites");
+
+  render(<App />);
+
+  expect(screen.getByText("Favorites Page")).toBeInTheDocument();
 });
 
 test("unknown routes render the not-found page", () => {
