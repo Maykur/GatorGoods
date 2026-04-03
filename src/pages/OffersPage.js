@@ -7,6 +7,7 @@ import { parseMeetupDateTime, isMeetupScheduledToday } from '../lib/meetupSchedu
 import { toOfferCardViewModel, toTransactionViewModel } from '../lib/viewModels';
 import {
   AppIcon,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -20,6 +21,9 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000';
 const MIN_PICKUP_SPECIFICS_LENGTH = 8;
+const LISTINGS_PER_PAGE = 5;
+const OFFERS_PER_LISTING_PAGE = 10;
+const CARDS_PER_PAGE = 5;
 const MODE_OPTIONS = [
   { id: 'seller', label: 'Selling', icon: 'offers' },
   { id: 'buyer', label: 'Buying', icon: 'payment' },
@@ -109,6 +113,56 @@ function groupOfferViewsByListing(offerViews) {
     groups[offer.listingId].offers.push(offer);
     return groups;
   }, {});
+}
+
+function getTotalPages(itemCount, pageSize) {
+  return Math.max(1, Math.ceil((Number(itemCount) || 0) / pageSize));
+}
+
+function clampPage(page, totalPages) {
+  return Math.min(Math.max(1, page || 1), Math.max(1, totalPages || 1));
+}
+
+function paginateItems(items, page, pageSize) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const safePage = clampPage(page, getTotalPages(safeItems.length, pageSize));
+  const startIndex = (safePage - 1) * pageSize;
+
+  return safeItems.slice(startIndex, startIndex + pageSize);
+}
+
+function PaginationControls({ page, totalPages, onPageChange, itemLabel }) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
+        Page {page} of {totalPages}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+        >
+          Previous {itemLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages}
+        >
+          Next {itemLabel}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function OfferMetaCard({ icon, label, value, emphasis = false }) {
@@ -209,6 +263,10 @@ export function OffersPage() {
   const [openAcceptanceOfferId, setOpenAcceptanceOfferId] = useState('');
   const [acceptanceSpecifics, setAcceptanceSpecifics] = useState('');
   const [acceptanceError, setAcceptanceError] = useState('');
+  const [sellerPage, setSellerPage] = useState(1);
+  const [buyerPage, setBuyerPage] = useState(1);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [sellerOfferPagesByListing, setSellerOfferPagesByListing] = useState({});
   const hasUserSelectedModeRef = useRef(Boolean(requestedMode));
   const hasAutoSelectedTransactionsRef = useRef(false);
   const lastScrolledOfferIdRef = useRef('');
@@ -333,7 +391,89 @@ export function OffersPage() {
     hasAutoSelectedTransactionsRef.current = false;
     lastScrolledOfferIdRef.current = '';
     setMode(getRequestedOffersMode() || 'seller');
+    setSellerPage(1);
+    setBuyerPage(1);
+    setTransactionsPage(1);
+    setSellerOfferPagesByListing({});
   }, [user?.id]);
+
+  useEffect(() => {
+    setSellerPage((currentPage) => clampPage(currentPage, getTotalPages(sellerGroups.length, LISTINGS_PER_PAGE)));
+    setSellerOfferPagesByListing((currentPages) =>
+      sellerGroups.reduce((nextPages, group) => {
+        nextPages[group.listingId] = clampPage(
+          currentPages[group.listingId] || 1,
+          getTotalPages(group.offers.length, OFFERS_PER_LISTING_PAGE)
+        );
+        return nextPages;
+      }, {})
+    );
+  }, [sellerGroups]);
+
+  useEffect(() => {
+    setBuyerPage((currentPage) => clampPage(currentPage, getTotalPages(buyerOffers.length, CARDS_PER_PAGE)));
+  }, [buyerOffers]);
+
+  useEffect(() => {
+    setTransactionsPage((currentPage) =>
+      clampPage(currentPage, getTotalPages(transactions.length, CARDS_PER_PAGE))
+    );
+  }, [transactions]);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    const requestedOfferId = getRequestedOfferId();
+
+    if (!requestedOfferId) {
+      return;
+    }
+
+    if (mode === 'seller') {
+      const groupIndex = sellerGroups.findIndex((group) =>
+        group.offers.some((offer) => offer.id === requestedOfferId)
+      );
+
+      if (groupIndex === -1) {
+        return;
+      }
+
+      const targetGroup = sellerGroups[groupIndex];
+      const offerIndex = targetGroup.offers.findIndex((offer) => offer.id === requestedOfferId);
+      const requiredSellerPage = Math.floor(groupIndex / LISTINGS_PER_PAGE) + 1;
+      const requiredOfferPage = Math.floor(offerIndex / OFFERS_PER_LISTING_PAGE) + 1;
+
+      if (sellerPage !== requiredSellerPage) {
+        setSellerPage(requiredSellerPage);
+        return;
+      }
+
+      if ((sellerOfferPagesByListing[targetGroup.listingId] || 1) !== requiredOfferPage) {
+        setSellerOfferPagesByListing((currentPages) => ({
+          ...currentPages,
+          [targetGroup.listingId]: requiredOfferPage,
+        }));
+      }
+
+      return;
+    }
+
+    if (mode === 'buyer') {
+      const offerIndex = buyerOffers.findIndex((offer) => offer.id === requestedOfferId);
+
+      if (offerIndex === -1) {
+        return;
+      }
+
+      const requiredBuyerPage = Math.floor(offerIndex / CARDS_PER_PAGE) + 1;
+
+      if (buyerPage !== requiredBuyerPage) {
+        setBuyerPage(requiredBuyerPage);
+      }
+    }
+  }, [isLoading, mode, sellerGroups, buyerOffers, sellerPage, buyerPage, sellerOfferPagesByListing]);
 
   useEffect(() => {
     if (isLoading) {
@@ -357,7 +497,7 @@ export function OffersPage() {
       behavior: 'smooth',
       block: 'center',
     });
-  }, [isLoading, mode, buyerOffers, sellerGroups]);
+  }, [isLoading, mode, buyerOffers, sellerGroups, sellerPage, buyerPage, sellerOfferPagesByListing]);
 
   useEffect(() => {
     loadOffers();
@@ -418,6 +558,12 @@ export function OffersPage() {
     : mode === 'buyer'
       ? buyerOffers.length
       : transactions.length;
+  const visibleSellerGroups = paginateItems(sellerGroups, sellerPage, LISTINGS_PER_PAGE);
+  const visibleBuyerOffers = paginateItems(buyerOffers, buyerPage, CARDS_PER_PAGE);
+  const visibleTransactions = paginateItems(transactions, transactionsPage, CARDS_PER_PAGE);
+  const sellerTotalPages = getTotalPages(sellerGroups.length, LISTINGS_PER_PAGE);
+  const buyerTotalPages = getTotalPages(buyerOffers.length, CARDS_PER_PAGE);
+  const transactionTotalPages = getTotalPages(transactions.length, CARDS_PER_PAGE);
 
   return (
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
@@ -525,7 +671,12 @@ export function OffersPage() {
 
       {!isLoading && !error && mode === 'seller' && sellerGroups.length > 0 ? (
         <div className="space-y-6">
-          {sellerGroups.map((group) => (
+          {visibleSellerGroups.map((group) => {
+            const groupOfferPage = sellerOfferPagesByListing[group.listingId] || 1;
+            const visibleOffers = paginateItems(group.offers, groupOfferPage, OFFERS_PER_LISTING_PAGE);
+            const groupOfferTotalPages = getTotalPages(group.offers.length, OFFERS_PER_LISTING_PAGE);
+
+            return (
             <Card key={group.listingId} className="space-y-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
@@ -545,7 +696,7 @@ export function OffersPage() {
               </div>
 
               <div className="space-y-4">
-                {group.offers.map((offer) => {
+                {visibleOffers.map((offer) => {
                   const buyerFirstName = getFirstName(offer.buyerName);
                   const meetupHintTarget = buyerFirstName || 'the buyer';
                   const isRequestedOffer = getRequestedOfferId() === offer.id;
@@ -558,17 +709,20 @@ export function OffersPage() {
                     className={`space-y-4 ${isRequestedOffer ? 'ring-2 ring-gatorOrange/45 ring-offset-2 ring-offset-app-bg' : ''}`}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="text-xl font-semibold text-white">{offer.buyerName}</h3>
-                          <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
-                          {offer.buyerTrust ? (
-                            <Badge variant="orange" icon="rating">{offer.buyerTrust.overallRatingLabel}</Badge>
-                          ) : null}
+                      <div className="flex items-start gap-3">
+                        <Avatar src={offer.buyerAvatarUrl} name={offer.buyerName} size="md" />
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="text-xl font-semibold text-white">{offer.buyerName}</h3>
+                            <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
+                            {offer.buyerTrust ? (
+                              <Badge variant="orange" icon="rating">{offer.buyerTrust.overallRatingLabel}</Badge>
+                            ) : null}
+                          </div>
+                          <p className="text-sm text-app-soft">
+                            {offer.message || 'No note attached to this offer.'}
+                          </p>
                         </div>
-                        <p className="text-sm text-app-soft">
-                          {offer.message || 'No note attached to this offer.'}
-                        </p>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -681,15 +835,35 @@ export function OffersPage() {
                   </Card>
                   );
                 })}
+
+                <PaginationControls
+                  page={groupOfferPage}
+                  totalPages={groupOfferTotalPages}
+                  onPageChange={(nextPage) =>
+                    setSellerOfferPagesByListing((currentPages) => ({
+                      ...currentPages,
+                      [group.listingId]: clampPage(nextPage, groupOfferTotalPages),
+                    }))
+                  }
+                  itemLabel="offers"
+                />
               </div>
             </Card>
-          ))}
+            );
+          })}
+
+          <PaginationControls
+            page={sellerPage}
+            totalPages={sellerTotalPages}
+            onPageChange={(nextPage) => setSellerPage(clampPage(nextPage, sellerTotalPages))}
+            itemLabel="listings"
+          />
         </div>
       ) : null}
 
       {!isLoading && !error && mode === 'buyer' && buyerOffers.length > 0 ? (
         <div className="space-y-4">
-          {buyerOffers.map((offer) => {
+          {visibleBuyerOffers.map((offer) => {
             const isRequestedOffer = getRequestedOfferId() === offer.id;
 
             return (
@@ -699,16 +873,19 @@ export function OffersPage() {
               className={`space-y-4 ${isRequestedOffer ? 'ring-2 ring-gatorOrange/45 ring-offset-2 ring-offset-app-bg' : ''}`}
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold text-white">{offer.listingTitle}</h2>
-                    <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
-                    <Badge variant={getStatusBadgeVariant(offer.listingStatus)}>{offer.listingStatusLabel}</Badge>
+                <div className="flex items-start gap-3">
+                  <Avatar src={offer.listingImageUrl} name={offer.listingTitle} size="md" />
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-2xl font-semibold text-white">{offer.listingTitle}</h2>
+                      <Badge variant={getStatusBadgeVariant(offer.status)}>{offer.status}</Badge>
+                      <Badge variant={getStatusBadgeVariant(offer.listingStatus)}>{offer.listingStatusLabel}</Badge>
+                    </div>
+                    <p className="text-sm text-app-soft">
+                      Seller: {offer.sellerName}
+                      {offer.sellerTrust ? ` • ${offer.sellerTrust.overallRatingLabel}` : ''}
+                    </p>
                   </div>
-                  <p className="text-sm text-app-soft">
-                    Seller: {offer.sellerName}
-                    {offer.sellerTrust ? ` • ${offer.sellerTrust.overallRatingLabel}` : ''}
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -739,12 +916,19 @@ export function OffersPage() {
             </Card>
             );
           })}
+
+          <PaginationControls
+            page={buyerPage}
+            totalPages={buyerTotalPages}
+            onPageChange={(nextPage) => setBuyerPage(clampPage(nextPage, buyerTotalPages))}
+            itemLabel="offers"
+          />
         </div>
       ) : null}
 
       {!isLoading && !error && mode === 'transactions' && transactions.length > 0 ? (
         <div className="space-y-4">
-          {transactions.map((transaction) => {
+          {visibleTransactions.map((transaction) => {
             const counterpartLabel = transaction.sellerId === user?.id ? 'Buyer' : 'Seller';
             const counterpartName = transaction.sellerId === user?.id ? transaction.buyerName : transaction.sellerName;
             const canOpenTransaction = transaction.status !== 'completed';
@@ -752,20 +936,23 @@ export function OffersPage() {
             return (
               <Card key={transaction.transactionId} className="space-y-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-2xl font-semibold text-white">{transaction.listingTitle}</h2>
-                      <Badge variant={getTransactionStatusBadgeVariant(transaction.status)}>{transaction.status}</Badge>
-                      {isMeetupScheduledToday(transaction.acceptedTerms || transaction) ? (
-                        <Badge variant="orange" icon="time">Today</Badge>
-                      ) : null}
+                  <div className="flex items-start gap-3">
+                    <Avatar src={transaction.listingImageUrl} name={transaction.listingTitle} size="md" />
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h2 className="text-2xl font-semibold text-white">{transaction.listingTitle}</h2>
+                        <Badge variant={getTransactionStatusBadgeVariant(transaction.status)}>{transaction.status}</Badge>
+                        {isMeetupScheduledToday(transaction.acceptedTerms || transaction) ? (
+                          <Badge variant="orange" icon="time">Today</Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-app-soft">
+                        {counterpartLabel}: {counterpartName}
+                      </p>
+                      <p className="text-sm leading-7 text-app-soft">
+                        {getTransactionStatusDescription(transaction)}
+                      </p>
                     </div>
-                    <p className="text-sm text-app-soft">
-                      {counterpartLabel}: {counterpartName}
-                    </p>
-                    <p className="text-sm leading-7 text-app-soft">
-                      {getTransactionStatusDescription(transaction)}
-                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -797,6 +984,15 @@ export function OffersPage() {
               </Card>
             );
           })}
+
+          <PaginationControls
+            page={transactionsPage}
+            totalPages={transactionTotalPages}
+            onPageChange={(nextPage) =>
+              setTransactionsPage(clampPage(nextPage, transactionTotalPages))
+            }
+            itemLabel="transactions"
+          />
         </div>
       ) : null}
     </section>

@@ -71,6 +71,7 @@ beforeEach(() => {
       return jsonResponse({
         _id: 'item-1',
         itemName: 'Desk Lamp',
+        itemPicture: 'https://example.com/desk-lamp.png',
         status: 'active',
         userPublishingName: 'Seller One',
       });
@@ -80,6 +81,7 @@ beforeEach(() => {
       return jsonResponse({
         profile: {
           profileName: 'Buyer One',
+          profilePicture: 'https://example.com/buyer-one.png',
           profileRating: 4.2,
           trustMetrics: {
             reliability: 84,
@@ -95,6 +97,7 @@ beforeEach(() => {
       return jsonResponse({
         profile: {
           profileName: 'Buyer Two',
+          profilePicture: 'https://example.com/buyer-two.png',
           profileRating: 4.8,
           trustMetrics: {
             reliability: 93,
@@ -110,6 +113,7 @@ beforeEach(() => {
       return jsonResponse({
         profile: {
           profileName: 'Seller One',
+          profilePicture: 'https://example.com/seller-one.png',
           profileRating: 4.6,
           trustMetrics: {
             reliability: 92,
@@ -178,6 +182,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
   expect(screen.getByText('Tue, Apr 7 at 1:00 PM')).toBeInTheDocument();
   expect(screen.getAllByText('Proposed meetup hub')).toHaveLength(2);
   expect(screen.getAllByRole('button', { name: /accept/i })).toHaveLength(2);
+  expect(screen.getByAltText('Buyer One')).toHaveAttribute('src', 'https://example.com/buyer-one.png');
 });
 
 test('seller mode requires meetup specifics before accepting an offer', async () => {
@@ -316,10 +321,155 @@ test('buyer mode shows sent offers and seller context', async () => {
   fireEvent.click(await screen.findByRole('tab', { name: /buying/i }));
 
   expect(await screen.findByText('Seller: Seller One • 4.6/5')).toBeInTheDocument();
+  expect(screen.getByAltText('Desk Lamp')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /conversation/i })).toHaveAttribute(
     'href',
     '/messages/conversation-1'
   );
+});
+
+test('seller mode paginates listing groups and offers within a listing', async () => {
+  mockGetOffers.mockResolvedValueOnce(
+    Array.from({ length: 16 }, (_, index) => ({
+      _id: `offer-${index + 1}`,
+      listingId: index < 11 ? 'item-a' : `item-${index - 9}`,
+      buyerClerkUserId: `buyer-${index + 1}`,
+      sellerClerkUserId: 'seller-1',
+      offeredPrice: 20 + index,
+      meetupHubId: 'plaza-americas',
+      meetupLocation: 'Plaza of the Americas',
+      meetupDate: '2026-04-07',
+      meetupTime: '13:00',
+      paymentMethod: 'cash',
+      message: `Offer message ${index + 1}`,
+      status: 'pending',
+      conversationId: `conversation-${index + 1}`,
+    }))
+  ).mockResolvedValueOnce([]);
+
+  global.fetch = jest.fn((url) => {
+    if (url.startsWith('http://localhost:5000/items/')) {
+      const listingId = url.split('/').pop();
+      const listingMap = {
+        'item-a': 'Alpha Listing',
+        'item-2': 'Bravo Listing',
+        'item-3': 'Charlie Listing',
+        'item-4': 'Delta Listing',
+        'item-5': 'Echo Listing',
+        'item-6': 'Foxtrot Listing',
+      };
+
+      return jsonResponse({
+        _id: listingId,
+        itemName: listingMap[listingId],
+        status: 'active',
+        userPublishingName: 'Seller One',
+      });
+    }
+
+    if (url.startsWith('http://localhost:5000/profile/buyer-')) {
+      const buyerId = url.split('/').pop();
+      const buyerNumber = buyerId.split('-').pop();
+
+      return jsonResponse({
+        profile: {
+          profileName: `Buyer ${buyerNumber}`,
+          profilePicture: `https://example.com/${buyerId}.png`,
+          profileRating: 4.5,
+          trustMetrics: {
+            reliability: 90,
+            accuracy: 90,
+            responsiveness: 90,
+            safety: 90,
+          },
+        },
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<OffersPage />);
+
+  expect(await screen.findByText('Alpha Listing')).toBeInTheDocument();
+  expect(screen.getByText('Echo Listing')).toBeInTheDocument();
+  expect(screen.queryByText('Foxtrot Listing')).not.toBeInTheDocument();
+  expect(screen.getByText('Buyer 10')).toBeInTheDocument();
+  expect(screen.queryByText('Buyer 11')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /next offers/i }));
+  expect(await screen.findByText('Buyer 11')).toBeInTheDocument();
+  expect(screen.queryByText('Buyer 1')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /next listings/i }));
+  expect(await screen.findByText('Foxtrot Listing')).toBeInTheDocument();
+  expect(screen.queryByText('Alpha Listing')).not.toBeInTheDocument();
+});
+
+test('buyer mode paginates sent offers five at a time', async () => {
+  mockGetOffers
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce(
+      Array.from({ length: 6 }, (_, index) => ({
+        _id: `offer-${index + 1}`,
+        listingId: `item-${index + 1}`,
+        buyerClerkUserId: 'seller-1',
+        sellerClerkUserId: 'seller-1',
+        offeredPrice: 18 + index,
+        meetupHubId: 'plaza-americas',
+        meetupLocation: 'Plaza of the Americas',
+        meetupDate: '2026-04-07',
+        meetupTime: '13:00',
+        paymentMethod: 'cash',
+        message: `Sent offer ${index + 1}`,
+        status: 'pending',
+        conversationId: `conversation-${index + 1}`,
+      }))
+    );
+
+  global.fetch = jest.fn((url) => {
+    if (url.startsWith('http://localhost:5000/items/')) {
+      const listingId = url.split('/').pop();
+      const listingNumber = listingId.split('-').pop();
+
+      return jsonResponse({
+        _id: listingId,
+        itemName: `Listing ${listingNumber}`,
+        status: 'active',
+        userPublishingName: 'Seller One',
+      });
+    }
+
+    if (url === 'http://localhost:5000/profile/seller-1') {
+      return jsonResponse({
+        profile: {
+          profileName: 'Seller One',
+          profilePicture: 'https://example.com/seller-one.png',
+          profileRating: 4.6,
+          trustMetrics: {
+            reliability: 92,
+            accuracy: 88,
+            responsiveness: 100,
+            safety: 81,
+          },
+        },
+      });
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+
+  render(<OffersPage />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /buying/i }));
+
+  expect(await screen.findByText('Listing 1')).toBeInTheDocument();
+  expect(screen.getByText('Listing 5')).toBeInTheDocument();
+  expect(screen.queryByText('Listing 6')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /next offers/i }));
+  expect(await screen.findByText('Listing 6')).toBeInTheDocument();
+  expect(screen.queryByText('Listing 1')).not.toBeInTheDocument();
 });
 
 test('offers page shows a transactions tab and auto-selects it when a transaction is scheduled today', async () => {
@@ -409,6 +559,7 @@ test('offers page shows a transactions tab and auto-selects it when a transactio
   });
 
   expect(await screen.findByText(/scheduled for today/i)).toBeInTheDocument();
+  expect(screen.getByAltText('Desk Lamp')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /open transaction/i })).toHaveAttribute('href', '/transact/offer-today');
   expect(screen.queryByText(/buyer two/i)).not.toBeInTheDocument();
 });

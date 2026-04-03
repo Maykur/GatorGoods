@@ -371,6 +371,10 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
       buyerProfile?.profile?.profileName || buyerProfile?.profileName || rawOffer?.buyerDisplayName,
       'Buyer'
     ),
+    buyerAvatarUrl: normalizeText(
+      buyerProfile?.profile?.profilePicture || buyerProfile?.profilePicture,
+      ''
+    ),
     sellerId: normalizeText(rawOffer?.sellerClerkUserId, ''),
     sellerName: normalizeText(
       sellerProfile?.profile?.profileName || sellerProfile?.profileName || listing?.userPublishingName,
