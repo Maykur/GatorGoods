@@ -92,6 +92,14 @@ beforeEach(() => {
   mockConfirm.mockReset();
   mockConfirm.mockResolvedValue(true);
   mockRouteParams = { id: 'seller-1' };
+  global.FileReader = class MockFileReader {
+    readAsDataURL(file) {
+      this.result = `data:${file.type};base64,mock-banner-data`;
+      if (typeof this.onloadend === 'function') {
+        this.onloadend();
+      }
+    }
+  };
 
   global.fetch = jest.fn((url, options = {}) => {
     if (url === 'http://localhost:5000/profile/seller-1') {
@@ -138,6 +146,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete global.fetch;
+  delete global.FileReader;
 });
 
 test('signed-out users can view a public seller profile with trust metrics and connectors', async () => {
@@ -169,13 +178,12 @@ test('signed-in owners see their listings dashboard, edit form, and favorites sh
   render(<ProfilePage ownerView />);
 
   fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
-  const displayNameInput = await screen.findByLabelText(/display name/i);
-  await waitFor(() => {
-    expect(displayNameInput).toHaveValue('Seller One');
-  });
+  expect(await screen.findByText(/refresh what people see before they message you/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/short bio/i)).toHaveValue('Selling a few trusted dorm essentials.');
+  expect(screen.getByLabelText(/display name/i)).toHaveValue('Seller One');
+  expect(screen.getByLabelText(/profile photo url/i)).toHaveValue('');
   expect(screen.getByRole('link', { name: /open favorites/i })).toHaveAttribute('href', '/favorites');
-  expect(screen.getByText(/your saved items now live in the main favorites page/i)).toBeInTheDocument();
+  expect(screen.getByText(/manage what you currently have posted/i)).toBeInTheDocument();
 });
 
 test('signed-in owners can save lightweight public profile edits', async () => {
@@ -189,11 +197,17 @@ test('signed-in owners can save lightweight public profile edits', async () => {
   render(<ProfilePage ownerView />);
 
   fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
-  fireEvent.change(await screen.findByLabelText(/display name/i), {
+  fireEvent.change(screen.getByLabelText(/display name/i), {
     target: { value: 'Updated Seller' },
+  });
+  fireEvent.change(screen.getByLabelText(/profile photo url/i), {
+    target: { value: 'https://example.com/avatar.png' },
   });
   fireEvent.change(screen.getByLabelText(/short bio/i), {
     target: { value: 'Updated bio' },
+  });
+  fireEvent.change(screen.getByLabelText(/banner image url/i), {
+    target: { value: 'https://example.com/updated-banner.png' },
   });
   fireEvent.click(screen.getByRole('button', { name: /save profile changes/i }));
 
@@ -209,7 +223,9 @@ test('signed-in owners can save lightweight public profile edits', async () => {
   expect(JSON.parse(patchCall[1].body)).toEqual(
     expect.objectContaining({
       profileName: 'Updated Seller',
+      profilePicture: 'https://example.com/avatar.png',
       profileBio: 'Updated bio',
+      profileBanner: 'https://example.com/updated-banner.png',
     })
   );
 
@@ -219,6 +235,66 @@ test('signed-in owners can save lightweight public profile edits', async () => {
       variant: 'success',
     })
   );
+});
+
+test('signed-in owners can upload a banner image from the edit form', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  render(<ProfilePage ownerView />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
+  const file = new File(['banner'], 'banner.png', { type: 'image/png' });
+  fireEvent.change(screen.getByLabelText(/upload banner image/i), {
+    target: { files: [file] },
+  });
+  await waitFor(() => {
+    expect(screen.getByLabelText(/banner image url/i)).toHaveValue('data:image/png;base64,mock-banner-data');
+  });
+  fireEvent.click(screen.getByRole('button', { name: /save profile changes/i }));
+
+  await waitFor(() => {
+    const patchCall = global.fetch.mock.calls.find(([url]) => url === 'http://localhost:5000/user/seller-1');
+    expect(JSON.parse(patchCall[1].body)).toEqual(
+      expect.objectContaining({
+        profileBanner: 'data:image/png;base64,mock-banner-data',
+      })
+    );
+  });
+});
+
+test('signed-in owners can upload a profile picture from the edit form', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'seller-1',
+    },
+  });
+
+  render(<ProfilePage ownerView />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /edit profile/i }));
+  const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
+  fireEvent.change(screen.getByLabelText(/upload profile photo/i), {
+    target: { files: [file] },
+  });
+  await waitFor(() => {
+    expect(screen.getByLabelText(/profile photo url/i)).toHaveValue('data:image/png;base64,mock-banner-data');
+  });
+  fireEvent.click(screen.getByRole('button', { name: /save profile changes/i }));
+
+  await waitFor(() => {
+    const patchCall = global.fetch.mock.calls.find(([url]) => url === 'http://localhost:5000/user/seller-1');
+    expect(JSON.parse(patchCall[1].body)).toEqual(
+      expect.objectContaining({
+        profilePicture: 'data:image/png;base64,mock-banner-data',
+      })
+    );
+  });
 });
 
 test('signed-in non-owners can submit a seller review', async () => {
