@@ -88,7 +88,7 @@ From the repository root:
   - 8 polished accounts
   - 13 live listings across all 8 marketplace categories, plus 1 historical deleted-item thread context
   - 14 offers
-  - 7 conversation threads with populated seller and buyer inbox views, including several multi-item relationship threads and compact sent/accepted/rejected offer history
+  - 7 participant-first conversation threads with populated seller and buyer inbox views, including several multi-item relationship threads, item-history context, and compact viewer-aware sent/accepted/rejected offer events
   - presenter-owned `Desk Lamp` (`active`) and `Mini Fridge` (`reserved`) listings for the core demo flow
 
   Useful seed inputs:

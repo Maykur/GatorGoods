@@ -25,8 +25,12 @@ Use this runbook for the final implementation video, class demo, and fallback li
 5. Switch to the seller and review grouped offers in the offers inbox
 6. Accept an offer and show the listing moving into a reserved state
 7. Open the linked conversation to show people-first messaging with item context
-8. Revisit the seller profile to show banner, connectors, overall rating, and percent-based trust metrics
-9. If time allows, show the owner profile editor updating public-facing trust context
+8. In `/messages`, call out that conversations are participant-first, not listing-first, so multiple items with the same person can now live in one thread
+9. In the thread view, show the item chip rail and explain that pending items appear first, active items next, and older inactive history remains available for reference
+10. Click an unavailable or completed item chip to show that local history focus changes without rewriting the shared thread state
+11. Point out that offer system cards and titles are viewer-aware, so buyers and sellers read different first-name-based status copy
+12. Revisit the seller profile to show banner, connectors, overall rating, and percent-based trust metrics
+13. If time allows, show the owner profile editor updating public-facing trust context
 
 ## Seeded Demo Scenarios
 
@@ -34,7 +38,9 @@ Use this runbook for the final implementation video, class demo, and fallback li
 - `Mini Fridge` is already `reserved` with 1 `accepted` offer, 1 `declined` offer, and a ready-to-open thread from `/offers`
 - Community listings cover all 8 categories and include additional `active`, `reserved`, and `sold` states in the public feed
 - The presenter also has outbound offers on community listings so buyer mode is populated
-- `/messages` opens into 7 believable conversation threads spread across the last 2 days, with seeded sent/accepted/rejected/completed offer events visible in chat history
+- `/messages` opens into 7 believable participant-first conversation threads spread across the last 2 days
+- Several seeded threads intentionally include multiple linked items with mixed active, pending, completed, unavailable, and deleted-item history
+- Seeded chat history includes viewer-aware sent/accepted/rejected/completed offer events plus per-message item context
 - Safe reseeding is tag-based by default, so unrelated real data stays intact unless you opt into a full reset
 - The demo script can attach the presenter profile to a real Clerk user with email lookup:
 
@@ -85,7 +91,9 @@ If one part of the live flow breaks:
 - Seller inbox shows multiple inbound offers
 - Buyer inbox is not empty
 - Reserved and sold badges appear in the public feed
-- Messaging inbox shows multiple believable threads and the thread view opens with listing context
+- Messaging inbox shows multiple believable participant-first threads with compact item previews
+- Thread view opens with item context, per-message item pills, and viewer-aware offer system cards
+- Selecting old item chips updates local thread focus without breaking the shared conversation state
 - Trust metrics render on the profile
 - Presenter profile uses the expected Clerk identity when `DEMO_USER_EMAIL` is used
 - Profile editing saves public trust fields for the signed-in owner
