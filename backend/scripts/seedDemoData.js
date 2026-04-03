@@ -15,6 +15,7 @@ const {
     Message,
     Offer,
     Profile,
+    Transaction,
   },
 } = require('../index');
 
@@ -193,6 +194,60 @@ const COMMUNITY_PROFILES = [
       safety: 95,
     },
   },
+  {
+    key: 'sofia',
+    profileID: 'demo_sofia_alvarez',
+    profileName: 'Sofia Alvarez',
+    profilePicture: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+    profileBanner: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1400&q=80',
+    profileBio: 'Design student clearing desk gear, decor, and a few apartment extras before finals week.',
+    instagramUrl: 'https://instagram.com/sofia.uf.market',
+    linkedinUrl: '',
+    profileRating: 4.7,
+    profileTotalRating: 18,
+    trustMetrics: {
+      reliability: 93,
+      accuracy: 94,
+      responsiveness: 91,
+      safety: 95,
+    },
+  },
+  {
+    key: 'cameron',
+    profileID: 'demo_cameron_wells',
+    profileName: 'Cameron Wells',
+    profilePicture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+    profileBanner: 'https://images.unsplash.com/photo-1497366412874-3415097a27e7?auto=format&fit=crop&w=1400&q=80',
+    profileBio: 'Usually buying and selling desk setup pieces, scooters, and apartment storage between semesters.',
+    instagramUrl: '',
+    linkedinUrl: 'https://linkedin.com/in/cameronwells-uf',
+    profileRating: 4.6,
+    profileTotalRating: 13,
+    trustMetrics: {
+      reliability: 89,
+      accuracy: 90,
+      responsiveness: 94,
+      safety: 92,
+    },
+  },
+  {
+    key: 'nina',
+    profileID: 'demo_nina_park',
+    profileName: 'Nina Park',
+    profilePicture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+    profileBanner: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1400&q=80',
+    profileBio: 'Moving apartments soon and cycling through small furniture, mirrors, and studio storage pieces.',
+    instagramUrl: 'https://instagram.com/ninapark.uf',
+    linkedinUrl: '',
+    profileRating: 4.8,
+    profileTotalRating: 21,
+    trustMetrics: {
+      reliability: 96,
+      accuracy: 94,
+      responsiveness: 90,
+      safety: 96,
+    },
+  },
 ];
 
 function defaultDependencies() {
@@ -204,6 +259,7 @@ function defaultDependencies() {
       Message,
       Offer,
       Profile,
+      Transaction,
     },
   };
 }
@@ -400,6 +456,55 @@ function buildSeedDataset(config) {
   const schedule = (dayOffset, meetupTime) => ({
     meetupDate: toLocalDateInputValue(addDays(now, dayOffset)),
     meetupTime,
+  });
+  const buildBuyerReview = ({
+    submittedAt,
+    decision = 'confirmed',
+    reliability,
+    accuracy,
+    responsiveness,
+    safety,
+    details,
+  }) => ({
+    decision,
+    questionnaireType: decision === 'problemReported' ? 'problem' : 'success',
+    answers: {
+      reliability,
+      accuracy,
+      responsiveness,
+      safety,
+      details,
+    },
+    metricScores: {
+      reliability,
+      accuracy,
+      responsiveness,
+      safety,
+    },
+    submittedAt,
+  });
+  const buildSellerReview = ({
+    submittedAt,
+    decision = 'confirmed',
+    reliability,
+    responsiveness,
+    safety,
+    details,
+  }) => ({
+    decision,
+    questionnaireType: decision === 'problemReported' ? 'problem' : 'success',
+    answers: {
+      reliability,
+      responsiveness,
+      safety,
+      details,
+    },
+    metricScores: {
+      reliability,
+      responsiveness,
+      safety,
+    },
+    submittedAt,
   });
 
   const communityProfiles = COMMUNITY_PROFILES.map((profile) => ({
@@ -627,6 +732,142 @@ function buildSeedDataset(config) {
       itemCat: 'Apparel & Accessories',
       status: 'active',
       date: subtractHours(now, 30),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'air-purifier',
+      ownerKey: 'presenter',
+      itemName: 'Compact Air Purifier',
+      itemCost: '52',
+      itemCondition: 'Good',
+      originalPickupHubId: 'marston',
+      pickupHubId: 'marston',
+      itemPicture: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Quiet bedside air purifier that still has a fresh replacement filter and works well in a dorm bedroom.',
+      itemDetails: 'Reserved for a same-day meetup near Marston after the buyer asked for a faster pickup tonight.',
+      itemCat: 'Home & Garden',
+      status: 'reserved',
+      date: subtractHours(now, 4),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'rolling-cart',
+      ownerKey: 'presenter',
+      itemName: 'Three-Tier Rolling Cart',
+      itemCost: '24',
+      itemCondition: 'Good',
+      pickupHubId: 'reitz',
+      itemPicture: 'https://images.unsplash.com/photo-1582582429416-b6c9d9f33172?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Slim rolling cart that works well beside a desk, printer station, or apartment bathroom.',
+      itemDetails: 'Still available and already drew interest from the same buyer who reserved the air purifier.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 7),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'graphing-calculator',
+      ownerKey: 'leo',
+      itemName: 'TI-84 Graphing Calculator',
+      itemCost: '58',
+      itemCondition: 'Good',
+      pickupHubId: 'marston',
+      itemPicture: 'https://images.unsplash.com/photo-1565372910227-e978a9f7be64?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Reliable calculator with a fresh set of batteries and a clean screen cover.',
+      itemDetails: 'Reserved after Ava confirmed she could meet near Marston between classes tomorrow.',
+      itemCat: 'Electronics & Computers',
+      status: 'reserved',
+      date: subtractHours(now, 10),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'gaming-monitor',
+      ownerKey: 'sofia',
+      itemName: '24-inch Gaming Monitor',
+      itemCost: '115',
+      itemCondition: 'Good',
+      pickupHubId: 'marston',
+      itemPicture: 'https://images.unsplash.com/photo-1527443154391-507e9dc6c5cc?auto=format&fit=crop&w=900&q=80',
+      itemDescription: '1080p monitor with an adjustable stand and HDMI cable included.',
+      itemDetails: 'The handoff already happened, but it remains in the demo as a problem-reported transaction example.',
+      itemCat: 'Electronics & Computers',
+      status: 'sold',
+      date: subtractHours(now, 36),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'kitchen-cart',
+      ownerKey: 'sofia',
+      itemName: 'Kitchen Utility Cart',
+      itemCost: '48',
+      itemCondition: 'Good',
+      pickupHubId: 'reitz',
+      itemPicture: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'A small rolling kitchen cart with two shelves and locking wheels.',
+      itemDetails: 'Still active, with an interested buyer already chatting in the same thread as the completed monitor sale.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 11),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'bike-lock-bundle',
+      ownerKey: 'cameron',
+      itemName: 'Bike Lock Bundle',
+      itemCost: '19',
+      itemCondition: 'Good',
+      pickupHubId: 'turlington-hall',
+      itemPicture: 'https://images.unsplash.com/photo-1508973378895-9f2a1c0d2c06?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'U-lock and cable combo that is still in good shape for campus bike parking.',
+      itemDetails: 'Active listing with no accepted buyer yet, but saved by a couple of shoppers.',
+      itemCat: 'Vehicles',
+      status: 'active',
+      date: subtractHours(now, 16),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'monitor-stand',
+      ownerKey: 'cameron',
+      itemName: 'Desk Monitor Stand',
+      itemCost: '20',
+      itemCondition: 'Like New',
+      pickupHubId: 'reitz',
+      itemPicture: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Wood desktop stand that raises a monitor and adds room for notebooks underneath.',
+      itemDetails: 'Still active, with one fresh offer waiting for a reply.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 13),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'lab-stool',
+      ownerKey: 'nina',
+      itemName: 'Drafting Lab Stool',
+      itemCost: '38',
+      itemCondition: 'Good',
+      pickupHubId: 'turlington-hall',
+      itemPicture: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Tall adjustable stool that works well at a drafting desk or standing-height table.',
+      itemDetails: 'Still available after Nina and Scott talked through pickup options in the same thread as a past mirror sale.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 8),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'vanity-mirror',
+      ownerKey: 'nina',
+      itemName: 'Lighted Vanity Mirror',
+      itemCost: '44',
+      itemCondition: 'Good',
+      pickupHubId: 'turlington-hall',
+      itemPicture: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
+      itemDescription: 'Framed mirror with built-in lights that still packs easily for apartment move-out.',
+      itemDetails: 'Recently sold in a smooth handoff and left in the seed as another completed transaction example.',
+      itemCat: 'Home & Garden',
+      status: 'sold',
+      date: subtractHours(now, 26),
       seedTag: config.seedTag,
     },
   ];
@@ -996,6 +1237,333 @@ function buildSeedDataset(config) {
         priya: 7.1,
       },
     },
+    {
+      key: 'conv-presenter-cameron',
+      activeListingKey: 'air-purifier',
+      linkedListingKeys: ['air-purifier', 'rolling-cart'],
+      participantKeys: ['presenter', 'cameron'],
+      activePickupHubId: 'marston',
+      activePickupSpecifics: 'North entrance under the shade trees.',
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'air-purifier',
+          offerKey: 'offer-air-purifier-cameron',
+          offerEventType: 'sent',
+          body: 'Cameron sent an offer.',
+          createdAt: subtractHours(now, 6.5),
+        },
+        {
+          senderKey: 'cameron',
+          attachedListingKey: 'air-purifier',
+          body: 'I can meet after my last class today if the purifier is still available.',
+          createdAt: subtractHours(now, 6.2),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'air-purifier',
+          body: 'That timing works. I can bring it to Marston and keep the meetup fast.',
+          createdAt: subtractHours(now, 5.9),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'air-purifier',
+          offerKey: 'offer-air-purifier-cameron',
+          offerEventType: 'accepted',
+          body: 'Scott accepted your offer.',
+          createdAt: subtractHours(now, 5.6),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'rolling-cart',
+          offerKey: 'offer-rolling-cart-cameron',
+          offerEventType: 'sent',
+          body: 'Cameron sent an offer.',
+          createdAt: subtractHours(now, 4.7),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'rolling-cart',
+          body: 'I can hold the rolling cart until tomorrow if you still want it after tonight.',
+          createdAt: subtractHours(now, 4.3),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 4.4,
+        cameron: 4.7,
+      },
+    },
+    {
+      key: 'conv-air-purifier-ava',
+      activeListingKey: 'air-purifier',
+      participantKeys: ['presenter', 'ava'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'air-purifier',
+          offerKey: 'offer-air-purifier-ava',
+          offerEventType: 'sent',
+          body: 'Ava sent an offer.',
+          createdAt: subtractHours(now, 8.2),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'air-purifier',
+          body: 'Thanks for the offer. Another buyer could meet sooner tonight, so I wanted to be transparent.',
+          createdAt: subtractHours(now, 7.8),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'air-purifier',
+          offerKey: 'offer-air-purifier-ava',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 7.5),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 7.5,
+        ava: 7.5,
+      },
+    },
+    {
+      key: 'conv-mini-fridge-ava',
+      activeListingKey: 'mini-fridge',
+      participantKeys: ['presenter', 'ava'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-ava',
+          offerEventType: 'sent',
+          body: 'Ava sent an offer.',
+          createdAt: subtractHours(now, 9.5),
+        },
+        {
+          senderKey: 'ava',
+          attachedListingKey: 'mini-fridge',
+          body: 'I can do a quick evening pickup if the fridge is still available after your current buyer.',
+          createdAt: subtractHours(now, 9.2),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'mini-fridge',
+          body: 'Thanks. I have one buyer ahead of you, but I will keep this thread updated.',
+          createdAt: subtractHours(now, 8.9),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 9,
+        ava: 9.2,
+      },
+    },
+    {
+      key: 'conv-mini-fridge-cameron',
+      activeListingKey: 'mini-fridge',
+      participantKeys: ['presenter', 'cameron'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-cameron',
+          offerEventType: 'sent',
+          body: 'Cameron sent an offer.',
+          createdAt: subtractHours(now, 10.4),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'mini-fridge',
+          body: 'I appreciate it. I am keeping the price a little higher for now because there are a few buyers interested.',
+          createdAt: subtractHours(now, 10.1),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge',
+          offerKey: 'offer-mini-fridge-cameron',
+          offerEventType: 'declined',
+          body: 'Scott rejected your offer.',
+          createdAt: subtractHours(now, 9.8),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 9.8,
+        cameron: 9.8,
+      },
+    },
+    {
+      key: 'conv-leo-ava-calculator',
+      activeListingKey: 'graphing-calculator',
+      participantKeys: ['leo', 'ava'],
+      activePickupHubId: 'marston',
+      activePickupSpecifics: 'By the ground-floor tables near the entrance.',
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'graphing-calculator',
+          offerKey: 'offer-graphing-calculator-ava',
+          offerEventType: 'sent',
+          body: 'Ava sent an offer.',
+          createdAt: subtractHours(now, 12),
+        },
+        {
+          senderKey: 'leo',
+          attachedListingKey: 'graphing-calculator',
+          body: 'That works. I can meet near Marston tomorrow between my classes.',
+          createdAt: subtractHours(now, 11.7),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'graphing-calculator',
+          offerKey: 'offer-graphing-calculator-ava',
+          offerEventType: 'accepted',
+          body: 'Leo accepted your offer.',
+          createdAt: subtractHours(now, 11.4),
+        },
+        {
+          senderKey: 'ava',
+          attachedListingKey: 'graphing-calculator',
+          body: 'Perfect. I will confirm again once I am walking over from Marston.',
+          createdAt: subtractHours(now, 11.1),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        leo: 11.2,
+        ava: 11.1,
+      },
+    },
+    {
+      key: 'conv-sofia-presenter',
+      activeListingKey: 'kitchen-cart',
+      linkedListingKeys: ['gaming-monitor', 'kitchen-cart'],
+      participantKeys: ['presenter', 'sofia'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'gaming-monitor',
+          offerKey: 'offer-gaming-monitor-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
+          createdAt: subtractHours(now, 38),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'gaming-monitor',
+          offerKey: 'offer-gaming-monitor-presenter',
+          offerEventType: 'accepted',
+          body: 'Sofia accepted your offer.',
+          createdAt: subtractHours(now, 37.4),
+        },
+        {
+          senderKey: 'presenter',
+          attachedListingKey: 'gaming-monitor',
+          body: 'Thanks again for meeting. I noticed a cluster of dead pixels once I got back, so I wanted to document it here.',
+          createdAt: subtractHours(now, 35.8),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'gaming-monitor',
+          body: 'Problem reported after the handoff. Both submissions are preserved for follow-up.',
+          createdAt: subtractHours(now, 35.4),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'kitchen-cart',
+          offerKey: 'offer-kitchen-cart-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
+          createdAt: subtractHours(now, 10.2),
+        },
+        {
+          senderKey: 'sofia',
+          attachedListingKey: 'kitchen-cart',
+          body: 'The cart is still available. I can meet at Reitz tomorrow afternoon if you still want it.',
+          createdAt: subtractHours(now, 9.8),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 9.9,
+        sofia: 10.2,
+      },
+    },
+    {
+      key: 'conv-nina-presenter',
+      activeListingKey: 'lab-stool',
+      linkedListingKeys: ['vanity-mirror', 'lab-stool'],
+      participantKeys: ['presenter', 'nina'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'vanity-mirror',
+          offerKey: 'offer-vanity-mirror-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
+          createdAt: subtractHours(now, 29),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'vanity-mirror',
+          offerKey: 'offer-vanity-mirror-presenter',
+          offerEventType: 'accepted',
+          body: 'Nina accepted your offer.',
+          createdAt: subtractHours(now, 28.4),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'vanity-mirror',
+          body: 'Sale completed. Both sides confirmed the handoff.',
+          createdAt: subtractHours(now, 26.6),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'lab-stool',
+          offerKey: 'offer-lab-stool-presenter',
+          offerEventType: 'sent',
+          body: 'Scott sent an offer.',
+          createdAt: subtractHours(now, 8.6),
+        },
+        {
+          senderKey: 'nina',
+          attachedListingKey: 'lab-stool',
+          body: 'The stool is still available and I can probably meet near Architecture tomorrow morning.',
+          createdAt: subtractHours(now, 8.2),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        presenter: 8.3,
+        nina: 8.2,
+      },
+    },
+    {
+      key: 'conv-monitor-stand-ethan',
+      activeListingKey: 'monitor-stand',
+      participantKeys: ['ethan', 'cameron'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'monitor-stand',
+          offerKey: 'offer-monitor-stand-ethan',
+          offerEventType: 'sent',
+          body: 'Ethan sent an offer.',
+          createdAt: subtractHours(now, 6.8),
+        },
+        {
+          senderKey: 'cameron',
+          attachedListingKey: 'monitor-stand',
+          body: 'That seems reasonable. I am finishing up class now and can answer later tonight.',
+          createdAt: subtractHours(now, 6.4),
+        },
+        {
+          senderKey: 'ethan',
+          attachedListingKey: 'monitor-stand',
+          body: 'No rush. I can pick up tomorrow if it helps.',
+          createdAt: subtractHours(now, 6.1),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        ethan: 6.1,
+        cameron: 6.3,
+      },
+    },
   ];
 
   const offers = [
@@ -1185,22 +1753,357 @@ function buildSeedDataset(config) {
       status: 'pending',
       createdAt: subtractHours(now, 7.1),
     },
+    {
+      key: 'offer-air-purifier-cameron',
+      listingKey: 'air-purifier',
+      buyerKey: 'cameron',
+      conversationKey: 'conv-presenter-cameron',
+      offeredPrice: 48,
+      meetupHubId: 'marston',
+      ...schedule(0, '17:45'),
+      paymentMethod: 'cash',
+      message: addFiller('I can come by tonight and keep the handoff short.', OFFER_MESSAGE_VARIANTS),
+      status: 'accepted',
+      acceptedPickupSpecifics: 'North entrance under the shade trees.',
+      createdAt: subtractHours(now, 6.5),
+    },
+    {
+      key: 'offer-rolling-cart-cameron',
+      listingKey: 'rolling-cart',
+      buyerKey: 'cameron',
+      conversationKey: 'conv-presenter-cameron',
+      offeredPrice: 21,
+      meetupHubId: 'reitz',
+      ...schedule(1, '13:30'),
+      paymentMethod: 'externalApp',
+      message: addFiller('If the purifier pickup goes well, I would also take the cart tomorrow.', OFFER_MESSAGE_VARIANTS),
+      status: 'pending',
+      createdAt: subtractHours(now, 4.7),
+    },
+    {
+      key: 'offer-air-purifier-ava',
+      listingKey: 'air-purifier',
+      buyerKey: 'ava',
+      conversationKey: 'conv-air-purifier-ava',
+      offeredPrice: 45,
+      meetupHubId: 'marston',
+      ...schedule(0, '18:15'),
+      paymentMethod: 'cash',
+      message: addFiller('I could still meet this evening if the earlier buyer falls through.', OFFER_MESSAGE_VARIANTS),
+      status: 'declined',
+      createdAt: subtractHours(now, 8.2),
+    },
+    {
+      key: 'offer-mini-fridge-ava',
+      listingKey: 'mini-fridge',
+      buyerKey: 'ava',
+      conversationKey: 'conv-mini-fridge-ava',
+      offeredPrice: 68,
+      meetupHubId: 'hume-hall',
+      ...schedule(0, '19:30'),
+      paymentMethod: 'cash',
+      message: addFiller('I can swing by tonight if the current buyer changes plans.', OFFER_MESSAGE_VARIANTS),
+      status: 'pending',
+      createdAt: subtractHours(now, 9.5),
+    },
+    {
+      key: 'offer-mini-fridge-cameron',
+      listingKey: 'mini-fridge',
+      buyerKey: 'cameron',
+      conversationKey: 'conv-mini-fridge-cameron',
+      offeredPrice: 63,
+      meetupHubId: 'hume-hall',
+      ...schedule(1, '16:15'),
+      paymentMethod: 'externalApp',
+      message: addFiller('Sending a lower first pass in case you want it moved fast.', OFFER_MESSAGE_VARIANTS),
+      status: 'declined',
+      createdAt: subtractHours(now, 10.4),
+    },
+    {
+      key: 'offer-graphing-calculator-ava',
+      listingKey: 'graphing-calculator',
+      buyerKey: 'ava',
+      conversationKey: 'conv-leo-ava-calculator',
+      offeredPrice: 56,
+      meetupHubId: 'marston',
+      ...schedule(1, '11:45'),
+      paymentMethod: 'cash',
+      message: addFiller('I can meet between classes and bring exact cash.', OFFER_MESSAGE_VARIANTS),
+      status: 'accepted',
+      acceptedPickupSpecifics: 'By the ground-floor tables near the entrance.',
+      createdAt: subtractHours(now, 12),
+    },
+    {
+      key: 'offer-gaming-monitor-presenter',
+      listingKey: 'gaming-monitor',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-sofia-presenter',
+      offeredPrice: 110,
+      meetupHubId: 'marston',
+      ...schedule(-1, '18:15'),
+      paymentMethod: 'externalApp',
+      message: addFiller('I can meet after work and handle the handoff quickly if the monitor still looks good.', OFFER_MESSAGE_VARIANTS),
+      status: 'convertedToTransaction',
+      acceptedPickupSpecifics: 'Outside the side entrance facing the bike racks.',
+      createdAt: subtractHours(now, 38),
+    },
+    {
+      key: 'offer-kitchen-cart-presenter',
+      listingKey: 'kitchen-cart',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-sofia-presenter',
+      offeredPrice: 44,
+      meetupHubId: 'reitz',
+      ...schedule(1, '15:30'),
+      paymentMethod: 'cash',
+      message: addFiller('The cart would work well in my apartment if it is still available tomorrow.', OFFER_MESSAGE_VARIANTS),
+      status: 'pending',
+      createdAt: subtractHours(now, 10.2),
+    },
+    {
+      key: 'offer-vanity-mirror-presenter',
+      listingKey: 'vanity-mirror',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-nina-presenter',
+      offeredPrice: 40,
+      meetupHubId: 'turlington-hall',
+      ...schedule(-1, '17:15'),
+      paymentMethod: 'cash',
+      message: addFiller('I can meet tonight and carry the mirror back right away.', OFFER_MESSAGE_VARIANTS),
+      status: 'convertedToTransaction',
+      acceptedPickupSpecifics: 'Outside the Architecture building courtyard.',
+      createdAt: subtractHours(now, 29),
+    },
+    {
+      key: 'offer-lab-stool-presenter',
+      listingKey: 'lab-stool',
+      buyerKey: 'presenter',
+      conversationKey: 'conv-nina-presenter',
+      offeredPrice: 36,
+      meetupHubId: 'turlington-hall',
+      ...schedule(1, '10:30'),
+      paymentMethod: 'cash',
+      message: addFiller('I could pick up the stool tomorrow morning if that timing is easiest.', OFFER_MESSAGE_VARIANTS),
+      status: 'pending',
+      createdAt: subtractHours(now, 8.6),
+    },
+    {
+      key: 'offer-monitor-stand-ethan',
+      listingKey: 'monitor-stand',
+      buyerKey: 'ethan',
+      conversationKey: 'conv-monitor-stand-ethan',
+      offeredPrice: 18,
+      meetupHubId: 'reitz',
+      ...schedule(1, '14:15'),
+      paymentMethod: 'cash',
+      message: addFiller('Sending an offer in case the stand is still around tomorrow.', OFFER_MESSAGE_VARIANTS),
+      status: 'pending',
+      createdAt: subtractHours(now, 6.8),
+    },
+  ];
+
+  const transactions = [
+    {
+      key: 'transaction-desk-lamp-ethan',
+      offerKey: 'offer-desk-lamp-ethan',
+      pickupSpecifics: 'Ground floor entrance by the benches.',
+      status: 'scheduled',
+      buyerDecision: '',
+      sellerDecision: '',
+      createdAt: subtractHours(now, 18.8),
+      updatedAt: subtractHours(now, 17.7),
+    },
+    {
+      key: 'transaction-storage-drawers-presenter',
+      offerKey: 'offer-storage-drawers-presenter',
+      pickupSpecifics: 'Near the bus loop benches.',
+      status: 'scheduled',
+      buyerDecision: '',
+      sellerDecision: '',
+      createdAt: subtractHours(now, 9.6),
+      updatedAt: subtractHours(now, 9.6),
+    },
+    {
+      key: 'transaction-air-purifier-cameron',
+      offerKey: 'offer-air-purifier-cameron',
+      pickupSpecifics: 'North entrance under the shade trees.',
+      status: 'buyerConfirmed',
+      buyerDecision: 'confirmed',
+      sellerDecision: '',
+      buyerReviewedAt: subtractHours(now, 2.2),
+      buyerReview: buildBuyerReview({
+        submittedAt: subtractHours(now, 2.2),
+        decision: 'confirmed',
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Scott showed up on time and the purifier matched the listing.',
+      }),
+      createdAt: subtractHours(now, 5.6),
+      updatedAt: subtractHours(now, 2.2),
+    },
+    {
+      key: 'transaction-graphing-calculator-ava',
+      offerKey: 'offer-graphing-calculator-ava',
+      pickupSpecifics: 'By the ground-floor tables near the entrance.',
+      status: 'sellerConfirmed',
+      buyerDecision: '',
+      sellerDecision: 'confirmed',
+      sellerReviewedAt: subtractHours(now, 1.4),
+      sellerReview: buildSellerReview({
+        submittedAt: subtractHours(now, 1.4),
+        decision: 'confirmed',
+        reliability: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Ava kept the timing organized and replied quickly.',
+      }),
+      createdAt: subtractHours(now, 11.4),
+      updatedAt: subtractHours(now, 1.4),
+    },
+    {
+      key: 'transaction-standing-desk-presenter',
+      offerKey: 'offer-standing-desk-presenter',
+      pickupSpecifics: 'Outside the west tower lobby.',
+      status: 'completed',
+      buyerDecision: 'confirmed',
+      sellerDecision: 'confirmed',
+      buyerReviewedAt: subtractHours(now, 8.95),
+      sellerReviewedAt: subtractHours(now, 8.9),
+      buyerReview: buildBuyerReview({
+        submittedAt: subtractHours(now, 8.95),
+        decision: 'confirmed',
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Desk matched the photos and the pickup stayed simple.',
+      }),
+      sellerReview: buildSellerReview({
+        submittedAt: subtractHours(now, 8.9),
+        decision: 'confirmed',
+        reliability: 5,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Scott arrived prepared and the desk fit in one trip.',
+      }),
+      createdAt: subtractHours(now, 35),
+      updatedAt: subtractHours(now, 8.9),
+    },
+    {
+      key: 'transaction-board-game-ava',
+      offerKey: 'offer-board-game-ava',
+      pickupSpecifics: 'Outside the main Broward Hall doors.',
+      status: 'completed',
+      buyerDecision: 'confirmed',
+      sellerDecision: 'confirmed',
+      buyerReviewedAt: subtractHours(now, 39.7),
+      sellerReviewedAt: subtractHours(now, 39.5),
+      buyerReview: buildBuyerReview({
+        submittedAt: subtractHours(now, 39.7),
+        decision: 'confirmed',
+        reliability: 5,
+        accuracy: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Everything was there and the meetup felt easy.',
+      }),
+      sellerReview: buildSellerReview({
+        submittedAt: subtractHours(now, 39.5),
+        decision: 'confirmed',
+        reliability: 5,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Ava was on time and the exchange stayed straightforward.',
+      }),
+      createdAt: subtractHours(now, 42.3),
+      updatedAt: subtractHours(now, 39.5),
+    },
+    {
+      key: 'transaction-gaming-monitor-presenter',
+      offerKey: 'offer-gaming-monitor-presenter',
+      pickupSpecifics: 'Outside the side entrance facing the bike racks.',
+      status: 'problemReported',
+      buyerDecision: 'problemReported',
+      sellerDecision: 'confirmed',
+      buyerReviewedAt: subtractHours(now, 35.8),
+      sellerReviewedAt: subtractHours(now, 35.5),
+      buyerReview: buildBuyerReview({
+        submittedAt: subtractHours(now, 35.8),
+        decision: 'problemReported',
+        reliability: 4,
+        accuracy: 2,
+        responsiveness: 4,
+        safety: 5,
+        details: 'The monitor worked, but there was a dead-pixel cluster that was not visible in the photos.',
+      }),
+      sellerReview: buildSellerReview({
+        submittedAt: subtractHours(now, 35.5),
+        decision: 'confirmed',
+        reliability: 5,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Scott arrived on time and the handoff itself went smoothly from my side.',
+      }),
+      createdAt: subtractHours(now, 38),
+      updatedAt: subtractHours(now, 35.4),
+    },
+    {
+      key: 'transaction-vanity-mirror-presenter',
+      offerKey: 'offer-vanity-mirror-presenter',
+      pickupSpecifics: 'Outside the Architecture building courtyard.',
+      status: 'completed',
+      buyerDecision: 'confirmed',
+      sellerDecision: 'confirmed',
+      buyerReviewedAt: subtractHours(now, 26.8),
+      sellerReviewedAt: subtractHours(now, 26.6),
+      buyerReview: buildBuyerReview({
+        submittedAt: subtractHours(now, 26.8),
+        decision: 'confirmed',
+        reliability: 5,
+        accuracy: 4,
+        responsiveness: 4,
+        safety: 5,
+        details: 'Mirror matched the photos and packed up without any issues.',
+      }),
+      sellerReview: buildSellerReview({
+        submittedAt: subtractHours(now, 26.6),
+        decision: 'confirmed',
+        reliability: 5,
+        responsiveness: 5,
+        safety: 5,
+        details: 'Scott communicated clearly and made the pickup easy.',
+      }),
+      createdAt: subtractHours(now, 29),
+      updatedAt: subtractHours(now, 26.6),
+    },
   ];
 
   const favorites = [
     {
       profileKey: 'presenter',
-      listingKeys: ['scooter', 'sublease-room', 'backpack'],
+      listingKeys: ['scooter', 'sublease-room', 'backpack', 'kitchen-cart', 'bike-lock-bundle'],
       mergeExisting: true,
     },
     {
       profileKey: 'ava',
-      listingKeys: ['desk-lamp', 'guitar'],
+      listingKeys: ['desk-lamp', 'guitar', 'air-purifier'],
       mergeExisting: false,
     },
     {
       profileKey: 'leo',
       listingKeys: ['mini-fridge'],
+      mergeExisting: false,
+    },
+    {
+      profileKey: 'cameron',
+      listingKeys: ['rolling-cart', 'sublease-room'],
+      mergeExisting: false,
+    },
+    {
+      profileKey: 'sofia',
+      listingKeys: ['mini-fridge', 'lab-stool'],
       mergeExisting: false,
     },
   ];
@@ -1212,6 +2115,7 @@ function buildSeedDataset(config) {
     listings,
     conversations,
     offers,
+    transactions,
     favorites,
     deletedListingKeys: ['shoe-rack'],
   };
@@ -1227,6 +2131,7 @@ async function deleteExistingSeedData(config, deps = defaultDependencies()) {
       deletedCounts: {
         messages: 0,
         conversations: 0,
+        transactions: 0,
         offers: 0,
         items: 0,
         profiles: 0,
@@ -1261,6 +2166,7 @@ async function deleteExistingSeedData(config, deps = defaultDependencies()) {
 
   const deletedMessages = await deps.models.Message.deleteMany({seedTag: config.seedTag});
   const deletedConversations = await deps.models.Conversation.deleteMany({seedTag: config.seedTag});
+  const deletedTransactions = await deps.models.Transaction.deleteMany({seedTag: config.seedTag});
   const deletedOffers = await deps.models.Offer.deleteMany({seedTag: config.seedTag});
   const deletedItems = await deps.models.Item.deleteMany({seedTag: config.seedTag});
   const deletedProfiles = await deps.models.Profile.deleteMany({seedTag: config.seedTag});
@@ -1271,6 +2177,7 @@ async function deleteExistingSeedData(config, deps = defaultDependencies()) {
     deletedCounts: {
       messages: deletedMessages.deletedCount || 0,
       conversations: deletedConversations.deletedCount || 0,
+      transactions: deletedTransactions.deletedCount || 0,
       offers: deletedOffers.deletedCount || 0,
       items: deletedItems.deletedCount || 0,
       profiles: deletedProfiles.deletedCount || 0,
@@ -1491,6 +2398,7 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
   }
 
   const offerIdByKey = new Map();
+  const offerDocumentByKey = new Map();
 
   for (const offer of dataset.offers) {
     const buyerProfile = dataset.profilesByKey[offer.buyerKey];
@@ -1517,8 +2425,9 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
     });
 
     offerIdByKey.set(offer.key, createdOffer._id);
+    offerDocumentByKey.set(offer.key, createdOffer);
 
-    if (offer.status === 'accepted') {
+    if (['accepted', 'convertedToTransaction'].includes(offer.status)) {
       const conversationId = conversationIdByKey.get(offer.conversationKey);
       const conversationSeed = conversationSeedByKey.get(offer.conversationKey);
       const conversationActiveListingKey = getConversationActiveListingKey(conversationSeed);
@@ -1543,6 +2452,67 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
         await deps.models.Conversation.findByIdAndUpdate(conversationId, nextConversationFields);
       }
     }
+  }
+
+  for (const transaction of dataset.transactions || []) {
+    const offerSeed = offerSeedByKey.get(transaction.offerKey);
+    const offerDocument = offerDocumentByKey.get(transaction.offerKey);
+    const listingDocument = offerSeed ? itemByKey.get(offerSeed.listingKey) : null;
+    const conversationId = offerSeed ? conversationIdByKey.get(offerSeed.conversationKey) : null;
+    const resolvedMeetup = offerSeed ? resolveSeedOfferPickup(offerSeed) : null;
+
+    if (!offerSeed || !offerDocument || !listingDocument) {
+      continue;
+    }
+
+    await deps.models.Transaction.create({
+      offerId: offerDocument._id,
+      listingId: listingDocument._id,
+      conversationId,
+      buyerClerkUserId: profileIdByKey.get(offerSeed.buyerKey),
+      sellerClerkUserId: listingDocument.userPublishingID,
+      acceptedTerms: {
+        price: offerSeed.offeredPrice,
+        paymentMethod: offerSeed.paymentMethod,
+        meetupHubId: resolvedMeetup?.meetupHubId || '',
+        meetupLocation: resolvedMeetup?.meetupLocation || '',
+        pickupSpecifics: transaction.pickupSpecifics || offerSeed.acceptedPickupSpecifics || '',
+        meetupDate: offerSeed.meetupDate,
+        meetupTime: offerSeed.meetupTime,
+      },
+      status: transaction.status,
+      buyerDecision: transaction.buyerDecision || '',
+      sellerDecision: transaction.sellerDecision || '',
+      buyerReviewedAt: transaction.buyerReviewedAt || null,
+      sellerReviewedAt: transaction.sellerReviewedAt || null,
+      buyerReview: transaction.buyerReview || null,
+      sellerReview: transaction.sellerReview || null,
+      seedTag: config.seedTag,
+      createdAt: transaction.createdAt || offerSeed.createdAt,
+      updatedAt: transaction.updatedAt || transaction.createdAt || offerSeed.createdAt,
+    });
+
+    if (transaction.status === 'completed' || transaction.status === 'problemReported') {
+      await deps.models.Offer.findByIdAndUpdate(offerDocument._id, {
+        $set: {
+          status: 'convertedToTransaction',
+        },
+      });
+
+      await deps.models.Item.findByIdAndUpdate(listingDocument._id, {
+        $set: {
+          status: 'sold',
+          reservedOfferId: offerDocument._id,
+        },
+      });
+    } else if (listingDocument.status === 'reserved') {
+      await deps.models.Item.findByIdAndUpdate(listingDocument._id, {
+        $set: {
+          reservedOfferId: offerDocument._id,
+        },
+      });
+    }
+
   }
 
   for (const favoriteGroup of dataset.favorites) {
@@ -1600,6 +2570,7 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       profiles: 1 + dataset.communityProfiles.length,
       items: dataset.listings.length - deletedListingIds.length,
       offers: dataset.offers.length,
+      transactions: (dataset.transactions || []).length,
       conversations: dataset.conversations.length,
       messages: dataset.conversations.reduce((count, conversation) => count + conversation.messages.length, 0),
     },
@@ -1628,6 +2599,7 @@ function printSeedSummary(summary, config, logger = console) {
   logger.log(`  Profiles: ${summary.counts.profiles}`);
   logger.log(`  Listings: ${summary.counts.items}`);
   logger.log(`  Offers: ${summary.counts.offers}`);
+  logger.log(`  Transactions: ${summary.counts.transactions}`);
   logger.log(`  Conversations: ${summary.counts.conversations}`);
   logger.log(`  Messages: ${summary.counts.messages}`);
   logger.log('');
