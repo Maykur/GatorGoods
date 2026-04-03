@@ -403,6 +403,7 @@ test('toOfferCardViewModel combines offer, listing, and profile context', () => 
     listingStatusLabel: 'Reserved',
     buyerId: 'buyer-1',
     buyerName: 'Buyer One',
+    buyerAvatarUrl: '',
     sellerId: 'seller-1',
     sellerName: 'Seller One',
     sellerAvatarUrl: '',

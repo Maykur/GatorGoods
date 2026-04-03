@@ -246,7 +246,7 @@ export function TransactPage() {
   const counterpartRoleLabel = isSeller ? 'Buyer' : 'Seller';
   const counterpartName = isSeller ? transaction?.buyerName : transaction?.sellerName;
   const counterpartId = isSeller ? transaction?.buyerId : transaction?.sellerId;
-  const counterpartAvatarUrl = isSeller ? '' : transaction?.sellerAvatarUrl;
+  const counterpartAvatarUrl = isSeller ? transaction?.buyerAvatarUrl : transaction?.sellerAvatarUrl;
   const primaryActionLabel = isSeller ? 'I handed off the item' : 'I received the item';
   const problemActionLabel = 'There was a problem';
   const hasSubmittedReview = isSeller ? Boolean(transaction?.sellerReviewedAt) : Boolean(transaction?.buyerReviewedAt);
