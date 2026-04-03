@@ -355,6 +355,18 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
       .messages.some((message) => message.attachedListingKey === 'shoe-rack'),
     true
   );
+  assert.equal(
+    dataset.conversations
+      .find((conversation) => conversation.key === 'conv-desk-lamp-ethan')
+      .messages.some((message) => message.offerKey === 'offer-desk-lamp-ethan' && message.offerEventType === 'accepted'),
+    true
+  );
+  assert.equal(
+    dataset.conversations
+      .find((conversation) => conversation.key === 'conv-stroller-ava')
+      .messages.filter((message) => message.offerEventType === 'sent').length,
+    2
+  );
   assert.ok(dataset.offers.some((offer) => offer.buyerKey === 'presenter'));
 });
 
@@ -390,6 +402,10 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
     conversationId: presenterJasmineConversation._id,
     attachedListingTitle: 'Narrow Shoe Rack',
   }).lean();
+  const ethanOfferSentMessage = await Message.findOne({
+    conversationId: acceptedConversation._id,
+    body: 'Ethan sent an offer.',
+  }).lean();
 
   assert.equal(String(reservedListing.reservedOfferId), String(acceptedOffer._id));
   assert.equal(reservedListing.originalPickupHubId, 'library-west');
@@ -410,14 +426,20 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
   assert.ok(deletedItemMessage);
   assert.equal(deletedItemMessage.attachedListingImageUrl.length > 0, true);
   assert.equal(await Item.countDocuments({_id: deletedItemMessage.attachedListingId}), 0);
+  assert.ok(ethanOfferSentMessage);
+  assert.equal(ethanOfferSentMessage.offerSnapshot.eventType, 'sent');
+  assert.equal(ethanOfferSentMessage.offerSnapshot.offeredPrice, 25);
 
   const systemMessages = await Message.find({
     conversationId: acceptedConversation._id,
     senderClerkUserId: 'system',
   }).sort({createdAt: 1}).lean();
-  assert.equal(systemMessages.length, 2);
-  assert.match(systemMessages[0].body, /Offer accepted\. Meetup hub: Marston Science Library/);
-  assert.match(systemMessages[1].body, /Meetup details updated to Reitz Union/);
+  assert.equal(systemMessages.length, 3);
+  assert.equal(systemMessages[0].body, 'Ethan sent an offer.');
+  assert.equal(systemMessages[0].offerSnapshot.eventType, 'sent');
+  assert.equal(systemMessages[1].body, 'Scott accepted your offer.');
+  assert.equal(systemMessages[1].offerSnapshot.eventType, 'accepted');
+  assert.match(systemMessages[2].body, /Meetup details updated to Reitz Union/);
 
   const itemIds = new Set(items.map((item) => String(item._id)));
   profiles.forEach((profile) => {
@@ -458,7 +480,7 @@ test('running tag-only cleanup and seed twice does not duplicate tagged data and
   assert.equal(await Item.countDocuments({seedTag: config.seedTag}), 13);
   assert.equal(await Offer.countDocuments({seedTag: config.seedTag}), 14);
   assert.equal(await Conversation.countDocuments({seedTag: config.seedTag}), 7);
-  assert.equal(await Message.countDocuments({seedTag: config.seedTag}), 37);
+  assert.equal(await Message.countDocuments({seedTag: config.seedTag}), 41);
 
   assert.equal(await Item.countDocuments({_id: unrelatedItem._id}), 1);
   assert.equal(await Profile.countDocuments({profileID: unrelatedProfile.profileID}), 1);

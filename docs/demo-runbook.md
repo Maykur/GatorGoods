@@ -34,7 +34,7 @@ Use this runbook for the final implementation video, class demo, and fallback li
 - `Mini Fridge` is already `reserved` with 1 `accepted` offer, 1 `declined` offer, and a ready-to-open thread from `/offers`
 - Community listings cover all 8 categories and include additional `active`, `reserved`, and `sold` states in the public feed
 - The presenter also has outbound offers on community listings so buyer mode is populated
-- `/messages` opens into 8 believable conversation threads spread across the last 2 days
+- `/messages` opens into 7 believable conversation threads spread across the last 2 days, with seeded sent/accepted/rejected/completed offer events visible in chat history
 - Safe reseeding is tag-based by default, so unrelated real data stays intact unless you opt into a full reset
 - The demo script can attach the presenter profile to a real Clerk user with email lookup:
 
