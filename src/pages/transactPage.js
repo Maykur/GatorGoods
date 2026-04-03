@@ -292,7 +292,7 @@ export function TransactPage() {
 
                 {/* Seller row */}
                 <div className="w-full max-w-sm space-y-2">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Link to={`/profile/${offer.sellerId}`} className="no-underline flex-shrink-0">
                         <Avatar src={offer.sellerAvatarUrl} name={offer.sellerName} size="sm" />
@@ -304,20 +304,22 @@ export function TransactPage() {
                         {'\u2019s '}{offer.listingTitle}
                       </p>
                     </div>
-                    <span className="flex items-center gap-1.5 text-sm font-bold text-white flex-shrink-0">
-                      <AppIcon icon="payment" className="text-gatorOrange text-[0.9em]" />
+                    <span className="w-28 flex items-center gap-1.5 text-sm font-bold text-white flex-shrink-0">
+                      <AppIcon icon="payment" className="text-gatorOrange text-[1.25rem]" />
                       {offer.offeredPriceLabel}
                     </span>
                   </div>
 
                   {/* Location & time row */}
-                  <div className="flex items-center justify-between text-xs text-app-muted">
-                    <span className="flex items-center gap-1.5">
-                      <AppIcon icon="location" className="text-gatorOrange text-[0.85em]" />
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-3 text-xs text-app-muted">
+                    <span className="flex items-center gap-2.5">
+                      <span className="w-10 flex-shrink-0 flex items-center justify-center">
+                        <AppIcon icon="location" className="text-gatorOrange text-[1.25rem]" />
+                      </span>
                       {offer.meetupLocation}
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <AppIcon icon="time" className="text-gatorOrange text-[0.85em]" />
+                    <span className="w-28 flex items-center gap-1.5 flex-shrink-0">
+                      <AppIcon icon="time" className="text-gatorOrange text-[1.25rem]" />
                       {offer.meetupWindow}
                     </span>
                   </div>
