@@ -1378,6 +1378,10 @@ test('GET /api/conversations/:id/messages makes accepted and rejected offer titl
   assert.equal(sentBuyerMessage.offerContext.title, 'You sent an offer');
   assert.equal(acceptedSellerMessage.offerContext.title, "You accepted Jasmine's offer");
   assert.equal(acceptedBuyerMessage.offerContext.title, 'Seller accepted your offer');
+  assert.equal(sentBuyerMessage.offerContext.offerId, offerResponse.body._id);
+  assert.equal(sentBuyerMessage.offerContext.sellerClerkUserId, profile.profileID);
+  assert.equal(acceptedBuyerMessage.offerContext.offerId, offerResponse.body._id);
+  assert.equal(acceptedBuyerMessage.offerContext.sellerClerkUserId, profile.profileID);
 
   const secondItem = await Item.create({
     itemName: 'Mini Fridge',

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/react';
-import { getOffers, updateOfferStatus, getIndividualOffer} from '../lib/offersApi';
-import { toOfferCardViewModel } from '../lib/viewModels';
+import { getOffers, updateOfferStatus } from '../lib/offersApi';
+import { getTransactionByOfferId } from '../lib/transactionsApi';
+import { parseMeetupDateTime, isMeetupScheduledToday } from '../lib/meetupSchedule';
+import { toOfferCardViewModel, toTransactionViewModel } from '../lib/viewModels';
 import {
   AppIcon,
   Badge,
@@ -21,7 +23,25 @@ const MIN_PICKUP_SPECIFICS_LENGTH = 8;
 const MODE_OPTIONS = [
   { id: 'seller', label: 'Selling', icon: 'offers' },
   { id: 'buyer', label: 'Buying', icon: 'payment' },
+  { id: 'transactions', label: 'Transactions', icon: 'verified' },
 ];
+
+function getRequestedOffersMode() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const requestedMode = new URLSearchParams(window.location.search).get('mode');
+  return MODE_OPTIONS.some((option) => option.id === requestedMode) ? requestedMode : '';
+}
+
+function getRequestedOfferId() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return new URLSearchParams(window.location.search).get('offer') || '';
+}
 
 function getStatusBadgeVariant(status) {
   switch (status) {
@@ -115,12 +135,73 @@ function getFirstName(name) {
   return trimmedName.split(/\s+/)[0];
 }
 
+function getTransactionStatusBadgeVariant(status) {
+  switch (status) {
+    case 'completed':
+      return 'success';
+    case 'problemReported':
+    case 'cancelled':
+      return 'danger';
+    case 'buyerConfirmed':
+    case 'sellerConfirmed':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}
+
+function getTransactionStatusDescription(transaction) {
+  switch (transaction?.status) {
+    case 'buyerConfirmed':
+      return 'Buyer confirmed the handoff. Waiting on the seller.';
+    case 'sellerConfirmed':
+      return 'Seller confirmed the handoff. Waiting on the buyer.';
+    case 'completed':
+      return 'Both sides confirmed the exchange.';
+    case 'problemReported':
+      return 'A problem was reported for this transaction.';
+    default:
+      return isMeetupScheduledToday(transaction?.acceptedTerms || transaction)
+        ? 'Scheduled for today. Open the transaction flow to complete the handoff.'
+        : 'Accepted and scheduled. Open the transaction flow when it is time to meet.';
+  }
+}
+
+function getMeetupTimestamp(offerLike) {
+  return parseMeetupDateTime(offerLike?.meetupDate, offerLike?.meetupTime)?.getTime() || 0;
+}
+
+function sortTransactions(firstTransaction, secondTransaction) {
+  const firstIsToday = isMeetupScheduledToday(firstTransaction?.acceptedTerms || firstTransaction);
+  const secondIsToday = isMeetupScheduledToday(secondTransaction?.acceptedTerms || secondTransaction);
+
+  if (firstIsToday !== secondIsToday) {
+    return firstIsToday ? -1 : 1;
+  }
+
+  return getMeetupTimestamp(firstTransaction?.acceptedTerms || firstTransaction) - getMeetupTimestamp(secondTransaction?.acceptedTerms || secondTransaction);
+}
+
+function isRelevantTransaction(transaction) {
+  if (!transaction || transaction.status === 'cancelled') {
+    return false;
+  }
+
+  if (transaction.status === 'scheduled') {
+    return isMeetupScheduledToday(transaction?.acceptedTerms || transaction);
+  }
+
+  return true;
+}
+
 export function OffersPage() {
   const { user } = useUser();
   const { showToast } = useToast();
-  const [mode, setMode] = useState('seller');
+  const requestedMode = getRequestedOffersMode();
+  const [mode, setMode] = useState(requestedMode || 'seller');
   const [sellerGroups, setSellerGroups] = useState([]);
   const [buyerOffers, setBuyerOffers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -128,6 +209,9 @@ export function OffersPage() {
   const [openAcceptanceOfferId, setOpenAcceptanceOfferId] = useState('');
   const [acceptanceSpecifics, setAcceptanceSpecifics] = useState('');
   const [acceptanceError, setAcceptanceError] = useState('');
+  const hasUserSelectedModeRef = useRef(Boolean(requestedMode));
+  const hasAutoSelectedTransactionsRef = useRef(false);
+  const lastScrolledOfferIdRef = useRef('');
 
   const loadOffers = useCallback(
     async (showLoadingState = true) => {
@@ -137,6 +221,39 @@ export function OffersPage() {
 
       const listingCache = new Map();
       const profileCache = new Map();
+      const loadOfferView = async (offer, participantRole) => {
+        const listingId = offer.listingId?.toString?.() || offer.listingId || '';
+        const listingPromise = listingId
+          ? listingCache.get(listingId) || fetchOptionalJson(`${API_BASE_URL}/items/${listingId}`)
+          : Promise.resolve(null);
+        const counterpartId =
+          participantRole === 'seller' ? offer.buyerClerkUserId : offer.sellerClerkUserId;
+        const profilePromise = counterpartId
+          ? profileCache.get(counterpartId) || fetchOptionalJson(`${API_BASE_URL}/profile/${counterpartId}`)
+          : Promise.resolve(null);
+
+        if (listingId && !listingCache.has(listingId)) {
+          listingCache.set(listingId, listingPromise);
+        }
+
+        if (counterpartId && !profileCache.has(counterpartId)) {
+          profileCache.set(counterpartId, profilePromise);
+        }
+
+        const [listingData, profileData] = await Promise.all([listingPromise, profilePromise]);
+
+        return {
+          offer,
+          participantRole,
+          listingData,
+          profileData,
+          view: toOfferCardViewModel(offer, {
+            listing: listingData,
+            buyerProfile: participantRole === 'seller' ? profileData : null,
+            sellerProfile: participantRole === 'buyer' ? profileData : null,
+          }),
+        };
+      };
 
       try {
         if (showLoadingState) {
@@ -145,51 +262,59 @@ export function OffersPage() {
           setIsRefreshing(true);
         }
 
-        const rawOffers = await getOffers({
-          participantId: user.id,
-          role: mode,
-        });
+        const [rawSellerOffers, rawBuyerOffers] = await Promise.all([
+          getOffers({
+            participantId: user.id,
+            role: 'seller',
+          }),
+          getOffers({
+            participantId: user.id,
+            role: 'buyer',
+          }),
+        ]);
 
+        const [sellerOfferEntries, buyerOfferEntries] = await Promise.all([
+          Promise.all(rawSellerOffers.map((offer) => loadOfferView(offer, 'seller'))),
+          Promise.all(rawBuyerOffers.map((offer) => loadOfferView(offer, 'buyer'))),
+        ]);
 
-        const offerViews = await Promise.all(
-          rawOffers.map(async (offer) => {
-            const listingId = offer.listingId?.toString?.() || offer.listingId || '';
-            const listingPromise = listingId
-              ? listingCache.get(listingId) || fetchOptionalJson(`${API_BASE_URL}/items/${listingId}`)
-              : Promise.resolve(null);
-            const counterpartId =
-              mode === 'seller' ? offer.buyerClerkUserId : offer.sellerClerkUserId;
-            const profilePromise = counterpartId
-              ? profileCache.get(counterpartId) || fetchOptionalJson(`${API_BASE_URL}/profile/${counterpartId}`)
-              : Promise.resolve(null);
+        const groupedOffers = Object.values(
+          groupOfferViewsByListing(sellerOfferEntries.map((entry) => entry.view))
+        ).sort((firstGroup, secondGroup) => firstGroup.listingTitle.localeCompare(secondGroup.listingTitle));
+        const nextBuyerOffers = buyerOfferEntries.map((entry) => entry.view);
+        const acceptedEntries = [...sellerOfferEntries, ...buyerOfferEntries].filter(
+          (entry) => entry.view.status === 'accepted'
+        );
+        const transactionResults = await Promise.all(
+          acceptedEntries.map(async (entry) => {
+            try {
+              const rawTransaction = await getTransactionByOfferId(entry.view.id, {
+                participantId: user.id,
+              });
 
-            if (listingId && !listingCache.has(listingId)) {
-              listingCache.set(listingId, listingPromise);
+              return toTransactionViewModel(rawTransaction, {
+                listing: entry.listingData,
+                buyerProfile: entry.participantRole === 'seller' ? entry.profileData : null,
+                sellerProfile: entry.participantRole === 'buyer' ? entry.profileData : null,
+              });
+            } catch {
+              return null;
             }
-
-            if (counterpartId && !profileCache.has(counterpartId)) {
-              profileCache.set(counterpartId, profilePromise);
-            }
-
-            const [listingData, profileData] = await Promise.all([listingPromise, profilePromise]);
-
-            return toOfferCardViewModel(offer, {
-              listing: listingData,
-              buyerProfile: mode === 'seller' ? profileData : null,
-              sellerProfile: mode === 'buyer' ? profileData : null,
-            });
           })
         );
+        const nextTransactions = transactionResults.filter(Boolean).filter(isRelevantTransaction).sort(sortTransactions);
 
-        if (mode === 'seller') {
-          const groupedOffers = Object.values(groupOfferViewsByListing(offerViews)).sort((firstGroup, secondGroup) =>
-            firstGroup.listingTitle.localeCompare(secondGroup.listingTitle)
-          );
-          setSellerGroups(groupedOffers);
-          setBuyerOffers([]);
-        } else {
-          setBuyerOffers(offerViews);
-          setSellerGroups([]);
+        setSellerGroups(groupedOffers);
+        setBuyerOffers(nextBuyerOffers);
+        setTransactions(nextTransactions);
+
+        if (
+          !hasUserSelectedModeRef.current &&
+          !hasAutoSelectedTransactionsRef.current &&
+          nextTransactions.some((transaction) => isMeetupScheduledToday(transaction.acceptedTerms || transaction))
+        ) {
+          hasAutoSelectedTransactionsRef.current = true;
+          setMode('transactions');
         }
 
         setError('');
@@ -200,8 +325,39 @@ export function OffersPage() {
         setIsRefreshing(false);
       }
     },
-    [mode, user?.id]
+    [user?.id]
   );
+
+  useEffect(() => {
+    hasUserSelectedModeRef.current = Boolean(getRequestedOffersMode());
+    hasAutoSelectedTransactionsRef.current = false;
+    lastScrolledOfferIdRef.current = '';
+    setMode(getRequestedOffersMode() || 'seller');
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    const requestedOfferId = getRequestedOfferId();
+
+    if (!requestedOfferId || lastScrolledOfferIdRef.current === requestedOfferId) {
+      return;
+    }
+
+    const offerCard = document.getElementById(`offer-card-${requestedOfferId}`);
+
+    if (!offerCard) {
+      return;
+    }
+
+    lastScrolledOfferIdRef.current = requestedOfferId;
+    offerCard.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [isLoading, mode, buyerOffers, sellerGroups]);
 
   useEffect(() => {
     loadOffers();
@@ -259,7 +415,9 @@ export function OffersPage() {
 
   const totalOffers = mode === 'seller'
     ? sellerGroups.reduce((count, group) => count + group.offers.length, 0)
-    : buyerOffers.length;
+    : mode === 'buyer'
+      ? buyerOffers.length
+      : transactions.length;
 
   return (
     <section className="w-full space-y-8 motion-safe:animate-fade-in-up">
@@ -285,7 +443,10 @@ export function OffersPage() {
               type="button"
               role="tab"
               aria-selected={mode === option.id}
-              onClick={() => setMode(option.id)}
+              onClick={() => {
+                hasUserSelectedModeRef.current = true;
+                setMode(option.id);
+              }}
               className={`focus-ring rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
                 mode === option.id
                   ? 'border-gatorOrange/50 bg-gatorOrange/15 text-white'
@@ -302,7 +463,9 @@ export function OffersPage() {
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-app-soft">
-            {totalOffers} {totalOffers === 1 ? 'offer' : 'offers'} {mode === 'seller' ? 'received' : 'sent'}
+            {mode === 'transactions'
+              ? `${totalOffers} ${totalOffers === 1 ? 'transaction' : 'transactions'} in progress`
+              : `${totalOffers} ${totalOffers === 1 ? 'offer' : 'offers'} ${mode === 'seller' ? 'received' : 'sent'}`}
           </p>
           {isRefreshing ? (
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-muted">
@@ -347,6 +510,19 @@ export function OffersPage() {
         />
       ) : null}
 
+      {!isLoading && !error && mode === 'transactions' && transactions.length === 0 ? (
+        <EmptyState
+          icon="verified"
+          title="No active transactions yet"
+          description="Accepted offers with active handoff progress will show up here, with today's meetups surfaced first."
+          action={
+            <Link to="/offers" className="no-underline">
+              <Button variant="secondary" leadingIcon="offers">View offer inbox</Button>
+            </Link>
+          }
+        />
+      ) : null}
+
       {!isLoading && !error && mode === 'seller' && sellerGroups.length > 0 ? (
         <div className="space-y-6">
           {sellerGroups.map((group) => (
@@ -372,9 +548,15 @@ export function OffersPage() {
                 {group.offers.map((offer) => {
                   const buyerFirstName = getFirstName(offer.buyerName);
                   const meetupHintTarget = buyerFirstName || 'the buyer';
+                  const isRequestedOffer = getRequestedOfferId() === offer.id;
 
                   return (
-                  <Card key={offer.id} variant="subtle" className="space-y-4">
+                  <Card
+                    key={offer.id}
+                    id={`offer-card-${offer.id}`}
+                    variant="subtle"
+                    className={`space-y-4 ${isRequestedOffer ? 'ring-2 ring-gatorOrange/45 ring-offset-2 ring-offset-app-bg' : ''}`}
+                  >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-3">
@@ -507,8 +689,15 @@ export function OffersPage() {
 
       {!isLoading && !error && mode === 'buyer' && buyerOffers.length > 0 ? (
         <div className="space-y-4">
-          {buyerOffers.map((offer) => (
-            <Card key={offer.id} className="space-y-4">
+          {buyerOffers.map((offer) => {
+            const isRequestedOffer = getRequestedOfferId() === offer.id;
+
+            return (
+            <Card
+              key={offer.id}
+              id={`offer-card-${offer.id}`}
+              className={`space-y-4 ${isRequestedOffer ? 'ring-2 ring-gatorOrange/45 ring-offset-2 ring-offset-app-bg' : ''}`}
+            >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-3">
@@ -548,7 +737,63 @@ export function OffersPage() {
                 {offer.message || 'No note attached to this offer.'}
               </p>
             </Card>
-          ))}
+            );
+          })}
+        </div>
+      ) : null}
+
+      {!isLoading && !error && mode === 'transactions' && transactions.length > 0 ? (
+        <div className="space-y-4">
+          {transactions.map((transaction) => {
+            const counterpartLabel = transaction.sellerId === user?.id ? 'Buyer' : 'Seller';
+            const counterpartName = transaction.sellerId === user?.id ? transaction.buyerName : transaction.sellerName;
+
+            return (
+              <Card key={transaction.transactionId} className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-2xl font-semibold text-white">{transaction.listingTitle}</h2>
+                      <Badge variant={getTransactionStatusBadgeVariant(transaction.status)}>{transaction.status}</Badge>
+                      {isMeetupScheduledToday(transaction.acceptedTerms || transaction) ? (
+                        <Badge variant="orange" icon="time">Today</Badge>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-app-soft">
+                      {counterpartLabel}: {counterpartName}
+                    </p>
+                    <p className="text-sm leading-7 text-app-soft">
+                      {getTransactionStatusDescription(transaction)}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {transaction.conversationId ? (
+                      <Link to={`/messages/${transaction.conversationId}`} className="no-underline">
+                        <Button variant="ghost" size="sm" leadingIcon="messages">Conversation</Button>
+                      </Link>
+                    ) : null}
+                    <Link to={`/transact/${transaction.offerId}`} className="no-underline">
+                      <Button size="sm" leadingIcon="verified">Open transaction</Button>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <OfferMetaCard icon="payment" label="Accepted price" value={transaction.offeredPriceLabel} emphasis />
+                  <OfferMetaCard icon="payment" label="Payment" value={transaction.paymentMethodLabel} />
+                  <OfferMetaCard icon="time" label="Scheduled meetup" value={transaction.meetupScheduleLabel} />
+                  <OfferMetaCard icon="location" label="Meetup hub" value={transaction.meetupLocation} />
+                </div>
+
+                {transaction.pickupSpecifics ? (
+                  <p className="text-sm leading-7 text-app-soft">
+                    Pickup specifics: {transaction.pickupSpecifics}
+                  </p>
+                ) : null}
+              </Card>
+            );
+          })}
         </div>
       ) : null}
     </section>

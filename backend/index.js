@@ -1596,6 +1596,8 @@ function buildOfferApiSummary(
     offerId: toIdString(offerSnapshot.offerId),
     eventType: offerSnapshot.eventType || '',
     status: offerSnapshot.status || '',
+    buyerClerkUserId: offerSnapshot.buyerClerkUserId || '',
+    sellerClerkUserId: offerSnapshot.sellerClerkUserId || '',
     offeredPrice: Number.isFinite(Number(offerSnapshot.offeredPrice))
       ? Number(offerSnapshot.offeredPrice)
       : null,

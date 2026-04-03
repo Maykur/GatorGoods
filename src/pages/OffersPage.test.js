@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { OffersPage } from './OffersPage';
 import { resetClerkState, setClerkState } from '../testUtils/mockClerk';
+import { toLocalDateInputValue } from '../lib/meetupSchedule';
 
 const mockGetOffers = jest.fn();
 const mockUpdateOfferStatus = jest.fn();
+const mockGetTransactionByOfferId = jest.fn();
 const mockShowToast = jest.fn();
 
 jest.mock('@clerk/react', () => {
@@ -18,6 +20,10 @@ jest.mock('@clerk/react', () => {
 jest.mock('../lib/offersApi', () => ({
   getOffers: (...args) => mockGetOffers(...args),
   updateOfferStatus: (...args) => mockUpdateOfferStatus(...args),
+}));
+
+jest.mock('../lib/transactionsApi', () => ({
+  getTransactionByOfferId: (...args) => mockGetTransactionByOfferId(...args),
 }));
 
 jest.mock('../components/ui', () => {
@@ -53,6 +59,7 @@ function jsonResponse(body, status = 200) {
 
 beforeEach(() => {
   resetClerkState();
+  window.history.pushState({}, '', '/offers');
   setClerkState({
     isSignedIn: true,
     user: {
@@ -118,7 +125,9 @@ beforeEach(() => {
   });
   mockGetOffers.mockReset();
   mockUpdateOfferStatus.mockReset();
+  mockGetTransactionByOfferId.mockReset();
   mockShowToast.mockReset();
+  window.HTMLElement.prototype.scrollIntoView = jest.fn();
 });
 
 afterEach(() => {
@@ -218,6 +227,7 @@ test('seller mode can accept an offer with required meetup specifics and refresh
         conversationId: 'conversation-1',
       },
     ])
+    .mockResolvedValueOnce([])
     .mockResolvedValueOnce([
       {
         _id: 'offer-1',
@@ -234,8 +244,27 @@ test('seller mode can accept an offer with required meetup specifics and refresh
         status: 'accepted',
         conversationId: 'conversation-1',
       },
-    ]);
+    ])
+    .mockResolvedValueOnce([]);
   mockUpdateOfferStatus.mockResolvedValue({});
+  mockGetTransactionByOfferId.mockResolvedValue({
+    _id: 'transaction-1',
+    offerId: 'offer-1',
+    listingId: 'item-1',
+    conversationId: 'conversation-1',
+    buyerClerkUserId: 'buyer-1',
+    sellerClerkUserId: 'seller-1',
+    acceptedTerms: {
+      price: 18,
+      paymentMethod: 'cash',
+      meetupHubId: 'plaza-americas',
+      meetupLocation: 'Plaza of the Americas',
+      pickupSpecifics: 'Meet outside the Plaza benches.',
+      meetupDate: '2026-04-07',
+      meetupTime: '13:00',
+    },
+    status: 'scheduled',
+  });
 
   render(<OffersPage />);
 
@@ -291,6 +320,139 @@ test('buyer mode shows sent offers and seller context', async () => {
     'href',
     '/messages/conversation-1'
   );
+});
+
+test('offers page shows a transactions tab and auto-selects it when a transaction is scheduled today', async () => {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  mockGetOffers
+    .mockResolvedValueOnce([
+      {
+        _id: 'offer-today',
+        listingId: 'item-1',
+        buyerClerkUserId: 'buyer-1',
+        sellerClerkUserId: 'seller-1',
+        buyerDisplayName: 'Buyer One',
+        offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
+        meetupLocation: 'Plaza of the Americas',
+        meetupDate: toLocalDateInputValue(today),
+        meetupTime: '13:00',
+        paymentMethod: 'cash',
+        message: 'Can meet after class.',
+        status: 'accepted',
+        conversationId: 'conversation-1',
+      },
+      {
+        _id: 'offer-tomorrow',
+        listingId: 'item-1',
+        buyerClerkUserId: 'buyer-2',
+        sellerClerkUserId: 'seller-1',
+        buyerDisplayName: 'Buyer Two',
+        offeredPrice: 22,
+        meetupHubId: 'library-west',
+        meetupLocation: 'Library West',
+        meetupDate: toLocalDateInputValue(tomorrow),
+        meetupTime: '15:00',
+        paymentMethod: 'externalApp',
+        message: 'Can do tomorrow afternoon.',
+        status: 'accepted',
+        conversationId: 'conversation-2',
+      },
+    ])
+    .mockResolvedValueOnce([]);
+  mockGetTransactionByOfferId
+    .mockResolvedValueOnce({
+      _id: 'transaction-1',
+      offerId: 'offer-today',
+      listingId: 'item-1',
+      conversationId: 'conversation-1',
+      buyerClerkUserId: 'buyer-1',
+      sellerClerkUserId: 'seller-1',
+      acceptedTerms: {
+        price: 18,
+        paymentMethod: 'cash',
+        meetupHubId: 'plaza-americas',
+        meetupLocation: 'Plaza of the Americas',
+        pickupSpecifics: 'Meet by the benches.',
+        meetupDate: toLocalDateInputValue(today),
+        meetupTime: '13:00',
+      },
+      status: 'scheduled',
+    })
+    .mockResolvedValueOnce({
+      _id: 'transaction-2',
+      offerId: 'offer-tomorrow',
+      listingId: 'item-1',
+      conversationId: 'conversation-2',
+      buyerClerkUserId: 'buyer-2',
+      sellerClerkUserId: 'seller-1',
+      acceptedTerms: {
+        price: 22,
+        paymentMethod: 'externalApp',
+        meetupHubId: 'library-west',
+        meetupLocation: 'Library West',
+        pickupSpecifics: 'Meet at the main entrance.',
+        meetupDate: toLocalDateInputValue(tomorrow),
+        meetupTime: '15:00',
+      },
+      status: 'scheduled',
+    });
+
+  render(<OffersPage />);
+
+  const transactionsTab = await screen.findByRole('tab', { name: /transactions/i });
+  await waitFor(() => {
+    expect(transactionsTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  expect(await screen.findByText(/scheduled for today/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /open transaction/i })).toHaveAttribute('href', '/transact/offer-today');
+  expect(screen.queryByText(/buyer two/i)).not.toBeInTheDocument();
+});
+
+test('chat-style transaction cards are not shown for empty transactions state', async () => {
+  mockGetOffers.mockResolvedValue([]);
+
+  render(<OffersPage />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /transactions/i }));
+
+  expect(await screen.findByText(/no active transactions yet/i)).toBeInTheDocument();
+});
+
+test('offers page scrolls to a requested buyer offer from the query string', async () => {
+  window.history.pushState({}, '', '/offers?mode=buyer&offer=offer-1');
+  mockGetOffers
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([
+      {
+        _id: 'offer-1',
+        listingId: 'item-1',
+        buyerClerkUserId: 'seller-1',
+        sellerClerkUserId: 'seller-1',
+        offeredPrice: 18,
+        meetupHubId: 'plaza-americas',
+        meetupLocation: 'Plaza of the Americas',
+        meetupDate: '2026-04-07',
+        meetupTime: '13:00',
+        paymentMethod: 'cash',
+        message: 'Can meet after class.',
+        status: 'pending',
+        conversationId: 'conversation-1',
+      },
+    ]);
+
+  render(<OffersPage />);
+
+  const targetCard = await screen.findByText('Desk Lamp');
+  expect(targetCard).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
 });
 
 test('seller empty state keeps recovery action visible', async () => {
