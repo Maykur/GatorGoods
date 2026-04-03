@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Show, UserButton, useUser } from '@clerk/react';
 import { AppIcon, Button } from './ui';
 
-const publicNavItems = [{ to: '/', label: 'Landing', icon: 'home', end: true },
+const publicNavItems = [{ to: '/', label: 'About', icon: 'home', end: true },
   { to: '/listings', label: 'Browse', icon: 'browse' }
 ];
 
@@ -190,7 +190,7 @@ export function Layout() {
           <div className="flex flex-wrap items-center gap-3">
             <Link to="/" className="inline-flex items-center gap-2 hover:text-white">
               <AppIcon icon="home" className="text-[0.9em]" />
-              <span>Landing</span>
+              <span>About</span>
             </Link>
             <Show when="signed-in">
               <Link to="/listings" className="inline-flex items-center gap-2 hover:text-white">

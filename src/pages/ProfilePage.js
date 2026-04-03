@@ -511,7 +511,7 @@ export function ProfilePage({ ownerView = false }) {
                     <p className="max-w-2xl text-sm leading-7 text-app-soft">
                       {profileHeader.bio ||
                         (ownerView
-                          ? 'Add a short bio so people know what you usually sell.'
+                          ? 'Add a short description about yourself.'
                           : 'This seller has not added a bio yet.')}
                     </p>
 
@@ -699,12 +699,12 @@ export function ProfilePage({ ownerView = false }) {
                 </div>
                 <Textarea
                   id="profile-bio"
-                  label="Short bio"
+                  label="Profile bio"
                   leadingIcon="message"
                   value={profileForm.profileBio}
                   onChange={handleProfileFieldChange('profileBio')}
                   rows={5}
-                  placeholder="Add a short bio so people know what you usually sell."
+                  placeholder="Add a short description about yourself."
                 />
                 <div className="grid gap-4 md:grid-cols-2">
                   <Input

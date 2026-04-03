@@ -477,7 +477,7 @@ export function ItemPage() {
               eyebrow={itemView.category}
               icon={categoryIcon}
               title={itemView.title}
-              description="See the details, check the seller profile, and send an offer or message if you're interested."
+              description="View details and send an offer or message if you're interested."
             />
 
             <div className="flex flex-wrap items-center gap-3">
@@ -500,7 +500,7 @@ export function ItemPage() {
                     : 'This listing is no longer available for new offers.'}
                 </p>
                 <p className="text-sm leading-7 text-app-soft">
-                  You can still review the details and seller profile, but new offers are currently disabled.
+                  You can still review item details, but new offers are currently disabled.
                 </p>
               </Card>
             ) : null}
