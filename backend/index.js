@@ -11,6 +11,10 @@ const {
   isApprovedPickupLocationLabel,
   findPickupHubByLabel,
 } = require('../src/lib/pickupHubs');
+const {
+  getMeetupScheduleValidationErrors,
+  getOfferMeetupScheduleLabel,
+} = require('../src/lib/meetupSchedule');
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 5000;
@@ -359,6 +363,26 @@ const messageSchema = new mongoose.Schema(
             default: '',
             trim: true,
           },
+          meetupDate: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupTime: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupStartAt: {
+            type: String,
+            default: '',
+            trim: true,
+          },
+          meetupEndAt: {
+            type: String,
+            default: '',
+            trim: true,
+          },
           meetupHubId: {
             type: String,
             default: '',
@@ -434,9 +458,29 @@ const offerSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    meetupWindow: {
+    meetupDate: {
       type: String,
       required: true,
+      trim: true,
+    },
+    meetupTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    meetupStartAt: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    meetupEndAt: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    meetupWindow: {
+      type: String,
+      default: '',
       trim: true,
     },
     paymentMethod: {
@@ -1184,10 +1228,12 @@ function getOfferMeetupLabel(offer = {}) {
 }
 
 function buildOfferDetailLine(offer = {}) {
+  const meetupScheduleLabel = getOfferMeetupScheduleLabel(offer, '');
   const parts = [
     formatOfferPriceLabel(offer.offeredPrice),
     formatPaymentMethodLabel(offer.paymentMethod),
     getOfferMeetupLabel(offer),
+    meetupScheduleLabel,
   ].filter(Boolean);
 
   return parts.join(' • ');
@@ -1271,6 +1317,10 @@ function buildOfferSnapshot(offer, {eventType = ''} = {}) {
     buyerDisplayName: offer.buyerDisplayName || '',
     sellerClerkUserId: offer.sellerClerkUserId || '',
     paymentMethod: offer.paymentMethod || '',
+    meetupDate: offer.meetupDate || '',
+    meetupTime: offer.meetupTime || '',
+    meetupStartAt: offer.meetupStartAt || '',
+    meetupEndAt: offer.meetupEndAt || '',
     meetupHubId: offer.meetupHubId || '',
     meetupLocation: offer.meetupLocation || '',
   };
@@ -1307,8 +1357,13 @@ function buildOfferApiSummary(
     sellerDisplayName,
     paymentMethod: offerSnapshot.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(offerSnapshot.paymentMethod),
+    meetupDate: offerSnapshot.meetupDate || '',
+    meetupTime: offerSnapshot.meetupTime || '',
+    meetupStartAt: offerSnapshot.meetupStartAt || '',
+    meetupEndAt: offerSnapshot.meetupEndAt || '',
     meetupHubId: offerSnapshot.meetupHubId || '',
     meetupLocation: offerSnapshot.meetupLocation || '',
+    meetupScheduleLabel: getOfferMeetupScheduleLabel(offerSnapshot),
     meetupLabel: getOfferMeetupLabel(offerSnapshot),
     detailLine,
     ...(includeEventTitle
@@ -2143,14 +2198,16 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       offeredPrice,
       meetupHubId,
       meetupLocation,
-      meetupWindow,
+      meetupDate,
+      meetupTime,
       paymentMethod,
       message,
     } = req.body;
     const trimmedBuyerId = buyerClerkUserId?.trim();
     const trimmedBuyerDisplayName = buyerDisplayName?.trim() || 'Buyer';
     const trimmedMeetupLocation = meetupLocation?.trim();
-    const trimmedMeetupWindow = meetupWindow?.trim();
+    const trimmedMeetupDate = meetupDate?.trim();
+    const trimmedMeetupTime = meetupTime?.trim();
     const normalizedMessage = message?.trim() || '';
     const normalizedPrice = Number(offeredPrice);
 
@@ -2175,8 +2232,15 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       return resp.status(400).json({message: 'meetupLocation is required'});
     }
 
-    if (!trimmedMeetupWindow) {
-      return resp.status(400).json({message: 'meetupWindow is required'});
+    const scheduleErrors = getMeetupScheduleValidationErrors({
+      meetupDate: trimmedMeetupDate,
+      meetupTime: trimmedMeetupTime,
+    });
+
+    if (Object.keys(scheduleErrors).length > 0) {
+      return resp.status(400).json({
+        message: Object.values(scheduleErrors)[0],
+      });
     }
 
     if (!['cash', 'externalApp', 'gatorgoodsEscrow'].includes(paymentMethod)) {
@@ -2212,7 +2276,8 @@ app.post('/api/listings/:id/offers', async (req, resp) => {
       meetupHubId: resolvedMeetupFields.meetupHubId,
       meetupArea: resolvedMeetupFields.meetupArea,
       meetupLocation: resolvedMeetupFields.meetupLocation,
-      meetupWindow: trimmedMeetupWindow,
+      meetupDate: trimmedMeetupDate,
+      meetupTime: trimmedMeetupTime,
       paymentMethod,
       message: normalizedMessage,
     });

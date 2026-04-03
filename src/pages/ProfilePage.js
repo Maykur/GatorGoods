@@ -24,6 +24,7 @@ import {
   toTrustMetricsViewModel,
 } from '../lib/viewModels';
 import { getOffers } from '../lib/offersApi';
+import { isMeetupScheduledToday } from '../lib/meetupSchedule';
 
 const API_BASE_URL = 'http://localhost:5000';
 const REVIEW_OPTIONS = ['0', '1', '2', '3', '4', '5'];
@@ -138,10 +139,6 @@ function TrustMetricSurface({ icon, label, value, description }) {
   );
 }
 
-function isLegacyOfferScheduledToday(offer) {
-  return offer?.status === 'accepted' && /\btoday\b/i.test(offer?.meetupWindow || '');
-}
-
 export function ProfilePage({ ownerView = false }) {
   const { user, isSignedIn } = useUser();
   const { id } = useParams();
@@ -200,7 +197,8 @@ export function ProfilePage({ ownerView = false }) {
               if (
                 listingId &&
                 offer?.sellerClerkUserId === user.id &&
-                isLegacyOfferScheduledToday(offer)
+                offer?.status === 'accepted' &&
+                isMeetupScheduledToday(offer)
               ) {
                 accumulator[listingId] = offer?._id || offer?.id || '';
               }

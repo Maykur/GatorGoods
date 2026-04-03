@@ -51,6 +51,13 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+function toLocalDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`;
+}
+
 function buildProfileResponse(overrides = {}) {
   return {
     profile: {
@@ -297,20 +304,25 @@ test('owner view shows a transaction CTA only for the seller item scheduled toda
       },
     ],
   });
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
   mockSellerOffers = [
     {
       _id: 'offer-today',
       listingId: 'item-1',
       sellerClerkUserId: 'seller-1',
       status: 'accepted',
-      meetupWindow: 'Today 4:30 PM - 5:00 PM',
+      meetupDate: toLocalDateInputValue(today),
+      meetupTime: '16:30',
     },
     {
       _id: 'offer-tomorrow',
       listingId: 'item-2',
       sellerClerkUserId: 'seller-1',
       status: 'accepted',
-      meetupWindow: 'Tomorrow 12:15 PM - 12:45 PM',
+      meetupDate: toLocalDateInputValue(tomorrow),
+      meetupTime: '12:15',
     },
   ];
 

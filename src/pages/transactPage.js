@@ -333,7 +333,7 @@ export function TransactPage() {
                     </span>
                     <span className="w-28 flex items-center gap-1.5 flex-shrink-0">
                       <AppIcon icon="time" className="text-gatorOrange text-[1.25rem]" />
-                      {offer.meetupWindow}
+                      {offer.meetupScheduleLabel}
                     </span>
                   </div>
                 </div>

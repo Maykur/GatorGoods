@@ -3,6 +3,7 @@ import {
   getPickupHubLabel,
   normalizePickupHubId,
 } from './pickupHubs';
+import { getOfferMeetupScheduleLabel } from './meetupSchedule';
 
 const DEFAULT_CATEGORY = 'Miscellaneous';
 const DEFAULT_LOCATION = 'Campus pickup';
@@ -357,6 +358,7 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
   const buyerTrust = buyerProfile ? toTrustMetricsViewModel(buyerProfile) : null;
   const sellerTrust = sellerProfile ? toTrustMetricsViewModel(sellerProfile) : null;
   const meetupHubId = normalizePickupHubId(rawOffer?.meetupHubId);
+  const meetupScheduleLabel = getOfferMeetupScheduleLabel(rawOffer);
 
   return {
     id: rawOffer?._id || rawOffer?.id || '',
@@ -383,7 +385,10 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
     meetupLocation: getPickupHubLabel(meetupHubId, normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION)),
     meetupHubId,
     meetupArea: getPickupHubArea(meetupHubId, normalizeText(rawOffer?.meetupArea, '')),
-    meetupWindow: normalizeText(rawOffer?.meetupWindow, 'Meetup details pending'),
+    meetupDate: normalizeText(rawOffer?.meetupDate, ''),
+    meetupTime: normalizeText(rawOffer?.meetupTime, ''),
+    meetupScheduleLabel,
+    meetupWindow: meetupScheduleLabel,
     paymentMethod: rawOffer?.paymentMethod || '',
     paymentMethodLabel: formatPaymentMethodLabel(rawOffer?.paymentMethod),
     listingImageUrl: listingCard?.imageUrl || '',

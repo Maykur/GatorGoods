@@ -3,6 +3,7 @@ const {
   deriveListingPickupFields,
   deriveOfferPickupFields,
 } = require('../../src/lib/pickupHubs');
+const {toLocalDateInputValue} = require('../../src/lib/meetupSchedule');
 
 const {
   clearDatabase,
@@ -224,6 +225,12 @@ function subtractHours(now, hoursAgo) {
   return new Date(now.getTime() - (hoursAgo * HOURS_TO_MS));
 }
 
+function addDays(now, dayOffset) {
+  const nextDate = new Date(now);
+  nextDate.setDate(nextDate.getDate() + dayOffset);
+  return nextDate;
+}
+
 function uniqueStrings(values = []) {
   return [...new Set(values.map((value) => String(value)).filter(Boolean))];
 }
@@ -390,6 +397,10 @@ function buildSeedDataset(config) {
     trustMetrics: {...PRESENTER_PROFILE_DEFAULTS.trustMetrics},
     seedTag: null,
   };
+  const schedule = (dayOffset, meetupTime) => ({
+    meetupDate: toLocalDateInputValue(addDays(now, dayOffset)),
+    meetupTime,
+  });
 
   const communityProfiles = COMMUNITY_PROFILES.map((profile) => ({
     ...profile,
@@ -995,7 +1006,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-desk-lamp-ava',
       offeredPrice: 24,
       meetupHubId: 'library-west',
-      meetupWindow: 'Today 4:30 PM - 5:00 PM',
+      ...schedule(0, '16:30'),
       paymentMethod: 'cash',
       message: addFiller('I can pick this up fast if it is still available today.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
@@ -1008,7 +1019,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-desk-lamp-ethan',
       offeredPrice: 25,
       meetupHubId: 'marston',
-      meetupWindow: 'Tomorrow 12:15 PM - 12:45 PM',
+      ...schedule(1, '12:15'),
       paymentMethod: 'externalApp',
       message: addFiller('Happy to send payment as soon as we lock in the meetup.', OFFER_MESSAGE_VARIANTS),
       status: 'accepted',
@@ -1022,7 +1033,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-desk-lamp-leo',
       offeredPrice: 26,
       meetupHubId: 'reitz',
-      meetupWindow: 'Tomorrow 2:00 PM - 2:20 PM',
+      ...schedule(1, '14:00'),
       paymentMethod: 'gatorgoodsEscrow',
       message: addFiller('I can use escrow if you want the handoff to feel extra straightforward.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
@@ -1035,7 +1046,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-mini-fridge-noah',
       offeredPrice: 23,
       meetupHubId: 'library-west',
-      meetupWindow: 'Yesterday 5:00 PM - 5:20 PM',
+      ...schedule(-1, '17:00'),
       paymentMethod: 'cash',
       message: addFiller('If the earlier buyers fall through, I could still pick up the lamp quickly.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
@@ -1048,7 +1059,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-mini-fridge-noah',
       offeredPrice: 70,
       meetupHubId: 'hume-hall',
-      meetupWindow: 'Today 6:00 PM - 6:20 PM',
+      ...schedule(0, '18:00'),
       paymentMethod: 'cash',
       message: addFiller('Happy to pay asking price if the pickup can happen tonight.', OFFER_MESSAGE_VARIANTS),
       status: 'pending',
@@ -1061,7 +1072,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-presenter-jasmine',
       offeredPrice: 66,
       meetupHubId: 'hume-hall',
-      meetupWindow: 'Tomorrow 11:30 AM - 12:00 PM',
+      ...schedule(1, '11:30'),
       paymentMethod: 'externalApp',
       message: addFiller('I can be a backup buyer if your current pickup falls through.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
@@ -1074,7 +1085,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-presenter-jasmine',
       offeredPrice: 740,
       meetupHubId: 'honors-village',
-      meetupWindow: 'Tomorrow 5:30 PM - 6:00 PM',
+      ...schedule(1, '17:30'),
       paymentMethod: 'gatorgoodsEscrow',
       message: addFiller('I am interested in a quick walkthrough and can move fast if it is a fit.', OFFER_MESSAGE_VARIANTS),
       status: 'pending',
@@ -1087,7 +1098,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-presenter-jasmine',
       offeredPrice: 32,
       meetupHubId: 'turlington-hall',
-      meetupWindow: 'Today 2:00 PM - 2:20 PM',
+      ...schedule(0, '14:00'),
       paymentMethod: 'cash',
       message: addFiller('I can grab the drawers between classes if they are still available.', OFFER_MESSAGE_VARIANTS),
       status: 'accepted',
@@ -1101,7 +1112,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-presenter-jasmine',
       offeredPrice: 100,
       meetupHubId: 'honors-village',
-      meetupWindow: 'Yesterday 6:30 PM - 7:00 PM',
+      ...schedule(-1, '18:30'),
       paymentMethod: 'externalApp',
       message: addFiller('I can pick up the standing desk tonight if that helps you clear space before the weekend.', OFFER_MESSAGE_VARIANTS),
       status: 'accepted',
@@ -1115,7 +1126,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-backpack-presenter',
       offeredPrice: 30,
       meetupHubId: 'turlington-hall',
-      meetupWindow: 'Tomorrow 3:00 PM - 3:20 PM',
+      ...schedule(1, '15:00'),
       paymentMethod: 'cash',
       message: addFiller('If the current buyer passes, I can meet quickly between classes.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
@@ -1128,7 +1139,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-backpack-presenter',
       offeredPrice: 50,
       meetupHubId: 'marston',
-      meetupWindow: 'Tomorrow 1:00 PM - 1:20 PM',
+      ...schedule(1, '13:00'),
       paymentMethod: 'cash',
       message: addFiller('I am still considering the textbook bundle if it has not moved yet.', OFFER_MESSAGE_VARIANTS),
       status: 'pending',
@@ -1141,7 +1152,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-stroller-ava',
       offeredPrice: 20,
       meetupHubId: 'broward',
-      meetupWindow: 'Yesterday 7:00 PM - 7:20 PM',
+      ...schedule(-1, '19:00'),
       paymentMethod: 'externalApp',
       message: addFiller('I can do a quick pickup for the board game after class if that still works for you.', OFFER_MESSAGE_VARIANTS),
       status: 'accepted',
@@ -1155,7 +1166,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-stroller-ava',
       offeredPrice: 14,
       meetupHubId: 'honors-village',
-      meetupWindow: 'Tomorrow 1:00 PM - 1:20 PM',
+      ...schedule(1, '13:00'),
       paymentMethod: 'externalApp',
       message: addFiller('Starting a little lower in case you want the pickup handled fast.', OFFER_MESSAGE_VARIANTS),
       status: 'declined',
@@ -1168,7 +1179,7 @@ function buildSeedDataset(config) {
       conversationKey: 'conv-stroller-ava',
       offeredPrice: 17,
       meetupHubId: 'honors-village',
-      meetupWindow: 'Tomorrow 1:00 PM - 1:20 PM',
+      ...schedule(1, '13:00'),
       paymentMethod: 'cash',
       message: addFiller('I sent an updated offer that is closer to asking price.', OFFER_MESSAGE_VARIANTS),
       status: 'pending',
@@ -1467,6 +1478,8 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
           buyerDisplayName: buyerProfile?.profileName || 'Buyer',
           sellerClerkUserId: listingDocument?.userPublishingID || '',
           paymentMethod: offerSeed.paymentMethod,
+          meetupDate: offerSeed.meetupDate,
+          meetupTime: offerSeed.meetupTime,
           meetupHubId: resolvedOfferPickup?.meetupHubId || '',
           meetupLocation: resolvedOfferPickup?.meetupLocation || '',
         } : null,
@@ -1493,7 +1506,8 @@ async function insertSeedDataset(dataset, config, deps = defaultDependencies()) 
       meetupHubId: resolvedMeetup.meetupHubId,
       meetupArea: resolvedMeetup.meetupArea,
       meetupLocation: resolvedMeetup.meetupLocation,
-      meetupWindow: offer.meetupWindow,
+      meetupDate: offer.meetupDate,
+      meetupTime: offer.meetupTime,
       paymentMethod: offer.paymentMethod,
       message: offer.message,
       status: offer.status,

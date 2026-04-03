@@ -404,7 +404,7 @@ export function OffersPage() {
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <OfferMetaCard icon="payment" label="Offer" value={offer.offeredPriceLabel} emphasis />
                         <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
-                        <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                        <OfferMetaCard icon="time" label="Scheduled meetup" value={offer.meetupScheduleLabel} />
                         <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
                       </div>
 
@@ -540,7 +540,7 @@ export function OffersPage() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <OfferMetaCard icon="payment" label="Your offer" value={offer.offeredPriceLabel} emphasis />
                 <OfferMetaCard icon="payment" label="Payment" value={offer.paymentMethodLabel} />
-                <OfferMetaCard icon="time" label="Meetup window" value={offer.meetupWindow} />
+                <OfferMetaCard icon="time" label="Scheduled meetup" value={offer.meetupScheduleLabel} />
                 <OfferMetaCard icon="location" label="Proposed meetup hub" value={offer.meetupLocation} />
               </div>
 

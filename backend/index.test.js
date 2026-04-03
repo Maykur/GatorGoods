@@ -19,6 +19,17 @@ const {
 
 let mongoServer;
 
+function toLocalDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getFutureDateInputValue(daysAhead = 3) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  return toLocalDateInputValue(date);
+}
+
 async function seedProfileAndItem(overrides = {}) {
   const profile = await Profile.create({
     profileID: 'user_1',
@@ -51,7 +62,8 @@ async function createOffer(listingId, overrides = {}) {
       buyerDisplayName: 'Buyer One',
       offeredPrice: 18,
       meetupLocation: 'Plaza of the Americas',
-      meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+      meetupDate: getFutureDateInputValue(3),
+      meetupTime: '13:00',
       paymentMethod: 'cash',
       message: 'Can meet after class.',
       ...overrides,
@@ -461,6 +473,8 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   const storedOffer = await Offer.findById(response.body._id);
   assert.equal(storedOffer.buyerClerkUserId, 'buyer_1');
   assert.equal(storedOffer.paymentMethod, 'cash');
+  assert.equal(storedOffer.meetupDate, getFutureDateInputValue(3));
+  assert.equal(storedOffer.meetupTime, '13:00');
 
   const linkedConversation = await Conversation.findById(response.body.conversationId);
   assert.deepEqual(linkedConversation.participantIds, ['buyer_1', 'user_1']);
@@ -475,6 +489,20 @@ test('POST /api/listings/:id/offers creates an offer and linked conversation', a
   assert.equal(sentMessage.offerSnapshot.eventType, 'sent');
   assert.equal(sentMessage.offerSnapshot.offeredPrice, 18);
   assert.equal(sentMessage.offerSnapshot.paymentMethod, 'cash');
+  assert.equal(sentMessage.offerSnapshot.meetupDate, getFutureDateInputValue(3));
+  assert.equal(sentMessage.offerSnapshot.meetupTime, '13:00');
+});
+
+test('POST /api/listings/:id/offers requires a valid structured meetup schedule', async () => {
+  const {item} = await seedProfileAndItem();
+
+  const response = await createOffer(item.id, {
+    meetupDate: '2099-01-01',
+    meetupTime: '14:00',
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'Meetup date must be within the next 2 weeks.');
 });
 
 test('GET /api/conversations/:id/messages resolves sent-offer titles to the buyer profile name when the snapshot is generic', async () => {
@@ -844,7 +872,8 @@ test('GET /api/conversations keeps pending preview state for reserved listings',
     conversationId: conversation._id,
     offeredPrice: 18,
     meetupLocation: 'Plaza of the Americas',
-    meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+    meetupDate: '2026-04-07',
+    meetupTime: '13:00',
     paymentMethod: 'cash',
     status: 'pending',
   });
@@ -1445,7 +1474,8 @@ test('GET /api/conversations/:id/messages repairs a legacy accepted conversation
     meetupHubId: null,
     meetupArea: '',
     meetupLocation: 'Marston Science Library',
-    meetupWindow: 'Tomorrow at noon',
+    meetupDate: '2026-04-05',
+    meetupTime: '12:00',
     paymentMethod: 'cash',
     message: 'Can we do Marston?',
     status: 'accepted',
@@ -1541,7 +1571,8 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
     meetupHubId: 'reitz',
     meetupArea: 'South Core',
     meetupLocation: 'Reitz Union',
-    meetupWindow: 'Tomorrow afternoon',
+    meetupDate: '2026-04-05',
+    meetupTime: '15:00',
     paymentMethod: 'cash',
     message: 'Could meet tomorrow.',
     status: 'accepted',
@@ -1559,7 +1590,8 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
     meetupHubId: 'marston',
     meetupArea: 'East Core',
     meetupLocation: 'Marston Science Library',
-    meetupWindow: 'Today',
+    meetupDate: '2026-04-04',
+    meetupTime: '10:00',
     paymentMethod: 'cash',
     message: 'Ready to buy.',
     status: 'accepted',
@@ -1629,7 +1661,7 @@ test('GET /api/conversations/:id/messages returns sorted linked items, active it
   assert.equal(response.body.conversation.linkedItems[2].currentOffer.title, 'Offer accepted');
   assert.equal(
     response.body.conversation.linkedItems[2].currentOffer.detailLine,
-    '$68 • Cash • Reitz Union'
+    '$68 • Cash • Reitz Union • Sun, Apr 5 at 3:00 PM'
   );
   assert.equal(response.body.messages[3].attachedItem.listingId.toString(), archivedItem.id);
   assert.equal(response.body.messages[3].attachedItem.title, archivedItem.itemName);

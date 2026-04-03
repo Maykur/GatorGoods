@@ -135,7 +135,8 @@ test('seller mode groups incoming offers by listing and shows comparison details
       offeredPrice: 18,
       meetupHubId: 'plaza-americas',
       meetupLocation: 'Plaza of the Americas',
-      meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+      meetupDate: '2026-04-07',
+      meetupTime: '13:00',
       paymentMethod: 'cash',
       message: 'Can meet after class.',
       status: 'pending',
@@ -149,7 +150,8 @@ test('seller mode groups incoming offers by listing and shows comparison details
       offeredPrice: 20,
       meetupHubId: 'library-west',
       meetupLocation: 'Library West',
-      meetupWindow: 'Wed 3:00 PM - 4:00 PM',
+      meetupDate: '2026-04-08',
+      meetupTime: '15:00',
       paymentMethod: 'externalApp',
       message: '',
       status: 'pending',
@@ -164,6 +166,7 @@ test('seller mode groups incoming offers by listing and shows comparison details
   expect(screen.getByText('Buyer Two')).toBeInTheDocument();
   expect(screen.getByText('$18')).toBeInTheDocument();
   expect(screen.getByText('External app')).toBeInTheDocument();
+  expect(screen.getByText('Tue, Apr 7 at 1:00 PM')).toBeInTheDocument();
   expect(screen.getAllByText('Proposed meetup hub')).toHaveLength(2);
   expect(screen.getAllByRole('button', { name: /accept/i })).toHaveLength(2);
 });
@@ -178,7 +181,8 @@ test('seller mode requires meetup specifics before accepting an offer', async ()
       offeredPrice: 18,
       meetupHubId: 'plaza-americas',
       meetupLocation: 'Plaza of the Americas',
-      meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+      meetupDate: '2026-04-07',
+      meetupTime: '13:00',
       paymentMethod: 'cash',
       message: 'Can meet after class.',
       status: 'pending',
@@ -206,7 +210,8 @@ test('seller mode can accept an offer with required meetup specifics and refresh
         offeredPrice: 18,
         meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
-        meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+        meetupDate: '2026-04-07',
+        meetupTime: '13:00',
         paymentMethod: 'cash',
         message: 'Can meet after class.',
         status: 'pending',
@@ -222,7 +227,8 @@ test('seller mode can accept an offer with required meetup specifics and refresh
         offeredPrice: 18,
         meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
-        meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+        meetupDate: '2026-04-07',
+        meetupTime: '13:00',
         paymentMethod: 'cash',
         message: 'Can meet after class.',
         status: 'accepted',
@@ -267,7 +273,8 @@ test('buyer mode shows sent offers and seller context', async () => {
         offeredPrice: 18,
         meetupHubId: 'plaza-americas',
         meetupLocation: 'Plaza of the Americas',
-        meetupWindow: 'Tue 1:00 PM - 2:00 PM',
+        meetupDate: '2026-04-07',
+        meetupTime: '13:00',
         paymentMethod: 'cash',
         message: 'Can meet after class.',
         status: 'pending',

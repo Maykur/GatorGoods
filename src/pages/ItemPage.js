@@ -4,8 +4,17 @@ import { useUser } from '@clerk/react';
 import { PickupHubPicker } from '../components/PickupHubPicker';
 import { createConversation } from '../lib/messagesApi';
 import { createOffer } from '../lib/offersApi';
+import {
+  DEFAULT_SCHEDULING_WINDOW_DAYS,
+  formatMeetupDateLabel,
+  getOfferMeetupScheduleLabel,
+  getMeetupScheduleValidationErrors,
+  getSchedulingWindowDates,
+  formatMeetupTimeLabel,
+} from '../lib/meetupSchedule';
 import { getPickupHubById, resolvePickupHub } from '../lib/pickupHubs';
 import { toListingDetailViewModel, toTrustMetricsViewModel } from '../lib/viewModels';
+import { cn } from '../lib/ui';
 import {
   AppIcon,
   Avatar,
@@ -54,9 +63,7 @@ function validateOfferForm(values) {
     errors.meetupHubId = 'Meetup hub is required.';
   }
 
-  if (!values.meetupWindow.trim()) {
-    errors.meetupWindow = 'Meetup window is required.';
-  }
+  Object.assign(errors, getMeetupScheduleValidationErrors(values));
 
   if (!values.paymentMethod.trim()) {
     errors.paymentMethod = 'Payment method is required.';
@@ -97,6 +104,72 @@ function TrustMetricCard({ icon, label, value }) {
   );
 }
 
+function InlineMeetupDatePicker({value, error, onChange}) {
+  const dateOptions = getSchedulingWindowDates({
+    days: DEFAULT_SCHEDULING_WINDOW_DAYS,
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-semibold text-app-text">
+        <AppIcon icon="time" className="text-sm text-app-muted" />
+        <span>Meetup date</span>
+        <span className="text-gatorOrange">*</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+        {dateOptions.map((dateOption) => {
+          const isSelected = value === dateOption;
+
+          return (
+            <button
+              key={dateOption}
+              type="button"
+              aria-label={`Choose meetup date ${dateOption}`}
+              className={cn(
+                'focus-ring flex flex-col items-center justify-center rounded-[1.25rem] border px-3 py-3 text-center transition-all',
+                isSelected
+                  ? 'border-gatorOrange bg-gatorOrange/12 text-white shadow-[0_10px_24px_rgba(250,112,10,0.18)]'
+                  : 'border-white/10 bg-app-surface/60 text-app-soft hover:border-white/20 hover:text-white'
+              )}
+              onClick={() => onChange(dateOption)}
+            >
+              <div className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-app-muted">
+                {new Intl.DateTimeFormat(undefined, {weekday: 'short'}).format(
+                  new Date(`${dateOption}T12:00:00`)
+                )}
+              </div>
+              <div className="mt-1 text-sm font-semibold">{formatMeetupDateLabel(dateOption)}</div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-sm text-app-muted">
+        Pick a day within the next {DEFAULT_SCHEDULING_WINDOW_DAYS} days.
+      </p>
+      {error ? <p className="text-sm font-medium text-app-danger">{error}</p> : null}
+    </div>
+  );
+}
+
+function buildMeetupTimeOptions() {
+  const options = [];
+
+  for (let minutes = 8 * 60; minutes <= 21 * 60; minutes += 30) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const value = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+
+    options.push({
+      value,
+      label: formatMeetupTimeLabel(value),
+    });
+  }
+
+  return options;
+}
+
+const MEETUP_TIME_OPTIONS = buildMeetupTimeOptions();
+
 export function ItemPage() {
   const { user, isSignedIn } = useUser();
   const { id } = useParams();
@@ -114,7 +187,8 @@ export function ItemPage() {
   const [offerValues, setOfferValues] = useState({
     offeredPrice: '',
     meetupHubId: '',
-    meetupWindow: '',
+    meetupDate: '',
+    meetupTime: '',
     paymentMethod: 'cash',
     message: '',
   });
@@ -132,6 +206,9 @@ export function ItemPage() {
   const categoryIcon = itemView ? getCategoryIcon(itemView.category) : null;
   const selectedMeetupHub = getPickupHubById(offerValues.meetupHubId);
   const selectedMeetupLabel = selectedMeetupHub?.label || '';
+  const submittedOfferScheduleLabel = submittedOffer ? getOfferMeetupScheduleLabel(submittedOffer) : '';
+  const submittedOfferPaymentLabel =
+    PAYMENT_METHOD_OPTIONS.find((option) => option.value === submittedOffer?.paymentMethod)?.label || 'Cash';
 
   useEffect(() => {
     let isMounted = true;
@@ -408,12 +485,19 @@ export function ItemPage() {
         offeredPrice: Number(offerValues.offeredPrice),
         meetupHubId: offerValues.meetupHubId,
         meetupLocation: selectedMeetupLabel,
-        meetupWindow: offerValues.meetupWindow,
+        meetupDate: offerValues.meetupDate,
+        meetupTime: offerValues.meetupTime,
         paymentMethod: offerValues.paymentMethod,
         message: offerValues.message,
       });
 
-      setSubmittedOffer(offer);
+      setSubmittedOffer({
+        ...offer,
+        meetupLocation: offer.meetupLocation || selectedMeetupLabel,
+        meetupDate: offer.meetupDate || offerValues.meetupDate,
+        meetupTime: offer.meetupTime || offerValues.meetupTime,
+        paymentMethod: offer.paymentMethod || offerValues.paymentMethod,
+      });
       setIsOfferComposerOpen(false);
       setOfferFieldErrors({});
       setError('');
@@ -536,7 +620,7 @@ export function ItemPage() {
                       </p>
                       <h2 className="text-2xl font-semibold text-white">Share your offer</h2>
                       <p className="text-sm leading-7 text-app-soft">
-                        Add your price, payment method, and a campus meetup hub that works for you.
+                        Add your price, payment method, and an exact campus date and time that works for you.
                       </p>
                     </div>
 
@@ -563,16 +647,36 @@ export function ItemPage() {
                         error={offerFieldErrors.meetupHubId}
                         required
                       />
-                      <Input
-                        id="offer-meetup-window"
-                        label="Meetup window"
-                        leadingIcon="time"
-                        value={offerValues.meetupWindow}
-                        onChange={handleOfferFieldChange('meetupWindow')}
-                        error={offerFieldErrors.meetupWindow}
-                        placeholder="Tue 1:00 PM - 2:00 PM"
-                        required
+                      <InlineMeetupDatePicker
+                        value={offerValues.meetupDate}
+                        error={offerFieldErrors.meetupDate}
+                        onChange={(meetupDate) => {
+                          setOfferValues((currentValues) => ({
+                            ...currentValues,
+                            meetupDate,
+                          }));
+                          setOfferFieldErrors((currentErrors) => ({
+                            ...currentErrors,
+                            meetupDate: '',
+                          }));
+                        }}
                       />
+                      <Select
+                        id="offer-meetup-time"
+                        label="Meetup time"
+                        leadingIcon="time"
+                        value={offerValues.meetupTime}
+                        onChange={handleOfferFieldChange('meetupTime')}
+                        error={offerFieldErrors.meetupTime}
+                        required
+                      >
+                        <option value="">Choose a time</option>
+                        {MEETUP_TIME_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Select>
                       <Select
                         id="offer-payment-method"
                         label="Payment method"
@@ -626,6 +730,20 @@ export function ItemPage() {
                   <p className="text-sm leading-7 text-app-soft">
                     You can check its status in your offers inbox or continue the conversation with this seller.
                   </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Card variant="subtle" className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Payment</p>
+                    <p className="text-sm font-semibold text-white">{submittedOfferPaymentLabel}</p>
+                  </Card>
+                  <Card variant="subtle" className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Meetup hub</p>
+                    <p className="text-sm font-semibold text-white">{submittedOffer.meetupLocation || selectedMeetupLabel}</p>
+                  </Card>
+                  <Card variant="subtle" className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">Scheduled meetup</p>
+                    <p className="text-sm font-semibold text-white">{submittedOfferScheduleLabel}</p>
+                  </Card>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Link to="/offers" className="no-underline">

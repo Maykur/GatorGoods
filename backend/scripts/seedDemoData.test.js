@@ -165,7 +165,8 @@ async function createTaggedAndRealRecords(seedTag) {
     conversationId: taggedConversation._id,
     offeredPrice: 18,
     meetupLocation: 'Library West',
-    meetupWindow: 'Today 3:00 PM - 3:15 PM',
+    meetupDate: '2026-04-03',
+    meetupTime: '15:00',
     paymentMethod: 'cash',
     message: 'Tagged offer',
     status: 'pending',
@@ -179,7 +180,8 @@ async function createTaggedAndRealRecords(seedTag) {
     conversationId: realConversation._id,
     offeredPrice: 25,
     meetupLocation: 'Reitz Union',
-    meetupWindow: 'Tomorrow 1:00 PM - 1:15 PM',
+    meetupDate: '2026-04-04',
+    meetupTime: '13:00',
     paymentMethod: 'externalApp',
     message: 'Real offer',
     status: 'pending',
@@ -369,6 +371,12 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
   );
   assert.ok(dataset.offers.some((offer) => offer.buyerKey === 'presenter'));
   assert.equal(
+    dataset.offers.some(
+      (offer) => offer.status === 'accepted' && offer.meetupDate === '2026-03-31'
+    ),
+    true
+  );
+  assert.equal(
     dataset.conversations.find((conversation) => conversation.key === 'conv-desk-lamp-ava').lastReadHoursAgoByParticipant.presenter > 18.4,
     true
   );
@@ -426,6 +434,8 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
   assert.equal(reservedListing.itemLocation, 'Reitz Union');
   assert.equal(acceptedOffer.meetupHubId, 'marston');
   assert.equal(acceptedOffer.meetupLocation, 'Marston Science Library');
+  assert.equal(acceptedOffer.meetupDate, '2026-04-01');
+  assert.equal(acceptedOffer.meetupTime, '12:15');
   assert.equal(acceptedConversation.activePickupHubId, 'reitz');
   assert.equal(acceptedConversation.activePickupSpecifics, 'Ground floor entrance by the benches.');
   assert.equal(offers.every((offer) => Boolean(offer.conversationId)), true);
