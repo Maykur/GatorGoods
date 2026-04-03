@@ -89,8 +89,6 @@ function ItemCard({
             </div>
           </div>
 
-          {console.log(item)}
-
           <div className="flex flex-wrap gap-3 lg:justify-end">
             <Link to={`/items/${item.id}`} className="no-underline">
               <Button variant="secondary" leadingIcon="open">View details</Button>
