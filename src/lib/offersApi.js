@@ -58,6 +58,8 @@ export async function getIndividualOffer(offerId) {
   );
 }
 
+
+
 export async function updateOfferStatus(offerId, payload) {
   return fetchFromApi(
     `${API_BASE_URL}/api/offers/${encodeURIComponent(offerId)}`,

@@ -137,6 +137,7 @@ export function toListingCardViewModel(raw) {
     sellerName: normalizeText(raw?.userPublishingName, DEFAULT_SELLER_NAME),
     status: normalizeListingStatus(raw?.status),
     statusLabel: formatListingStatusLabel(raw?.status),
+    offerId: raw?.reservedOfferId || '',
   };
 }
 
