@@ -71,13 +71,14 @@ That means GatorGoods does not need a live responder for the core study.
 ### Facebook Marketplace
 
 1. Open the Marketplace tab before the session starts.
-2. For the buyer condition, choose one real public Gainesville-area `mini fridge` listing in the Gainesville area before the participant starts.
+2. For the buyer condition, let the participant search for a real Gainesville-area `mini fridge` listing and choose one they would seriously consider.
 3. For the seller condition, make sure the moderator is already logged in to a Facebook account before the session starts if the team wants participants to use the real seller-side listing flow.
 
 Important:
 
 - do not require participants to send a real message to a stranger on Facebook
 - do not require participants to publish a real Facebook listing unless the moderator is already comfortable using a team-owned account
+- have the moderator record which listing the participant chose during the buyer task
 
 The required minimum is to inspect the real buyer flow and the real seller listing-creation flow.
 
@@ -148,6 +149,7 @@ For each condition, write down:
 
 - whether the participant completed the condition
 - start time and end time
+- which listing they chose, if it was a buyer condition
 - major confusion points
 - any trust-related comments
 - any campus-specific comments

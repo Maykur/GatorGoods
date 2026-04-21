@@ -86,6 +86,7 @@ After both seller conditions are complete, give Survey 3.
 ### Facebook Marketplace
 
 - participants should inspect the real buyer flow
+- for the buyer task, let the participant search for a mini fridge and choose one they would seriously consider
 - participants should not be required to send a real message to a stranger
 - for seller flow, they only need to go far enough to understand what the platform asks them to do
 - if the moderator is not comfortable publishing a listing, stop before the final publish step
@@ -118,6 +119,7 @@ For each condition, record:
 - start time
 - end time
 - completed or not completed
+- buyer listing chosen, if applicable
 - major confusion point
 - strongest trust comment
 - strongest coordination comment

@@ -685,6 +685,12 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
     'active'
   );
   assert.equal(
+    ['noah', 'cameron', 'mateo'].includes(
+      dataset.listings.find((listing) => listing.key === 'mini-fridge-dorm-white').ownerKey
+    ),
+    true
+  );
+  assert.equal(
     dataset.offers.filter((offer) => offer.listingKey === 'mini-fridge-freezer' && offer.status === 'accepted').length,
     1
   );
@@ -811,6 +817,12 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
   assert.equal(edwardProfile.trustMetrics.safety < 55, true);
   assert.equal(phillipProfile.trustMetrics.accuracy < 55, true);
   assert.equal(darleneProfile.trustMetrics.accuracy < 50, true);
+  assert.equal(
+    miniFridgeListings.some(
+      (listing) => listing.status === 'active' && ['noah', 'cameron', 'mateo'].includes(listing.ownerKey)
+    ),
+    true
+  );
   assert.equal(edwardListings.every((listing) => listing.itemDetails.toLowerCase().includes('as-is') || listing.itemDetails.toLowerCase().includes('not')), true);
   assert.equal(phillipListings.every((listing) => ['fair', 'good'].includes(String(listing.itemCondition).toLowerCase())), true);
   assert.equal(darleneListings.every((listing) => String(listing.itemCondition).toLowerCase() === 'fair'), true);

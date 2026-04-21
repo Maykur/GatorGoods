@@ -12,7 +12,6 @@ If anything here conflicts with the longer script, follow the longer script.
 - study/presenter account is signed in on GatorGoods
 - searching `mini fridge` on GatorGoods shows 5 results
 - Facebook Marketplace tab is open
-- one Facebook `mini fridge` buyer listing has been chosen for this participant
 - seller item photo and item details are ready
 - Surveys 1, 2, and 3 are ready
 - participant ID is assigned
@@ -76,6 +75,7 @@ Try to use each order for about half of participants.
 - completed or not completed
 - start time
 - end time
+- buyer listing chosen, if applicable
 - major confusion point
 - strongest trust-related comment
 - strongest campus-related or coordination-related comment
