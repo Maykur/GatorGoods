@@ -8,10 +8,11 @@ If anything here conflicts with the longer script, follow the longer script.
 
 - GatorGoods frontend is running
 - GatorGoods backend is running
-- GatorGoods demo seed is loaded
+- `SEED_FULL_RESET=true npm run seed:demo` has been run
 - study/presenter account is signed in on GatorGoods
+- searching `mini fridge` on GatorGoods shows 5 results
 - Facebook Marketplace tab is open
-- one Facebook buyer listing has been chosen for this participant
+- one Facebook `mini fridge` buyer listing has been chosen for this participant
 - seller item photo and item details are ready
 - Surveys 1, 2, and 3 are ready
 - participant ID is assigned

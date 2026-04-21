@@ -7,7 +7,7 @@ Use this runbook for the final implementation video, class demo, and fallback li
 - Verify `.env.local` contains the correct Clerk publishable key
 - Verify backend `.env` contains a working MongoDB connection string
 - Start frontend and backend successfully
-- Run `npm run seed:demo` and confirm the 13 live listings, 14 offers, and 7 conversation threads appear
+- Run `SEED_FULL_RESET=true npm run seed:demo` and confirm the 21 live listings, 32 offers, and 21 conversation threads appear
 - Confirm all demo accounts can sign in
 
 ## Required Demo Roles
@@ -34,11 +34,12 @@ Use this runbook for the final implementation video, class demo, and fallback li
 
 ## Seeded Demo Scenarios
 
-- `Desk Lamp` stays `active` and has 3 inbound `pending` offers from different buyers
-- `Mini Fridge` is already `reserved` with 1 `accepted` offer, 1 `declined` offer, and a ready-to-open thread from `/offers`
+- `Desk Lamp` stays `reserved` with 1 `accepted` offer and 3 declined examples that still preserve seller-side history
+- `Mini Fridge` stays `active` and now sits inside a 5-listing mini-fridge cluster with varied photos, prices, and statuses for evaluation tasks
+- `Mini Fridge with Freezer` is already `reserved` with an accepted offer and a ready-to-open thread from `/offers`
 - Community listings cover all 8 categories and include additional `active`, `reserved`, and `sold` states in the public feed
 - The presenter also has outbound offers on community listings so buyer mode is populated
-- `/messages` opens into 7 believable participant-first conversation threads spread across the last 2 days
+- `/messages` opens into 21 believable participant-first conversation threads spread across the last 2 days
 - Several seeded threads intentionally include multiple linked items with mixed active, pending, completed, unavailable, and deleted-item history
 - Seeded chat history includes viewer-aware sent/accepted/rejected/completed offer events plus per-message item context
 - Safe reseeding is tag-based by default, so unrelated real data stays intact unless you opt into a full reset
@@ -85,7 +86,8 @@ If one part of the live flow breaks:
 - Public browse works
 - Sign-in works
 - Create listing works
-- Public feed shows 12 varied listings with multiple statuses
+- Public feed shows a dense set of varied listings with multiple statuses
+- Searching `mini fridge` returns 5 results
 - Item detail page loads
 - Offer creation works
 - Seller inbox shows multiple inbound offers

@@ -23,9 +23,11 @@ The moderator assigns the order.
 
 Complete these tasks in both buyer conditions.
 
+For the buyer tasks, assume you want to buy a `mini fridge` that makes sense for a UF student living on or near campus.
+
 ### Task B1: Inspect The Assigned Listing
 
-Open the assigned listing and look through the available photos, price, item details, and location information.
+Find one `mini fridge` listing you would seriously consider buying, then open it and look through the available photos, price, item details, and location information.
 
 ### Task B2: Evaluate The Seller
 
@@ -33,7 +35,7 @@ Based only on what the platform shows you, decide whether you would trust this s
 
 ### Task B3: Show The First Purchase Step
 
-Go to the point where you would take the first real step toward buying the item.
+Go to the point where you would take the first real step toward buying that mini fridge.
 
 Examples:
 
@@ -49,7 +51,7 @@ Based on what the platform shows you, explain whether you feel ready to coordina
 
 ### Task B5: Make A Final Buying Decision
 
-Decide whether you would continue with this purchase on this platform.
+Decide whether you would continue with this mini-fridge purchase on this platform.
 
 ## Seller Tasks
 

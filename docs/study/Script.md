@@ -55,7 +55,7 @@ Do not rescue them by pointing out the correct action unless the session would o
 
 Before each buyer condition, say:
 
-"You are now doing a buying task on this platform. Please work through the task list and keep thinking aloud."
+"You are now doing a buying task on this platform. In this part, assume you are trying to buy a mini fridge for campus use. Please work through the task list and keep thinking aloud."
 
 Start timing when they begin the first buyer task.
 

@@ -52,9 +52,10 @@ For all tasks, participants should assume they are UF students living on or very
 ### GatorGoods
 
 1. Start the frontend and backend.
-2. Run the demo seed.
+2. Run `SEED_FULL_RESET=true npm run seed:demo`.
 3. Sign in to GatorGoods using the prepared presenter/study account.
 4. Confirm the seed still shows the expected listings, offers, and messages.
+5. Search `mini fridge` and confirm 5 results appear.
 
 The current implementation already supports:
 
@@ -70,7 +71,7 @@ That means GatorGoods does not need a live responder for the core study.
 ### Facebook Marketplace
 
 1. Open the Marketplace tab before the session starts.
-2. For the buyer condition, choose one real public Gainesville-area listing that roughly matches the GatorGoods scenario for that participant.
+2. For the buyer condition, choose one real public Gainesville-area `mini fridge` listing in the Gainesville area before the participant starts.
 3. For the seller condition, make sure the moderator is already logged in to a Facebook account before the session starts if the team wants participants to use the real seller-side listing flow.
 
 Important:
@@ -96,22 +97,22 @@ Suggested timing:
 
 ### GatorGoods Buyer Scenario
 
-Use one active seeded listing that feels campus-realistic, such as:
+Use the built-in `mini fridge` scenario.
 
-- `Three-Tier Rolling Cart`
-- `Drafting Lab Stool`
-- `Kitchen Utility Cart`
+The refreshed seed now includes:
+
+- 5 browseable mini-fridge listings
+- 4 `active` mini-fridge listings
+- 1 `reserved` mini-fridge listing
+
+This is the recommended buyer task for the study because it now compares cleanly against Facebook Marketplace.
 
 ### Facebook Buyer Scenario
 
-Pick one real existing Facebook Marketplace listing that matches the same general category as the GatorGoods item for that participant.
+Use a real existing Facebook Marketplace `mini fridge` listing in Gainesville so the category matches GatorGoods.
 
 Good categories:
-
-- small furniture
-- storage
-- electronics
-- study/home items
+- mini fridge
 
 Avoid:
 

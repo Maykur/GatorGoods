@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const {faker} = require('@faker-js/faker');
 const {
   deriveListingPickupFields,
@@ -67,12 +69,406 @@ const MESSAGE_VARIANTS = [
   'I will message when I am walking over.',
 ];
 
+const STUDY_SEED_IMAGE_DIR = path.join(__dirname, 'study-seed-images');
+
+function readSeedImageDataUrl(filename) {
+  const filePath = path.join(STUDY_SEED_IMAGE_DIR, filename);
+  const imageBuffer = fs.readFileSync(filePath);
+  const extension = path.extname(filename).toLowerCase();
+  const mimeType = extension === '.png' ? 'image/png' : 'image/jpeg';
+
+  return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+}
+
+function svgToDataUrl(svg) {
+  return `data:image/svg+xml,${encodeURIComponent(
+    svg
+      .replace(/\n\s+/g, '\n')
+      .replace(/>\s+</g, '><')
+      .trim()
+  )}`;
+}
+
+function buildMarketplacePhoto({
+  wallTop = '#d5d1ca',
+  wallBottom = '#b6aea3',
+  floorTop = '#79604e',
+  floorBottom = '#443127',
+  ambient = '#fff1d7',
+  clutterMarkup = '',
+  subjectMarkup = '',
+  overlayMarkup = '',
+}) {
+  return svgToDataUrl(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 675" role="img" aria-label="Marketplace listing photo">
+      <defs>
+        <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${wallTop}" />
+          <stop offset="100%" stop-color="${wallBottom}" />
+        </linearGradient>
+        <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${floorTop}" />
+          <stop offset="100%" stop-color="${floorBottom}" />
+        </linearGradient>
+        <radialGradient id="windowGlow" cx="18%" cy="16%" r="46%">
+          <stop offset="0%" stop-color="${ambient}" stop-opacity="0.85" />
+          <stop offset="100%" stop-color="${ambient}" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="vignette" cx="50%" cy="42%" r="72%">
+          <stop offset="52%" stop-color="#000000" stop-opacity="0" />
+          <stop offset="100%" stop-color="#081019" stop-opacity="0.34" />
+        </radialGradient>
+        <filter id="grain">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
+          <feColorMatrix type="saturate" values="0" />
+          <feComponentTransfer>
+            <feFuncA type="table" tableValues="0 0.10" />
+          </feComponentTransfer>
+        </filter>
+        <filter id="softShadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#111827" flood-opacity="0.28" />
+        </filter>
+        <filter id="softBlur">
+          <feGaussianBlur stdDeviation="10" />
+        </filter>
+      </defs>
+      <rect width="900" height="675" fill="url(#wall)" />
+      <rect width="900" height="675" fill="url(#windowGlow)" />
+      <path d="M0 420 C170 392 328 402 476 416 C624 430 771 422 900 404 L900 675 L0 675 Z" fill="url(#floor)" />
+      <ellipse cx="460" cy="505" rx="298" ry="64" fill="#0f172a" opacity="0.18" filter="url(#softBlur)" />
+      ${clutterMarkup}
+      <g filter="url(#softShadow)">
+        ${subjectMarkup}
+      </g>
+      ${overlayMarkup}
+      <rect width="900" height="675" fill="url(#vignette)" />
+      <rect width="900" height="675" filter="url(#grain)" opacity="0.88" />
+    </svg>
+  `);
+}
+
+function createMiniFridgeImage({
+  bodyColor = '#d8dde1',
+  bodyShadow = '#b4bcc4',
+  trimColor = '#f7f8f9',
+  handleColor = '#5c6470',
+  wallTop = '#d7d0c6',
+  wallBottom = '#baaea3',
+  floorTop = '#7a6558',
+  floorBottom = '#45352b',
+  stickerColor = '#fb7185',
+  accentColor = '#9aa4b2',
+  retro = false,
+  scuffed = false,
+  magnet = false,
+  crateColor = '#8b5e3c',
+}) {
+  const dividerMarkup = retro
+    ? '<rect x="418" y="204" width="18" height="24" rx="8" fill="#2f3640" opacity="0.6" />'
+    : '<rect x="230" y="168" width="18" height="80" rx="8" fill="#4b5563" opacity="0.75" />';
+  const scuffMarkup = scuffed
+    ? `
+      <path d="M252 168 C281 164 304 171 324 182" stroke="#94a3b8" stroke-width="6" opacity="0.45" />
+      <path d="M356 301 C391 314 419 320 437 316" stroke="#64748b" stroke-width="7" opacity="0.3" />
+      <circle cx="278" cy="327" r="7" fill="#9ca3af" opacity="0.3" />
+    `
+    : '';
+  const magnetMarkup = magnet
+    ? `
+      <rect x="172" y="138" width="22" height="22" rx="6" fill="${stickerColor}" />
+      <rect x="202" y="176" width="18" height="18" rx="5" fill="#fde68a" />
+    `
+    : '';
+
+  return buildMarketplacePhoto({
+    wallTop,
+    wallBottom,
+    floorTop,
+    floorBottom,
+    clutterMarkup: `
+      <rect x="114" y="180" width="82" height="188" rx="8" fill="#f1f5f9" opacity="0.5" />
+      <rect x="120" y="186" width="70" height="176" rx="6" fill="#dbeafe" opacity="0.3" />
+      <path d="M112 404 C164 398 210 396 246 404" stroke="#0f172a" stroke-width="7" opacity="0.18" />
+      <rect x="650" y="392" width="134" height="84" rx="8" fill="${crateColor}" opacity="0.86" />
+      <rect x="665" y="372" width="88" height="36" rx="5" fill="#d6d3d1" opacity="0.72" />
+      <path d="M701 383 C716 361 731 347 756 336" stroke="#16a34a" stroke-width="9" stroke-linecap="round" opacity="0.48" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(226 86) rotate(-2 165 208)">
+        <rect x="0" y="0" width="274" height="392" rx="28" fill="${bodyShadow}" />
+        <rect x="8" y="8" width="258" height="376" rx="24" fill="${bodyColor}" />
+        <rect x="18" y="20" width="238" height="125" rx="20" fill="${trimColor}" opacity="0.74" />
+        <rect x="22" y="152" width="230" height="216" rx="20" fill="${trimColor}" opacity="0.2" />
+        <rect x="22" y="150" width="230" height="3" fill="${accentColor}" opacity="0.48" />
+        ${dividerMarkup}
+        <rect x="248" y="190" width="10" height="112" rx="5" fill="${handleColor}" opacity="0.82" />
+        <rect x="248" y="75" width="10" height="46" rx="5" fill="${handleColor}" opacity="0.82" />
+        <rect x="42" y="342" width="188" height="15" rx="7" fill="#0f172a" opacity="0.1" />
+        ${magnetMarkup}
+        ${scuffMarkup}
+      </g>
+    `,
+  });
+}
+
+function createDeskLampImage() {
+  return buildMarketplacePhoto({
+    wallTop: '#d7d5db',
+    wallBottom: '#b1b3bb',
+    floorTop: '#6d5a4f',
+    floorBottom: '#3b2b24',
+    clutterMarkup: `
+      <rect x="128" y="420" width="664" height="38" rx="8" fill="#6b4f3e" />
+      <rect x="160" y="446" width="18" height="116" rx="9" fill="#2f241c" />
+      <rect x="738" y="446" width="18" height="116" rx="9" fill="#2f241c" />
+      <rect x="520" y="388" width="112" height="30" rx="6" fill="#f8fafc" opacity="0.75" />
+      <rect x="542" y="360" width="84" height="24" rx="6" fill="#475569" opacity="0.35" />
+      <rect x="212" y="386" width="96" height="26" rx="4" fill="#1e293b" opacity="0.78" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(186 116) rotate(-5 124 236)">
+        <rect x="72" y="296" width="130" height="18" rx="9" fill="#111827" />
+        <rect x="108" y="156" width="20" height="150" rx="10" fill="#2d3748" />
+        <path d="M118 156 C96 118 82 98 64 70" stroke="#2d3748" stroke-width="18" stroke-linecap="round" fill="none" />
+        <path d="M62 70 C88 54 118 46 156 52 L180 104 C145 116 112 117 82 104 Z" fill="#e5e7eb" />
+        <ellipse cx="138" cy="123" rx="68" ry="18" fill="#ffd166" opacity="0.22" filter="url(#softBlur)" />
+        <path d="M82 100 C110 112 142 112 177 101" stroke="#cbd5e1" stroke-width="5" opacity="0.55" />
+      </g>
+    `,
+  });
+}
+
+function createRollingCartImage({frameColor = '#334155', basketColor = '#94a3b8', accentColor = '#f59e0b'} = {}) {
+  return buildMarketplacePhoto({
+    wallTop: '#d7d7cf',
+    wallBottom: '#b4b2a5',
+    floorTop: '#886c57',
+    floorBottom: '#503d2f',
+    clutterMarkup: `
+      <rect x="612" y="220" width="108" height="210" rx="8" fill="#d6d3d1" opacity="0.42" />
+      <rect x="144" y="358" width="88" height="74" rx="10" fill="#f1f5f9" opacity="0.6" />
+      <rect x="156" y="340" width="64" height="22" rx="6" fill="#cbd5e1" opacity="0.72" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(258 118) rotate(-4 145 226)">
+        <path d="M44 78 L28 386" stroke="${frameColor}" stroke-width="10" stroke-linecap="round" />
+        <path d="M244 78 L262 386" stroke="${frameColor}" stroke-width="10" stroke-linecap="round" />
+        <path d="M86 78 L74 386" stroke="${frameColor}" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+        <path d="M202 78 L214 386" stroke="${frameColor}" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+        <rect x="28" y="74" width="236" height="54" rx="12" fill="${basketColor}" opacity="0.86" />
+        <rect x="38" y="164" width="226" height="52" rx="12" fill="${basketColor}" opacity="0.9" />
+        <rect x="46" y="256" width="214" height="52" rx="12" fill="${basketColor}" opacity="0.92" />
+        <rect x="62" y="88" width="40" height="28" rx="6" fill="#fde68a" />
+        <rect x="196" y="176" width="32" height="24" rx="6" fill="${accentColor}" opacity="0.9" />
+        <rect x="102" y="267" width="88" height="28" rx="8" fill="#f8fafc" opacity="0.82" />
+        <circle cx="54" cy="394" r="15" fill="#1f2937" />
+        <circle cx="236" cy="396" r="15" fill="#1f2937" />
+      </g>
+    `,
+  });
+}
+
+function createKitchenCartImage() {
+  return buildMarketplacePhoto({
+    wallTop: '#d8d3ce',
+    wallBottom: '#b8b0a4',
+    floorTop: '#836556',
+    floorBottom: '#4a372d',
+    clutterMarkup: `
+      <rect x="118" y="232" width="126" height="162" rx="8" fill="#fb7185" opacity="0.16" />
+      <rect x="616" y="180" width="132" height="260" rx="12" fill="#f8fafc" opacity="0.22" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(248 110) rotate(-3 162 220)">
+        <rect x="42" y="54" width="236" height="38" rx="10" fill="#9a6b49" />
+        <rect x="54" y="92" width="212" height="18" rx="8" fill="#475569" opacity="0.6" />
+        <rect x="58" y="132" width="206" height="22" rx="10" fill="#cbd5e1" opacity="0.88" />
+        <rect x="68" y="212" width="196" height="22" rx="10" fill="#cbd5e1" opacity="0.88" />
+        <path d="M72 92 L58 362" stroke="#475569" stroke-width="9" stroke-linecap="round" />
+        <path d="M248 92 L262 362" stroke="#475569" stroke-width="9" stroke-linecap="round" />
+        <path d="M112 92 L104 362" stroke="#64748b" stroke-width="7" stroke-linecap="round" opacity="0.85" />
+        <path d="M214 92 L222 362" stroke="#64748b" stroke-width="7" stroke-linecap="round" opacity="0.85" />
+        <rect x="88" y="146" width="64" height="34" rx="8" fill="#f59e0b" opacity="0.82" />
+        <rect x="168" y="226" width="46" height="30" rx="8" fill="#f8fafc" opacity="0.82" />
+        <circle cx="82" cy="374" r="14" fill="#1f2937" />
+        <circle cx="238" cy="376" r="14" fill="#1f2937" />
+      </g>
+    `,
+  });
+}
+
+function createGraphingCalculatorImage() {
+  return buildMarketplacePhoto({
+    wallTop: '#d8d5cf',
+    wallBottom: '#bab3a6',
+    floorTop: '#706053',
+    floorBottom: '#3d312a',
+    clutterMarkup: `
+      <rect x="148" y="214" width="620" height="282" rx="16" fill="#5b4334" />
+      <rect x="164" y="234" width="588" height="242" rx="12" fill="#6b4f3e" />
+      <rect x="182" y="252" width="242" height="152" rx="14" fill="#f8fafc" opacity="0.88" />
+      <path d="M200 278 H402" stroke="#cbd5e1" stroke-width="8" opacity="0.7" />
+      <path d="M200 316 H404" stroke="#cbd5e1" stroke-width="8" opacity="0.55" />
+      <path d="M200 354 H378" stroke="#cbd5e1" stroke-width="8" opacity="0.55" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(446 166) rotate(8 124 168)">
+        <rect x="0" y="0" width="246" height="336" rx="20" fill="#111827" />
+        <rect x="16" y="18" width="214" height="72" rx="10" fill="#9fb8c8" opacity="0.92" />
+        <rect x="34" y="116" width="174" height="180" rx="16" fill="#1f2937" opacity="0.88" />
+        <g fill="#e5e7eb">
+          <rect x="32" y="118" width="30" height="20" rx="6" />
+          <rect x="72" y="118" width="30" height="20" rx="6" />
+          <rect x="112" y="118" width="30" height="20" rx="6" />
+          <rect x="152" y="118" width="30" height="20" rx="6" />
+          <rect x="32" y="150" width="30" height="20" rx="6" />
+          <rect x="72" y="150" width="30" height="20" rx="6" />
+          <rect x="112" y="150" width="30" height="20" rx="6" />
+          <rect x="152" y="150" width="30" height="20" rx="6" />
+          <rect x="32" y="182" width="30" height="20" rx="6" />
+          <rect x="72" y="182" width="30" height="20" rx="6" />
+          <rect x="112" y="182" width="30" height="20" rx="6" />
+          <rect x="152" y="182" width="30" height="20" rx="6" />
+          <rect x="32" y="214" width="30" height="20" rx="6" />
+          <rect x="72" y="214" width="30" height="20" rx="6" />
+          <rect x="112" y="214" width="30" height="20" rx="6" />
+          <rect x="152" y="214" width="30" height="20" rx="6" />
+          <rect x="32" y="246" width="30" height="20" rx="6" />
+          <rect x="72" y="246" width="30" height="20" rx="6" />
+          <rect x="112" y="246" width="30" height="20" rx="6" />
+          <rect x="152" y="246" width="30" height="20" rx="6" />
+        </g>
+        <rect x="46" y="56" width="110" height="10" rx="5" fill="#475569" opacity="0.55" />
+      </g>
+    `,
+  });
+}
+
+function createCableKitImage() {
+  return buildMarketplacePhoto({
+    wallTop: '#d2d7dd',
+    wallBottom: '#aeb7c2',
+    floorTop: '#6d625b',
+    floorBottom: '#3b312c',
+    clutterMarkup: `
+      <rect x="110" y="188" width="680" height="290" rx="18" fill="#3f3f46" opacity="0.82" />
+      <rect x="132" y="210" width="644" height="248" rx="14" fill="#18181b" opacity="0.92" />
+      <rect x="564" y="234" width="152" height="92" rx="12" fill="#111827" opacity="0.42" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(164 190) rotate(-3 284 136)">
+        <rect x="0" y="0" width="568" height="272" rx="18" fill="#27272a" stroke="#52525b" stroke-width="10" />
+        <rect x="22" y="22" width="524" height="228" rx="14" fill="#09090b" />
+        <path d="M88 96 C126 42 190 54 212 98 C232 138 296 132 314 88" stroke="#38bdf8" stroke-width="14" fill="none" stroke-linecap="round" />
+        <path d="M108 176 C164 144 206 146 258 180" stroke="#f97316" stroke-width="12" fill="none" stroke-linecap="round" />
+        <path d="M314 162 C362 104 420 118 468 170" stroke="#94a3b8" stroke-width="14" fill="none" stroke-linecap="round" />
+        <rect x="402" y="58" width="72" height="52" rx="10" fill="#1f2937" />
+        <rect x="416" y="72" width="44" height="26" rx="6" fill="#22c55e" opacity="0.5" />
+        <rect x="78" y="52" width="52" height="36" rx="8" fill="#fafaf9" opacity="0.85" />
+        <circle cx="278" cy="124" r="16" fill="#f8fafc" opacity="0.9" />
+      </g>
+    `,
+  });
+}
+
+function createMonitorStandImage() {
+  return buildMarketplacePhoto({
+    wallTop: '#d5d5d9',
+    wallBottom: '#aeb0b8',
+    floorTop: '#6a594f',
+    floorBottom: '#3b2e28',
+    clutterMarkup: `
+      <rect x="126" y="392" width="648" height="44" rx="10" fill="#4b5563" />
+      <rect x="174" y="430" width="18" height="118" rx="8" fill="#2f343d" />
+      <rect x="710" y="430" width="18" height="118" rx="8" fill="#2f343d" />
+      <rect x="202" y="230" width="220" height="124" rx="16" fill="#111827" opacity="0.25" />
+      <rect x="520" y="232" width="172" height="112" rx="16" fill="#111827" opacity="0.18" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(250 250) rotate(-2 188 90)">
+        <rect x="0" y="44" width="376" height="60" rx="14" fill="#334155" />
+        <rect x="36" y="0" width="304" height="52" rx="12" fill="#475569" />
+        <rect x="60" y="18" width="118" height="18" rx="8" fill="#cbd5e1" opacity="0.76" />
+        <rect x="202" y="14" width="112" height="24" rx="10" fill="#f8fafc" opacity="0.86" />
+        <rect x="104" y="106" width="164" height="20" rx="10" fill="#111827" opacity="0.72" />
+        <path d="M112 126 C130 156 146 177 168 196" stroke="#111827" stroke-width="9" opacity="0.55" stroke-linecap="round" />
+        <path d="M252 126 C270 148 284 168 306 184" stroke="#111827" stroke-width="9" opacity="0.5" stroke-linecap="round" />
+      </g>
+    `,
+  });
+}
+
+function createVanityMirrorImage() {
+  return buildMarketplacePhoto({
+    wallTop: '#dcd4cf',
+    wallBottom: '#b8aea6',
+    floorTop: '#7b6352',
+    floorBottom: '#45342b',
+    clutterMarkup: `
+      <rect x="140" y="352" width="134" height="96" rx="10" fill="#d97706" opacity="0.52" />
+      <rect x="604" y="342" width="124" height="118" rx="12" fill="#f1f5f9" opacity="0.46" />
+    `,
+    subjectMarkup: `
+      <g transform="translate(274 122) rotate(-5 152 214)">
+        <rect x="16" y="0" width="276" height="404" rx="28" fill="#8b5e34" />
+        <rect x="30" y="18" width="248" height="368" rx="22" fill="#e5ddd5" />
+        <rect x="52" y="40" width="204" height="324" rx="18" fill="#9ec5db" opacity="0.72" />
+        <path d="M88 108 C132 72 176 74 212 112" stroke="#f8fafc" stroke-width="10" opacity="0.35" stroke-linecap="round" />
+        <g fill="#fde68a" opacity="0.9">
+          <circle cx="38" cy="52" r="8" />
+          <circle cx="272" cy="52" r="8" />
+          <circle cx="38" cy="124" r="8" />
+          <circle cx="272" cy="124" r="8" />
+          <circle cx="38" cy="196" r="8" />
+          <circle cx="272" cy="196" r="8" />
+          <circle cx="38" cy="268" r="8" />
+          <circle cx="272" cy="268" r="8" />
+          <circle cx="38" cy="340" r="8" />
+          <circle cx="272" cy="340" r="8" />
+        </g>
+      </g>
+    `,
+  });
+}
+
+const SEED_LISTING_IMAGES = {
+  campusScooter: readSeedImageDataUrl('campus-scooter.png'),
+  deskLamp: readSeedImageDataUrl('desk-lamp.png'),
+  miniFridgeCore: readSeedImageDataUrl('mini-fridge.png'),
+  miniFridgeBlack: readSeedImageDataUrl('mini-fridge-black.png'),
+  miniFridgeRetro: readSeedImageDataUrl('mini-fridge-retro.png'),
+  miniFridgeSteel: readSeedImageDataUrl('mini-fridge-freezer.png'),
+  miniFridgeDormWhite: readSeedImageDataUrl('mini-fridge-dorm-white.png'),
+  airPurifier: readSeedImageDataUrl('air-purifier.png'),
+  blackHoodie: readSeedImageDataUrl('black-hoodie.png'),
+  strollerCaddy: readSeedImageDataUrl('stroller-caddy.png'),
+  gamingMonitor: readSeedImageDataUrl('gaming-monitor.png'),
+  leatherBriefcase: readSeedImageDataUrl('leather-briefcase.png'),
+  businessCaseStudy: readSeedImageDataUrl('business-case-study.png'),
+  analogSynth: readSeedImageDataUrl('analog-synth.png'),
+  rollingCart: readSeedImageDataUrl('rolling-cart.png'),
+  kitchenCart: readSeedImageDataUrl('kitchen-cart.png'),
+  graphingCalculator: readSeedImageDataUrl('graphing-calculator.png'),
+  cableKit: readSeedImageDataUrl('cable-kit.png'),
+  monitorStand: readSeedImageDataUrl('monitor-stand.png'),
+  labStool: readSeedImageDataUrl('lab-stool.png'),
+  vanityMirror: readSeedImageDataUrl('vanity-mirror.png'),
+};
+
+const SEED_PROFILE_IMAGES = {
+  angelaMoss: readSeedImageDataUrl('profile-angela-moss.png'),
+  whiterose: readSeedImageDataUrl('profile-whiterose.png'),
+  edwardAlderson: readSeedImageDataUrl('profile-edward-alderson.png'),
+  phillipPrice: readSeedImageDataUrl('profile-phillip-price.png'),
+  darleneAlderson: readSeedImageDataUrl('profile-darlene-alderson.png'),
+};
+
 const COMMUNITY_PROFILES = [
   {
     key: 'ava',
     profileID: 'demo_ava_morgan',
     profileName: 'Angela Moss',
-    profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.angelaMoss,
     profileBanner: 'https://images.unsplash.com/photo-1497366412874-3415097a27e7?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Trying to build a cleaner, more put-together apartment setup and likes plans that are clear, polished, and actually happen.',
     instagramUrl: 'https://instagram.com/angelamoss.market',
@@ -126,7 +522,7 @@ const COMMUNITY_PROFILES = [
     key: 'jasmine',
     profileID: 'demo_jasmine_patel',
     profileName: 'Whiterose',
-    profilePicture: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.whiterose,
     profileBanner: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Time is the only thing that matters. If we agree on a handoff, expect precision, not improvisation.',
     instagramUrl: 'https://instagram.com/whiterose.market',
@@ -143,19 +539,20 @@ const COMMUNITY_PROFILES = [
   {
     key: 'noah',
     profileID: 'demo_noah_kim',
-    profileName: 'Mr. Robot',
-    profilePicture: 'https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=400&q=80',
+    profileName: 'Edward Alderson',
+    profilePicture: SEED_PROFILE_IMAGES.edwardAlderson,
     profileBanner: 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Selling repaired gear, worn-in layers, and hardware that still works. No glossy nonsense, no fake upgrades.',
-    instagramUrl: 'https://instagram.com/mrrobot.market',
+    profileBio: 'Selling worn layers, patched-together gear, and whatever still mostly works. Prefers cash, changes pickup windows more than he should, and treats detailed questions like a personal attack.',
+    instagramUrl: 'https://instagram.com/edwardalderson.market',
     linkedinUrl: '',
-    profileRating: 4.6,
-    profileTotalRating: 16,
+    ufVerified: false,
+    profileRating: 3.1,
+    profileTotalRating: 11,
     trustMetrics: {
-      reliability: 90,
-      accuracy: 89,
-      responsiveness: 94,
-      safety: 91,
+      reliability: 58,
+      accuracy: 54,
+      responsiveness: 61,
+      safety: 49,
     },
   },
   {
@@ -180,18 +577,19 @@ const COMMUNITY_PROFILES = [
     key: 'mateo',
     profileID: 'demo_mateo_ruiz',
     profileName: 'Phillip Price',
-    profilePicture: 'https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.phillipPrice,
     profileBanner: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Selling a few sharp accessories and expensive-looking essentials. Prefers direct offers, punctual buyers, and no wasted sentences.',
+    profileBio: 'Moves items fast, rarely documents every flaw, and has very little patience for indecisive buyers. If you want reassurance, he is probably not your seller.',
     instagramUrl: '',
     linkedinUrl: 'https://linkedin.com/in/phillipprice-demo',
-    profileRating: 4.9,
-    profileTotalRating: 27,
+    ufVerified: false,
+    profileRating: 3.2,
+    profileTotalRating: 12,
     trustMetrics: {
-      reliability: 97,
-      accuracy: 96,
-      responsiveness: 92,
-      safety: 95,
+      reliability: 60,
+      accuracy: 48,
+      responsiveness: 57,
+      safety: 58,
     },
   },
   {
@@ -216,18 +614,19 @@ const COMMUNITY_PROFILES = [
     key: 'cameron',
     profileID: 'demo_cameron_wells',
     profileName: 'Darlene Alderson',
-    profilePicture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.darleneAlderson,
     profileBanner: 'https://images.unsplash.com/photo-1497366412874-3415097a27e7?auto=format&fit=crop&w=1400&q=80',
-    profileBio: 'Usually flipping desk gear, cables, and strange tech leftovers. Fast replies, low patience, zero tolerance for flaky meetups.',
+    profileBio: 'Flips leftover tech and desk gear in bursts, hates detailed questions, and assumes people can figure out missing pieces on their own. Replies fast until she vanishes for half a day.',
     instagramUrl: '',
     linkedinUrl: 'https://linkedin.com/in/cameronwells-uf',
-    profileRating: 4.6,
-    profileTotalRating: 13,
+    ufVerified: false,
+    profileRating: 2.9,
+    profileTotalRating: 9,
     trustMetrics: {
-      reliability: 89,
-      accuracy: 90,
-      responsiveness: 94,
-      safety: 92,
+      reliability: 52,
+      accuracy: 46,
+      responsiveness: 64,
+      safety: 51,
     },
   },
   {
@@ -850,7 +1249,7 @@ function buildSeedDataset(config) {
     profileBio: THEMED_PROFILE_KEYS.has(profile.key)
       ? profile.profileBio
       : addFiller(profile.profileBio, BIO_VARIANTS),
-    ufVerified: true,
+    ufVerified: profile.ufVerified !== undefined ? Boolean(profile.ufVerified) : true,
     seedTag: profileIdentityOverrides[profile.key] ? null : config.seedTag,
   }));
 
@@ -871,7 +1270,7 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       originalPickupHubId: 'library-west',
       pickupHubId: 'reitz',
-      itemPicture: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.deskLamp,
       itemDescription: 'A bright desk lamp that makes late-night study sessions easier without taking much desk space.',
       itemDetails: 'Warm bulb included and the neck still pivots smoothly. Listed with a Library West default, but the accepted meetup moved after negotiation.',
       itemCat: 'Home & Garden',
@@ -886,12 +1285,72 @@ function buildSeedDataset(config) {
       itemCost: '70',
       itemCondition: 'Fair',
       pickupHubId: 'hume-hall',
-      itemPicture: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.miniFridgeCore,
       itemDescription: 'Compact dorm mini fridge that still cools quickly and fits under a lofted bed.',
       itemDetails: 'Some cosmetic wear on the door, but it runs reliably. Pickup usually works best near Hume Hall in the evening.',
       itemCat: 'Home & Garden',
       status: 'active',
       date: subtractHours(now, 22),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'mini-fridge-black',
+      ownerKey: 'leo',
+      itemName: 'Black Mini Fridge',
+      itemCost: '62',
+      itemCondition: 'Good',
+      pickupHubId: 'marston',
+      itemPicture: SEED_LISTING_IMAGES.miniFridgeBlack,
+      itemDescription: 'Compact black mini fridge with a clean door seal and enough room for drinks, leftovers, and the usual exam-week survival kit.',
+      itemDetails: 'Cools quickly, fits under a dorm desk, and already has one buyer asking about a pickup after class tomorrow.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 18),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'mini-fridge-retro',
+      ownerKey: 'sofia',
+      itemName: 'Retro Mini Fridge',
+      itemCost: '85',
+      itemCondition: 'Good',
+      pickupHubId: 'reitz',
+      itemPicture: SEED_LISTING_IMAGES.miniFridgeRetro,
+      itemDescription: 'Retro-style mini fridge that still feels dorm-practical and keeps drinks cold without hogging much floor space.',
+      itemDetails: 'Works reliably, has light cosmetic wear on the side panel, and could be picked up near Reitz after studio tomorrow.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 14),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'mini-fridge-dorm-white',
+      ownerKey: 'nina',
+      itemName: 'Dorm Mini Fridge',
+      itemCost: '54',
+      itemCondition: 'Fair',
+      pickupHubId: 'broward',
+      itemPicture: SEED_LISTING_IMAGES.miniFridgeDormWhite,
+      itemDescription: 'Basic white dorm fridge that still cools well and would be easy to move out of a dorm room in one trip.',
+      itemDetails: 'Older than the others and has a few scuffs, but it is still working and priced for a fast campus pickup.',
+      itemCat: 'Home & Garden',
+      status: 'active',
+      date: subtractHours(now, 11),
+      seedTag: config.seedTag,
+    },
+    {
+      key: 'mini-fridge-freezer',
+      ownerKey: 'mateo',
+      itemName: 'Mini Fridge with Freezer',
+      itemCost: '78',
+      itemCondition: 'Fair',
+      pickupHubId: 'marston',
+      itemPicture: SEED_LISTING_IMAGES.miniFridgeSteel,
+      itemDescription: 'Mini fridge with a freezer shelf that still gets cold, though the door seal sticks and the freezer frosts if you pack it too full.',
+      itemDetails: 'Currently reserved for a campus meetup near Marston. There is a dent on one side and I am not dragging it back upstairs for a long inspection once it is outside.',
+      itemCat: 'Home & Garden',
+      status: 'reserved',
+      date: subtractHours(now, 6),
       seedTag: config.seedTag,
     },
     {
@@ -916,7 +1375,7 @@ function buildSeedDataset(config) {
       itemCost: '120',
       itemCondition: 'Good',
       pickupHubId: 'keys-residential-complex',
-      itemPicture: 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.campusScooter,
       itemDescription: 'Foldable electric scooter that is easy to stash in an apartment or carry into class.',
       itemDetails: 'Battery lasts about a week of short campus trips and the charger is included.',
       itemCat: 'Vehicles',
@@ -989,11 +1448,11 @@ function buildSeedDataset(config) {
       ownerKey: 'noah',
       itemName: 'Black Zip Hoodie',
       itemCost: '42',
-      itemCondition: 'Good',
+      itemCondition: 'Fair',
       pickupHubId: 'plaza-americas',
-      itemPicture: 'https://images.unsplash.com/photo-1543076447-215ad9ba6923?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Soft black hoodie that looks lived-in without looking trashed.',
-      itemDetails: 'No stains, no giant logo, and the zipper still runs clean. It does what a hoodie is supposed to do and then gets out of the way.',
+      itemPicture: SEED_LISTING_IMAGES.blackHoodie,
+      itemDescription: 'Black hoodie from a smoke-free-ish apartment that is broken in, a little faded, and still wearable.',
+      itemDetails: 'One cuff is stretched and the zipper catches near the bottom if you rush it. Sold as-is, no holds, and pickup only after I message that I am actually nearby.',
       itemCat: 'Apparel & Accessories',
       status: 'active',
       date: subtractHours(now, 20),
@@ -1004,11 +1463,11 @@ function buildSeedDataset(config) {
       ownerKey: 'noah',
       itemName: 'Analog Synth Keyboard',
       itemCost: '95',
-      itemCondition: 'Good',
+      itemCondition: 'Fair',
       pickupHubId: 'broward',
-      itemPicture: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Compact synth keyboard with a darker sound bank, a working adapter, and enough character to justify the desk space.',
-      itemDetails: 'A little worn around the edges, but every key works and it still sounds great through headphones. Good for late-night loops and bad ideas.',
+      itemPicture: SEED_LISTING_IMAGES.analogSynth,
+      itemDescription: 'Compact analog-style synth that powers on and makes sound, though one knob crackles and the setup is a little temperamental.',
+      itemDetails: 'Third-party power adapter included. A couple inputs are touchy, and I am not building a full demo session for everybody who wants to noodle with it for twenty minutes.',
       itemCat: 'Entertainment & Hobbies',
       status: 'active',
       date: subtractHours(now, 24),
@@ -1021,7 +1480,7 @@ function buildSeedDataset(config) {
       itemCost: '18',
       itemCondition: 'Like New',
       pickupHubId: 'honors-village',
-      itemPicture: 'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.strollerCaddy,
       itemDescription: 'Keeps bottles, snacks, and keys easy to reach on stroller walks around campus.',
       itemDetails: 'Only used a few weekends and the insulated cup holders are still spotless.',
       itemCat: 'Family',
@@ -1051,9 +1510,9 @@ function buildSeedDataset(config) {
       itemCost: '55',
       itemCondition: 'Fair',
       pickupHubId: 'marston',
-      itemPicture: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'A curated set of strategy case studies, annotated notes, and leadership reading for someone who prefers leverage over busywork.',
-      itemDetails: 'Some pages are highlighted, naturally. The useful parts usually are. The set is organized, complete, and priced below what it should be.',
+      itemPicture: SEED_LISTING_IMAGES.businessCaseStudy,
+      itemDescription: 'Strategy cases, annotated notes, and loose printouts from a semester that was more useful than tidy.',
+      itemDetails: 'Several pages are heavily marked, a couple packets are out of order, and I am not resorting the whole stack for anyone who expects pristine copies.',
       itemCat: 'Miscellaneous',
       status: 'active',
       date: subtractHours(now, 15),
@@ -1064,11 +1523,11 @@ function buildSeedDataset(config) {
       ownerKey: 'mateo',
       itemName: 'Leather Briefcase',
       itemCost: '34',
-      itemCondition: 'Good',
+      itemCondition: 'Fair',
       pickupHubId: 'turlington-hall',
-      itemPicture: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Structured leather briefcase with room for a laptop, notebook, charger, and a carefully managed impression.',
-      itemDetails: 'Professional enough for interviews, clean inside, and only lightly worn at the corners. It looks like it belongs in a better office than Gainesville.',
+      itemPicture: SEED_LISTING_IMAGES.leatherBriefcase,
+      itemDescription: 'Structured leather briefcase with room for a laptop and a better first impression than the average backpack.',
+      itemDetails: 'Corners are worn, the lining has a small tear, and I am not doing returns because somebody expected new leather at thrift pricing.',
       itemCat: 'Apparel & Accessories',
       status: 'active',
       date: subtractHours(now, 30),
@@ -1082,7 +1541,7 @@ function buildSeedDataset(config) {
       itemCondition: 'Good',
       originalPickupHubId: 'marston',
       pickupHubId: 'marston',
-      itemPicture: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.airPurifier,
       itemDescription: 'Quiet bedside air purifier that still has a fresh replacement filter and works well in a dorm bedroom.',
       itemDetails: 'Reserved for a same-day meetup near Marston after the buyer asked for a faster pickup tonight.',
       itemCat: 'Home & Garden',
@@ -1097,7 +1556,7 @@ function buildSeedDataset(config) {
       itemCost: '24',
       itemCondition: 'Good',
       pickupHubId: 'reitz',
-      itemPicture: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.rollingCart,
       itemDescription: 'Slim rolling cart that works well beside a desk, printer station, or apartment bathroom.',
       itemDetails: 'Still available and already drew interest from the same buyer who reserved the air purifier.',
       itemCat: 'Home & Garden',
@@ -1112,7 +1571,7 @@ function buildSeedDataset(config) {
       itemCost: '58',
       itemCondition: 'Good',
       pickupHubId: 'marston',
-      itemPicture: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.graphingCalculator,
       itemDescription: 'Reliable calculator with a fresh set of batteries and a clean screen cover.',
       itemDetails: 'Reserved after Angela confirmed she could meet near Marston between classes tomorrow.',
       itemCat: 'Electronics & Computers',
@@ -1127,7 +1586,7 @@ function buildSeedDataset(config) {
       itemCost: '115',
       itemCondition: 'Good',
       pickupHubId: 'marston',
-      itemPicture: 'https://images.unsplash.com/photo-1527443154391-507e9dc6c5cc?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.gamingMonitor,
       itemDescription: '1080p monitor with an adjustable stand and HDMI cable included.',
       itemDetails: 'The handoff already happened, but it remains in the demo as a problem-reported transaction example.',
       itemCat: 'Electronics & Computers',
@@ -1142,7 +1601,7 @@ function buildSeedDataset(config) {
       itemCost: '48',
       itemCondition: 'Good',
       pickupHubId: 'reitz',
-      itemPicture: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.kitchenCart,
       itemDescription: 'A small rolling kitchen cart with two shelves and locking wheels.',
       itemDetails: 'Still active, with an interested buyer already chatting in the same thread as the completed monitor sale.',
       itemCat: 'Home & Garden',
@@ -1155,11 +1614,11 @@ function buildSeedDataset(config) {
       ownerKey: 'cameron',
       itemName: 'Raspberry Pi Cable Kit',
       itemCost: '19',
-      itemCondition: 'Good',
+      itemCondition: 'Fair',
       pickupHubId: 'turlington-hall',
-      itemPicture: 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Raspberry Pi starter bundle with a case, spare cables, and the adapters people always lose first.',
-      itemDetails: 'Active listing with no accepted buyer yet, but a couple of shoppers already bookmarked it. Everything is tested, because of course it is.',
+      itemPicture: SEED_LISTING_IMAGES.cableKit,
+      itemDescription: 'Raspberry Pi starter bundle with assorted cables, adapters, and project leftovers pulled from a few old bins.',
+      itemDetails: 'I did not inventory every adapter and a couple pieces are generic substitutes. What is in the photo is what you get, sold as-is.',
       itemCat: 'Electronics & Computers',
       status: 'active',
       date: subtractHours(now, 16),
@@ -1170,11 +1629,11 @@ function buildSeedDataset(config) {
       ownerKey: 'cameron',
       itemName: 'Dual Monitor Riser',
       itemCost: '20',
-      itemCondition: 'Like New',
+      itemCondition: 'Fair',
       pickupHubId: 'reitz',
-      itemPicture: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
-      itemDescription: 'Low-profile riser that clears desk clutter and plays nicely with a two-screen setup, external drives, and too many sticky notes.',
-      itemDetails: 'Still active, with one fresh offer waiting for a reply and no damage around the feet. Looks boring, works perfectly.',
+      itemPicture: SEED_LISTING_IMAGES.monitorStand,
+      itemDescription: 'Low-profile riser that clears desk clutter, though it has scuffs and one foot pad went missing somewhere along the way.',
+      itemDetails: 'Still works, still sturdy enough, and I am not meeting twice because someone forgot to measure their desk before showing up.',
       itemCat: 'Home & Garden',
       status: 'active',
       date: subtractHours(now, 13),
@@ -1187,7 +1646,7 @@ function buildSeedDataset(config) {
       itemCost: '38',
       itemCondition: 'Good',
       pickupHubId: 'turlington-hall',
-      itemPicture: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.labStool,
       itemDescription: 'Tall adjustable stool that works well at a drafting desk or standing-height table.',
       itemDetails: 'Still available after Nina and Scott talked through pickup options in the same thread as a past mirror sale.',
       itemCat: 'Home & Garden',
@@ -1202,7 +1661,7 @@ function buildSeedDataset(config) {
       itemCost: '44',
       itemCondition: 'Good',
       pickupHubId: 'turlington-hall',
-      itemPicture: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
+      itemPicture: SEED_LISTING_IMAGES.vanityMirror,
       itemDescription: 'Framed mirror with built-in lights that still packs easily for apartment move-out.',
       itemDetails: 'Recently sold in a smooth handoff and left in the seed as another completed transaction example.',
       itemCat: 'Home & Garden',
@@ -1339,7 +1798,7 @@ function buildSeedDataset(config) {
           attachedListingKey: 'mini-fridge',
           offerKey: 'offer-mini-fridge-noah',
           offerEventType: 'sent',
-          body: 'Mr. Robot sent an offer.',
+          body: 'Edward Alderson sent an offer.',
           createdAt: subtractHours(now, 14),
         },
         {
@@ -1351,7 +1810,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'noah',
           attachedListingKey: 'mini-fridge',
-          body: 'Good. I will bring cash, keep it quick, and message when I am moving. No reason to turn a fridge pickup into a committee meeting.',
+          body: 'Fine. I will bring cash, but I cannot promise an exact minute until I am already moving. If I am a little behind, I will ping you when I am close.',
           createdAt: subtractHours(now, 13.4),
         },
         {
@@ -1457,7 +1916,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'mateo',
           attachedListingKey: 'textbook-bundle',
-          body: 'Yes, it is still available. I can hold it briefly, but only briefly. Indecision is expensive.',
+          body: 'Yes, it is still available for the moment. I do not hold things for tentative buyers, especially when the stack is already packed.',
           createdAt: subtractHours(now, 28.1),
         },
         {
@@ -1471,7 +1930,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'mateo',
           attachedListingKey: 'backpack',
-          body: 'Tomorrow works, but another buyer is ahead of you. If that changes, I will let you know directly. I do not enjoy bidding wars conducted through hesitation.',
+          body: 'Tomorrow works if you bring exact cash and arrive on time. Another buyer is already ahead of you, so if they confirm first this is finished.',
           createdAt: subtractHours(now, 26.4),
         },
         {
@@ -1569,7 +2028,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'cameron',
           attachedListingKey: 'air-purifier',
-          body: 'I can meet after class if the purifier is still available. Fast handoff, no drama, no mystery delays.',
+          body: 'I can probably meet after class if the purifier is still available. Keep it quick and do not disappear on me if I am a few minutes off.',
           createdAt: subtractHours(now, 6.2),
         },
         {
@@ -1811,6 +2270,116 @@ function buildSeedDataset(config) {
       lastReadHoursAgoByParticipant: {
         presenter: 6.7,
         priya: 6.9,
+      },
+    },
+    {
+      key: 'conv-mini-fridge-black-priya',
+      activeListingKey: 'mini-fridge-black',
+      participantKeys: ['leo', 'priya'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge-black',
+          offerKey: 'offer-mini-fridge-black-priya',
+          offerEventType: 'sent',
+          body: 'Priya sent an offer.',
+          createdAt: subtractHours(now, 8.4),
+        },
+        {
+          senderKey: 'leo',
+          attachedListingKey: 'mini-fridge-black',
+          body: 'That timing works if you can meet near Marston after lunch. It is already unplugged and ready to move.',
+          createdAt: subtractHours(now, 8.0),
+        },
+        {
+          senderKey: 'priya',
+          attachedListingKey: 'mini-fridge-black',
+          body: 'Perfect. I can bring help carrying it if needed and would rather keep the pickup quick.',
+          createdAt: subtractHours(now, 7.7),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        leo: 7.8,
+        priya: 7.7,
+      },
+    },
+    {
+      key: 'conv-mini-fridge-retro-cameron',
+      activeListingKey: 'mini-fridge-retro',
+      linkedListingKeys: ['kitchen-cart', 'mini-fridge-retro'],
+      participantKeys: ['sofia', 'cameron'],
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge-retro',
+          offerKey: 'offer-mini-fridge-retro-cameron',
+          offerEventType: 'sent',
+          body: 'Darlene Alderson sent an offer.',
+          createdAt: subtractHours(now, 5.9),
+        },
+        {
+          senderKey: 'sofia',
+          attachedListingKey: 'mini-fridge-retro',
+          body: 'I can meet near Reitz tomorrow after studio if that still works for you. The fridge is clean and cools without any issues.',
+          createdAt: subtractHours(now, 5.5),
+        },
+        {
+          senderKey: 'cameron',
+          attachedListingKey: 'kitchen-cart',
+          body: 'That works if you are actually on time. The cart in your other listing is tempting too, but I am not making two trips for one seller this week.',
+          createdAt: subtractHours(now, 5.1),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        sofia: 5.2,
+        cameron: 5.1,
+      },
+    },
+    {
+      key: 'conv-mini-fridge-freezer-ethan',
+      activeListingKey: 'mini-fridge-freezer',
+      participantKeys: ['mateo', 'ethan'],
+      activePickupHubId: 'marston',
+      activePickupSpecifics: 'North entrance by the bus loop benches.',
+      messages: [
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge-freezer',
+          offerKey: 'offer-mini-fridge-freezer-ethan',
+          offerEventType: 'sent',
+          body: 'Ethan sent an offer.',
+          createdAt: subtractHours(now, 4.4),
+        },
+        {
+          senderKey: 'mateo',
+          attachedListingKey: 'mini-fridge-freezer',
+          body: 'That price is fine. The freezer frosts a little if you overload it, but it works. Bring exact cash and keep the pickup window exact.',
+          createdAt: subtractHours(now, 4.1),
+        },
+        {
+          senderKey: 'ethan',
+          attachedListingKey: 'mini-fridge-freezer',
+          body: 'Confirmed. I can be there on time and can bring a friend to help carry it if needed.',
+          createdAt: subtractHours(now, 3.8),
+        },
+        {
+          senderKey: 'system',
+          attachedListingKey: 'mini-fridge-freezer',
+          offerKey: 'offer-mini-fridge-freezer-ethan',
+          offerEventType: 'accepted',
+          body: 'Phillip Price accepted your offer.',
+          createdAt: subtractHours(now, 3.5),
+        },
+        {
+          senderKey: 'ethan',
+          attachedListingKey: 'mini-fridge-freezer',
+          body: 'Great. I will message once I am walking over from Marston so the timing stays tight.',
+          createdAt: subtractHours(now, 3.2),
+        },
+      ],
+      lastReadHoursAgoByParticipant: {
+        mateo: 3.3,
+        ethan: 3.2,
       },
     },
     {
@@ -2085,7 +2654,7 @@ function buildSeedDataset(config) {
         {
           senderKey: 'cameron',
           attachedListingKey: 'monitor-stand',
-          body: 'That seems reasonable. I am finishing up class now and can answer later tonight if nobody starts acting weird or sending me five follow-ups in a row.',
+          body: 'That seems reasonable. One foot pad is missing, but it still sits level enough. I am finishing class now and will answer later if nobody blows up my phone first.',
           createdAt: subtractHours(now, 6.4),
         },
         {
@@ -2152,7 +2721,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'library-west',
       ...schedule(-1, '17:00'),
       paymentMethod: 'cash',
-      message: 'If the earlier buyers fall through, I can pick up the lamp fast and keep the exchange simple.',
+      message: 'If the earlier buyers fall through, I can grab the lamp late and message when I am actually close. I do not lock in exact minutes until I am moving.',
       status: 'declined',
       createdAt: subtractHours(now, 32.2),
     },
@@ -2165,7 +2734,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'hume-hall',
       ...schedule(0, '18:00'),
       paymentMethod: 'cash',
-      message: 'I will pay asking if the pickup happens tonight. No need to dress up a fridge handoff like it is a diplomatic summit.',
+      message: 'I will pay asking if the pickup happens tonight, but I cannot promise an exact minute until I am already on the way.',
       status: 'pending',
       createdAt: subtractHours(now, 14),
     },
@@ -2298,7 +2867,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'marston',
       ...schedule(0, '17:45'),
       paymentMethod: 'cash',
-      message: 'I can come by tonight and keep the handoff short. In and out. No need to make this weird.',
+      message: 'I can come by tonight if you are actually there. Quick handoff only, and I will message when I am moving.',
       status: 'accepted',
       acceptedPickupSpecifics: 'North entrance under the shade trees.',
       createdAt: subtractHours(now, 6.5),
@@ -2312,7 +2881,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'reitz',
       ...schedule(1, '13:30'),
       paymentMethod: 'externalApp',
-      message: 'If the purifier pickup goes well, I would also take the cart tomorrow.',
+      message: 'If the purifier pickup actually happens and you still have the cart tomorrow, I might take that too. No holds.',
       status: 'pending',
       createdAt: subtractHours(now, 4.7),
     },
@@ -2351,7 +2920,7 @@ function buildSeedDataset(config) {
       meetupHubId: 'hume-hall',
       ...schedule(1, '16:15'),
       paymentMethod: 'externalApp',
-      message: 'Sending a lower first pass in case you want it moved fast.',
+      message: 'Sending a lower first pass because I am not paying full price unless I can see it first and I am not waiting around all afternoon.',
       status: 'declined',
       createdAt: subtractHours(now, 10.4),
     },
@@ -2380,6 +2949,46 @@ function buildSeedDataset(config) {
       message: 'If your current buyer falls through, I can pick this up tomorrow and keep the handoff easy.',
       status: 'pending',
       createdAt: subtractHours(now, 7.3),
+    },
+    {
+      key: 'offer-mini-fridge-black-priya',
+      listingKey: 'mini-fridge-black',
+      buyerKey: 'priya',
+      conversationKey: 'conv-mini-fridge-black-priya',
+      offeredPrice: 60,
+      meetupHubId: 'marston',
+      ...schedule(1, '12:30'),
+      paymentMethod: 'cash',
+      message: 'I can meet between classes tomorrow if you want this moved quickly.',
+      status: 'pending',
+      createdAt: subtractHours(now, 8.4),
+    },
+    {
+      key: 'offer-mini-fridge-retro-cameron',
+      listingKey: 'mini-fridge-retro',
+      buyerKey: 'cameron',
+      conversationKey: 'conv-mini-fridge-retro-cameron',
+      offeredPrice: 79,
+      meetupHubId: 'reitz',
+      ...schedule(1, '15:45'),
+      paymentMethod: 'externalApp',
+      message: 'I can meet after studio traffic dies down if it still exists by then. If I am delayed, I will ping you when I am close.',
+      status: 'pending',
+      createdAt: subtractHours(now, 5.9),
+    },
+    {
+      key: 'offer-mini-fridge-freezer-ethan',
+      listingKey: 'mini-fridge-freezer',
+      buyerKey: 'ethan',
+      conversationKey: 'conv-mini-fridge-freezer-ethan',
+      offeredPrice: 78,
+      meetupHubId: 'marston',
+      ...schedule(1, '13:15'),
+      paymentMethod: 'cash',
+      message: 'I can pay asking and meet near Marston tomorrow if we lock the timing in now.',
+      status: 'accepted',
+      acceptedPickupSpecifics: 'North entrance by the bus loop benches.',
+      createdAt: subtractHours(now, 4.4),
     },
     {
       key: 'offer-rolling-cart-sofia',
