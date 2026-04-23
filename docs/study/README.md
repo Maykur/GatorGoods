@@ -52,10 +52,22 @@ For all tasks, participants should assume they are UF students living on or very
 ### GatorGoods
 
 1. Start the frontend and backend.
-2. Run `SEED_FULL_RESET=true npm run seed:demo`.
-3. Sign in to GatorGoods using the prepared presenter/study account.
-4. Confirm the seed still shows the expected listings, offers, and messages.
-5. Search `mini fridge` and confirm 5 results appear.
+2. Decide whether the session will use a shared prepared study account or the moderator's own Clerk account.
+3. If using a shared prepared study account, run `SEED_FULL_RESET=true npm run seed:demo`.
+4. If using your own Clerk account, reseed with one of these commands before signing in:
+   - `SEED_FULL_RESET=true DEMO_USER_EMAIL=you@ufl.edu npm run seed:demo`
+   - `SEED_FULL_RESET=true DEMO_USER_ID=your_clerk_user_id npm run seed:demo`
+5. If you use the `DEMO_USER_EMAIL` version, make sure `CLERK_SECRET_KEY` is already set in `backend/.env` so the seed can attach the presenter profile to your real account without putting the secret in the command itself.
+6. Sign in to GatorGoods using the same account you linked during seeding.
+7. Confirm the seed still shows the expected listings, offers, and messages.
+8. Search `mini fridge` and confirm 5 results appear.
+
+Important:
+
+- plain `SEED_FULL_RESET=true npm run seed:demo` is only enough when you plan to use an already prepared shared study account
+- if you want the seeded presenter listings, offers, messages, and seller tools to appear under your own login, you must include `DEMO_USER_EMAIL` or `DEMO_USER_ID` when you seed
+- if you seed first and only sign in later with an unlinked personal account, the study data will not move onto your account automatically
+- the repo `README.md` has the full list of seed options if you need a more customized setup
 
 The current implementation already supports:
 

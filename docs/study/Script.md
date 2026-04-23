@@ -21,6 +21,14 @@ For this session, please assume you are a UF student living on or very near camp
 3. Assign Order A or Order B.
 4. Open the correct platform and scenario for the first condition.
 
+## Setup Note For Moderators
+
+Before the participant starts, make sure GatorGoods is signed into the correct study account.
+
+- if using a shared prepared study account, a normal `SEED_FULL_RESET=true npm run seed:demo` is enough
+- if using your own Clerk account, you should have seeded with `DEMO_USER_EMAIL` or `DEMO_USER_ID` before signing in so the presenter data is attached to your real account
+- if you used `DEMO_USER_EMAIL`, keep `CLERK_SECRET_KEY` in `backend/.env` rather than putting the secret directly into a shared study command
+
 ## Important Moderator Rules
 
 - stay neutral

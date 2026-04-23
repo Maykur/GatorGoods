@@ -8,8 +8,11 @@ If anything here conflicts with the longer script, follow the longer script.
 
 - GatorGoods frontend is running
 - GatorGoods backend is running
-- `SEED_FULL_RESET=true npm run seed:demo` has been run
-- study/presenter account is signed in on GatorGoods
+- the moderator knows whether this session uses a shared prepared study account or the moderator's own Clerk account
+- if using a shared prepared study account, `SEED_FULL_RESET=true npm run seed:demo` has been run
+- if using the moderator's own account, `SEED_FULL_RESET=true DEMO_USER_EMAIL=you@ufl.edu npm run seed:demo` or `SEED_FULL_RESET=true DEMO_USER_ID=your_clerk_user_id npm run seed:demo` has been run before sign-in
+- if using `DEMO_USER_EMAIL`, `CLERK_SECRET_KEY` is already set in `backend/.env`
+- the linked study/presenter account is signed in on GatorGoods
 - searching `mini fridge` on GatorGoods shows 5 results
 - Facebook Marketplace tab is open
 - study desk lamp image is ready for the seller task
