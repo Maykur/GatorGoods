@@ -12,7 +12,7 @@ If anything here conflicts with the longer script, follow the longer script.
 - study/presenter account is signed in on GatorGoods
 - searching `mini fridge` on GatorGoods shows 5 results
 - Facebook Marketplace tab is open
-- seller item photo and item details are ready
+- study desk lamp image is ready for the seller task
 - Surveys 1, 2, and 3 are ready
 - participant ID is assigned
 - Order A or Order B is assigned

@@ -25,7 +25,7 @@ Complete these tasks in both buyer conditions.
 
 For the buyer tasks, assume you want to buy a `mini fridge` that makes sense for a UF student living on or near campus.
 
-### Task B1: Inspect The Assigned Listing
+### Task B1: Inspect A Mini Fridge Listing
 
 Find one `mini fridge` listing you would seriously consider buying, then open it and look through the available photos, price, item details, and location information.
 
@@ -57,9 +57,19 @@ Decide whether you would continue with this mini-fridge purchase on this platfor
 
 Complete these tasks in both seller conditions.
 
+For the seller tasks, assume you are listing the same study item on both platforms: a `desk lamp`.
+
+Use the provided study image of the desk lamp.
+
+Assume the lamp is `used but in good working condition`.
+
+You may choose your own title, description, and other listing details.
+
+Choose a reasonable price for a student marketplace.
+
 ### Task S1: Start A Listing
 
-Use the provided item photo and item details to go through the seller-side listing flow for the assigned platform.
+Use the provided study image of the desk lamp to go through the seller-side listing flow for the assigned platform.
 
 Enter enough information that another student could understand what is being sold.
 
@@ -85,7 +95,7 @@ Decide whether you would feel comfortable using this platform to sell this item 
 
 A buyer condition is complete when the participant has:
 
-- inspected the assigned listing
+- inspected a mini-fridge listing they would seriously consider
 - made a trust judgment
 - reached the first meaningful action point
 - commented on exchange coordination

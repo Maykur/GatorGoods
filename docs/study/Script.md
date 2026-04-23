@@ -67,7 +67,7 @@ After both buyer conditions are complete, give Survey 2.
 
 Before each seller condition, say:
 
-"You are now doing a selling task on this platform. Please work through the task list and keep thinking aloud."
+"You are now doing a selling task on this platform. In this part, assume you are listing the same study item on both platforms: a desk lamp that is used but in good working condition. Please work through the task list and keep thinking aloud."
 
 Start timing when they begin the first seller task.
 
@@ -88,7 +88,7 @@ After both seller conditions are complete, give Survey 3.
 - participants should inspect the real buyer flow
 - for the buyer task, let the participant search for a mini fridge and choose one they would seriously consider
 - participants should not be required to send a real message to a stranger
-- for seller flow, they only need to go far enough to understand what the platform asks them to do
+- for seller flow, they should use the same study desk lamp image as in GatorGoods and only go far enough to understand what the platform asks them to do
 - if the moderator is not comfortable publishing a listing, stop before the final publish step
 
 ## Transition Between Conditions

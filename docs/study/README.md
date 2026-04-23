@@ -129,8 +129,16 @@ Use the signed-in presenter account.
 
 Have the participant:
 
-- create one listing for the provided study item
+- create one listing for the fixed study seller item: a `desk lamp`
 - inspect the seller-side tools already populated by the seed
+
+Use one provided study image of the desk lamp for every participant.
+
+To keep the seller task comparable across participants:
+
+- the item should be treated as `used but in good working condition`
+- participants may choose their own title, description, and other listing details
+- participants should choose a reasonable student-marketplace price, ideally around `$20` to `$35`
 
 For seller-side review, use the seeded presenter data that already contains inbound offers and existing conversations.
 
@@ -140,7 +148,9 @@ Use the real Facebook Marketplace seller-side listing flow.
 
 To keep the study easy to run:
 
+- use the same `desk lamp` study item and image as in the GatorGoods seller condition
 - participants should go through the seller flow far enough to understand what information the platform asks for
+- participants may choose their own title, description, and other listing details
 - they do not need to publish if the moderator does not want to post a real listing
 
 ## What The Moderator Should Record Outside The Surveys
@@ -173,7 +183,7 @@ The study is ready to run if:
 
 - GatorGoods is seeded and signed in
 - Facebook Marketplace is open
-- the moderator has selected a Facebook buyer listing for the session
+- the moderator is ready to let the participant search for and choose a Facebook buyer listing
 - the moderator knows whether the Facebook seller condition will stop before publish or use a real team-owned account
 - the moderator has assigned Order A or Order B
 - the moderator has the surveys ready
