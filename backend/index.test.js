@@ -726,10 +726,10 @@ test('POST /api/conversations/:id/messages stores attached item snapshots and up
   assert.equal(response.status, 201);
   assert.equal(response.body.attachedListingId.toString(), secondItem.id);
   assert.equal(response.body.attachedListingTitle, secondItem.itemName);
-  assert.equal(response.body.attachedListingImageUrl, secondItem.itemPicture);
+  assert.equal(response.body.attachedListingImageUrl, undefined);
   assert.equal(response.body.attachedItem.listingId.toString(), secondItem.id);
   assert.equal(response.body.attachedItem.title, secondItem.itemName);
-  assert.equal(response.body.attachedItem.imageUrl, secondItem.itemPicture);
+  assert.equal(response.body.attachedItem.imageUrl, `/items/${secondItem.id}/image`);
   assert.equal(response.body.attachedItem.state, 'active');
   assert.equal(response.body.attachedItem.relationshipRole, 'buying');
 

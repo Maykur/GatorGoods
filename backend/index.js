@@ -852,6 +852,22 @@ function buildItemImageUrl(itemId) {
   return `/items/${normalizedItemId}/image`;
 }
 
+function isInlineImageDataUrl(value) {
+  return normalizeOptionalString(value).startsWith('data:image/');
+}
+
+function buildListingImageApiUrl(liveListing, fallbackImageUrl = '') {
+  const liveListingId = toIdString(liveListing?._id || liveListing?.id);
+
+  if (liveListingId) {
+    return buildItemImageUrl(liveListingId);
+  }
+
+  const normalizedFallback = normalizeOptionalString(fallbackImageUrl);
+
+  return isInlineImageDataUrl(normalizedFallback) ? '' : normalizedFallback;
+}
+
 function getMediaVersion(value) {
   const normalizedValue = normalizeOptionalString(value);
 
@@ -2263,7 +2279,7 @@ function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false
   return {
     listingId,
     title: liveListing?.itemName || linkedItem.title || '',
-    imageUrl: liveListing?.itemPicture || linkedItem.imageUrl || '',
+    imageUrl: buildListingImageApiUrl(liveListing, linkedItem.imageUrl || ''),
     firstLinkedAt: linkedItem.firstLinkedAt || null,
     lastContextAt: linkedItem.lastContextAt || null,
     firstContextMessageId: linkedItem.firstContextMessageId || null,
@@ -2303,7 +2319,10 @@ function buildMessageAttachedItemSummary(
   return {
     listingId,
     title: liveListing?.itemName || message?.attachedListingTitle || linkedItem.title || '',
-    imageUrl: liveListing?.itemPicture || message?.attachedListingImageUrl || linkedItem.imageUrl || '',
+    imageUrl: buildListingImageApiUrl(
+      liveListing,
+      message?.attachedListingImageUrl || linkedItem.imageUrl || ''
+    ),
     lastKnownStatus: liveListing?.status || linkedItem.lastKnownStatus || 'deleted',
     state: deriveLinkedItemState({
       listing: liveListing,
@@ -2467,6 +2486,7 @@ async function serializeMessages(messages = [], conversation, options = {}) {
 
     return {
       ...messageObject,
+      attachedListingImageUrl: undefined,
       attachedItem: buildMessageAttachedItemSummary(messageObject, stateMaps, linkedItemsById, options),
       offerContext: buildOfferApiSummary(messageObject.offerSnapshot, {
         includeEventTitle: true,
