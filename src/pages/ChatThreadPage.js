@@ -19,6 +19,28 @@ function normalizeId(value) {
   return typeof value === 'string' ? value : value.toString();
 }
 
+function normalizeMediaUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return '';
+  }
+
+  const normalizedValue = value.trim();
+
+  if (
+    normalizedValue.startsWith('http://') ||
+    normalizedValue.startsWith('https://') ||
+    normalizedValue.startsWith('data:')
+  ) {
+    return normalizedValue;
+  }
+
+  if (normalizedValue.startsWith('/')) {
+    return `${API_BASE_URL}${normalizedValue}`;
+  }
+
+  return normalizedValue;
+}
+
 function ThreadSkeleton() {
   return (
     <section className="w-full space-y-6">
@@ -636,7 +658,9 @@ export function ChatThreadPage() {
             otherParticipantProfile = {
               id: otherId,
               name: profileData?.profile?.profileName || otherId,
-              avatarUrl: profileData?.profile?.profilePicture || '',
+              avatarUrl: normalizeMediaUrl(
+                profileData?.profile?.profilePictureUrl || profileData?.profile?.profilePicture
+              ),
               loaded: Boolean(profileData?.profile),
             };
             otherParticipantProfileRef.current = otherParticipantProfile;

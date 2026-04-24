@@ -25,8 +25,8 @@ const DEFAULT_SEED_TAG = 'gatorgoods-demo';
 const DEFAULT_FAKER_SEED = 20260401;
 const HOURS_TO_MS = 60 * 60 * 1000;
 const CLERK_USERS_URL = 'https://api.clerk.com/v1/users';
-const DEFAULT_PRESENTER_PICTURE =
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80';
+const STUDY_SEED_IMAGE_DIR = path.join(__dirname, 'study-seed-images');
+const DEFAULT_PRESENTER_PICTURE = readSeedImageDataUrl('profile-tyrell-wellick.jpg');
 
 const PRESENTER_PROFILE_DEFAULTS = {
   profileName: 'Tyrell Wellick',
@@ -68,8 +68,6 @@ const MESSAGE_VARIANTS = [
   'I can meet near Library West or Marston.',
   'I will message when I am walking over.',
 ];
-
-const STUDY_SEED_IMAGE_DIR = path.join(__dirname, 'study-seed-images');
 
 function readSeedImageDataUrl(filename) {
   const filePath = path.join(STUDY_SEED_IMAGE_DIR, filename);
@@ -432,35 +430,40 @@ function createVanityMirrorImage() {
 }
 
 const SEED_LISTING_IMAGES = {
-  campusScooter: readSeedImageDataUrl('campus-scooter.png'),
-  deskLamp: readSeedImageDataUrl('desk-lamp.png'),
-  miniFridgeCore: readSeedImageDataUrl('mini-fridge.png'),
-  miniFridgeBlack: readSeedImageDataUrl('mini-fridge-black.png'),
-  miniFridgeRetro: readSeedImageDataUrl('mini-fridge-retro.png'),
-  miniFridgeSteel: readSeedImageDataUrl('mini-fridge-freezer.png'),
-  miniFridgeDormWhite: readSeedImageDataUrl('mini-fridge-dorm-white.png'),
-  airPurifier: readSeedImageDataUrl('air-purifier.png'),
-  blackHoodie: readSeedImageDataUrl('black-hoodie.png'),
-  strollerCaddy: readSeedImageDataUrl('stroller-caddy.png'),
-  gamingMonitor: readSeedImageDataUrl('gaming-monitor.png'),
-  leatherBriefcase: readSeedImageDataUrl('leather-briefcase.png'),
-  businessCaseStudy: readSeedImageDataUrl('business-case-study.png'),
-  analogSynth: readSeedImageDataUrl('analog-synth.png'),
-  rollingCart: readSeedImageDataUrl('rolling-cart.png'),
-  kitchenCart: readSeedImageDataUrl('kitchen-cart.png'),
-  graphingCalculator: readSeedImageDataUrl('graphing-calculator.png'),
-  cableKit: readSeedImageDataUrl('cable-kit.png'),
-  monitorStand: readSeedImageDataUrl('monitor-stand.png'),
-  labStool: readSeedImageDataUrl('lab-stool.png'),
-  vanityMirror: readSeedImageDataUrl('vanity-mirror.png'),
+  campusScooter: readSeedImageDataUrl('campus-scooter.jpg'),
+  deskLamp: readSeedImageDataUrl('desk-lamp.jpg'),
+  miniFridgeCore: readSeedImageDataUrl('mini-fridge.jpg'),
+  miniFridgeBlack: readSeedImageDataUrl('mini-fridge-black.jpg'),
+  miniFridgeRetro: readSeedImageDataUrl('mini-fridge-retro.jpg'),
+  miniFridgeSteel: readSeedImageDataUrl('mini-fridge-freezer.jpg'),
+  miniFridgeDormWhite: readSeedImageDataUrl('mini-fridge-dorm-white.jpg'),
+  airPurifier: readSeedImageDataUrl('air-purifier.jpg'),
+  blackHoodie: readSeedImageDataUrl('black-hoodie.jpg'),
+  strollerCaddy: readSeedImageDataUrl('stroller-caddy.jpg'),
+  gamingMonitor: readSeedImageDataUrl('gaming-monitor.jpg'),
+  leatherBriefcase: readSeedImageDataUrl('leather-briefcase.jpg'),
+  businessCaseStudy: readSeedImageDataUrl('business-case-study.jpg'),
+  analogSynth: readSeedImageDataUrl('analog-synth.jpg'),
+  rollingCart: readSeedImageDataUrl('rolling-cart.jpg'),
+  kitchenCart: readSeedImageDataUrl('kitchen-cart.jpg'),
+  graphingCalculator: readSeedImageDataUrl('graphing-calculator.jpg'),
+  cableKit: readSeedImageDataUrl('cable-kit.jpg'),
+  monitorStand: readSeedImageDataUrl('monitor-stand.jpg'),
+  labStool: readSeedImageDataUrl('lab-stool.jpg'),
+  vanityMirror: readSeedImageDataUrl('vanity-mirror.jpg'),
 };
 
 const SEED_PROFILE_IMAGES = {
-  angelaMoss: readSeedImageDataUrl('profile-angela-moss.png'),
-  whiterose: readSeedImageDataUrl('profile-whiterose.png'),
-  edwardAlderson: readSeedImageDataUrl('profile-edward-alderson.png'),
-  phillipPrice: readSeedImageDataUrl('profile-phillip-price.png'),
-  darleneAlderson: readSeedImageDataUrl('profile-darlene-alderson.png'),
+  angelaMoss: readSeedImageDataUrl('profile-angela-moss.jpg'),
+  ethanBrooks: readSeedImageDataUrl('profile-ethan-brooks.jpg'),
+  leoMartinez: readSeedImageDataUrl('profile-leo-martinez.jpg'),
+  whiterose: readSeedImageDataUrl('profile-whiterose.jpg'),
+  edwardAlderson: readSeedImageDataUrl('profile-edward-alderson.jpg'),
+  priyaShah: readSeedImageDataUrl('profile-priya-shah.jpg'),
+  phillipPrice: readSeedImageDataUrl('profile-phillip-price.jpg'),
+  sofiaAlvarez: readSeedImageDataUrl('profile-sofia-alvarez.jpg'),
+  darleneAlderson: readSeedImageDataUrl('profile-darlene-alderson.jpg'),
+  ninaPark: readSeedImageDataUrl('profile-nina-park.jpg'),
 };
 
 const COMMUNITY_PROFILES = [
@@ -486,7 +489,7 @@ const COMMUNITY_PROFILES = [
     key: 'ethan',
     profileID: 'demo_ethan_brooks',
     profileName: 'Ethan Brooks',
-    profilePicture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.ethanBrooks,
     profileBanner: 'https://images.unsplash.com/photo-1497215842964-222b430dc094?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Shopping for a few upgrades before next semester starts.',
     instagramUrl: '',
@@ -504,7 +507,7 @@ const COMMUNITY_PROFILES = [
     key: 'leo',
     profileID: 'demo_leo_martinez',
     profileName: 'Leo Martinez',
-    profilePicture: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.leoMartinez,
     profileBanner: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Engineering student rotating out electronics and commuting gear.',
     instagramUrl: 'https://instagram.com/leooncampus',
@@ -559,7 +562,7 @@ const COMMUNITY_PROFILES = [
     key: 'priya',
     profileID: 'demo_priya_shah',
     profileName: 'Priya Shah',
-    profilePicture: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.priyaShah,
     profileBanner: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Clearing family and hobby items from storage before summer travel.',
     instagramUrl: '',
@@ -596,7 +599,7 @@ const COMMUNITY_PROFILES = [
     key: 'sofia',
     profileID: 'demo_sofia_alvarez',
     profileName: 'Sofia Alvarez',
-    profilePicture: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.sofiaAlvarez,
     profileBanner: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Design student clearing desk gear, decor, and a few apartment extras before finals week.',
     instagramUrl: 'https://instagram.com/sofia.uf.market',
@@ -633,7 +636,7 @@ const COMMUNITY_PROFILES = [
     key: 'nina',
     profileID: 'demo_nina_park',
     profileName: 'Nina Park',
-    profilePicture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+    profilePicture: SEED_PROFILE_IMAGES.ninaPark,
     profileBanner: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1400&q=80',
     profileBio: 'Moving apartments soon and cycling through small furniture, mirrors, and studio storage pieces.',
     instagramUrl: 'https://instagram.com/ninapark.uf',

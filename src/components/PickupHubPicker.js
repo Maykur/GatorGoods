@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppIcon, Card } from './ui';
 import { APPROVED_PICKUP_HUBS, getPickupHubById } from '../lib/pickupHubs';
 import { cn } from '../lib/ui';
-import campusPickupMap from '../assets/uf_map_ui_slate_blue.png';
+import campusPickupMap from '../assets/uf_map_ui_slate_blue.jpg';
 
 function MapBackground() {
   return (

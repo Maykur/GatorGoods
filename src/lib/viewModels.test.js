@@ -279,6 +279,43 @@ test('toTransactionViewModel maps snapshotted accepted terms into transaction di
   expect(transaction.meetupScheduleLabel).toMatch(/Apr/);
 });
 
+test('toTransactionViewModel uses transaction listing snapshot when no listing prop is provided', () => {
+  const transaction = toTransactionViewModel({
+    _id: 'transaction-1',
+    offerId: 'offer-1',
+    listingId: 'item-1',
+    conversationId: 'conversation-1',
+    buyerClerkUserId: 'buyer-1',
+    sellerClerkUserId: 'seller-1',
+    listing: {
+      _id: 'item-1',
+      itemName: 'Desk Lamp',
+      itemCost: '28',
+      itemCondition: 'Good',
+      originalPickupHubId: 'library-west',
+      originalItemLocation: 'Library West',
+      itemPictureUrl: '/items/item-1/image',
+      userPublishingName: 'Seller One',
+      status: 'reserved',
+    },
+    acceptedTerms: {
+      price: 25,
+      paymentMethod: 'externalApp',
+      meetupHubId: 'marston',
+      meetupLocation: 'Marston Science Library',
+      pickupSpecifics: 'Ground floor entrance by the benches.',
+      meetupDate: '2026-04-24',
+      meetupTime: '12:15',
+    },
+    status: 'scheduled',
+  });
+
+  expect(transaction.listingTitle).toBe('Desk Lamp');
+  expect(transaction.listingStatus).toBe('reserved');
+  expect(transaction.listingStatusLabel).toBe('Reserved');
+  expect(transaction.listingImageUrl).toBe('http://localhost:5000/items/item-1/image');
+});
+
 test('formatConversationTimestamp removes the year and seconds from inbox timestamps', () => {
   expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).toMatch(/Mar/);
   expect(formatConversationTimestamp('2026-03-30T22:05:45.000Z')).not.toMatch(/2026/);
@@ -314,6 +351,60 @@ test('toProfileHeaderViewModel computes counts and owner state', () => {
     favoritesCount: 2,
     isOwner: true,
   });
+});
+
+test('profile-related view models normalize relative media URLs from the API', () => {
+  expect(
+    toProfileHeaderViewModel({
+      profile: {
+        profileID: 'seller-1',
+        profileName: 'Seller One',
+        profilePictureUrl: '/profile/seller-1/avatar',
+        profileBannerUrl: '/profile/seller-1/banner',
+      },
+    })
+  ).toEqual(
+    expect.objectContaining({
+      avatarUrl: 'http://localhost:5000/profile/seller-1/avatar',
+      bannerUrl: 'http://localhost:5000/profile/seller-1/banner',
+    })
+  );
+
+  expect(
+    toConversationPreviewViewModel(
+      {
+        _id: 'conversation-1',
+        otherParticipant: {
+          name: 'Buyer One',
+          avatarUrl: '/profile/buyer-1/avatar',
+        },
+      },
+      'seller-1'
+    )
+  ).toEqual(
+    expect.objectContaining({
+      participantAvatarUrl: 'http://localhost:5000/profile/buyer-1/avatar',
+    })
+  );
+
+  expect(
+    toOfferCardViewModel(
+      {
+        _id: 'offer-1',
+        buyerClerkUserId: 'buyer-1',
+        sellerClerkUserId: 'seller-1',
+      },
+      {
+        buyerProfile: {profile: {profilePictureUrl: '/profile/buyer-1/avatar'}},
+        sellerProfile: {profilePictureUrl: '/profile/seller-1/avatar'},
+      }
+    )
+  ).toEqual(
+    expect.objectContaining({
+      buyerAvatarUrl: 'http://localhost:5000/profile/buyer-1/avatar',
+      sellerAvatarUrl: 'http://localhost:5000/profile/seller-1/avatar',
+    })
+  );
 });
 
 test('toListingDetailViewModel uses the seller profile picture when available', () => {
