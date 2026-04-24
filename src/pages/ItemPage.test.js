@@ -270,6 +270,32 @@ test('signed-in non-owners can open and submit the structured offer form', async
   );
 });
 
+test('offer amount steps by whole dollars with arrow keys', async () => {
+  setClerkState({
+    isSignedIn: true,
+    user: {
+      id: 'buyer-1',
+      fullName: 'Buyer One',
+    },
+  });
+
+  render(<ItemPage />);
+
+  fireEvent.click(await screen.findByRole('button', { name: /make offer/i }));
+
+  const offerInput = screen.getByLabelText(/your offer/i);
+  expect(offerInput).toHaveAttribute('step', '1');
+
+  fireEvent.change(offerInput, {
+    target: { value: '18.01' },
+  });
+  fireEvent.keyDown(offerInput, { key: 'ArrowUp' });
+  expect(offerInput).toHaveValue(19);
+
+  fireEvent.keyDown(offerInput, { key: 'ArrowDown' });
+  expect(offerInput).toHaveValue(18);
+});
+
 test('offer submission validates the structured fields before sending', async () => {
   setClerkState({
     isSignedIn: true,

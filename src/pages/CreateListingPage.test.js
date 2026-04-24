@@ -150,6 +150,22 @@ test("create listing requires an approved pickup hub selection", async () => {
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
+test("listing price steps by whole dollars with arrow keys", () => {
+  render(<CreateListingPage />);
+
+  const priceInput = screen.getByLabelText(/^price/i);
+  expect(priceInput).toHaveAttribute("step", "1");
+
+  fireEvent.change(priceInput, {
+    target: {value: "20.01"},
+  });
+  fireEvent.keyDown(priceInput, {key: "ArrowUp"});
+  expect(priceInput).toHaveValue(21);
+
+  fireEvent.keyDown(priceInput, {key: "ArrowDown"});
+  expect(priceInput).toHaveValue(20);
+});
+
 test("selected pickup hub appears in the live preview before submit", async () => {
   render(<CreateListingPage />);
 

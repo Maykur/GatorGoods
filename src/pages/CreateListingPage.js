@@ -97,6 +97,38 @@ export function CreateListingPage() {
     }));
   };
 
+  const stepPriceByDollar = (direction) => {
+    setValues((currentValues) => {
+      const currentPrice = Number(currentValues.itemCost);
+      const basePrice = Number.isFinite(currentPrice) ? currentPrice : 0;
+      const nextPrice =
+        direction > 0
+          ? Math.floor(basePrice) + 1
+          : Math.max(0, Math.ceil(basePrice) - 1);
+
+      return {
+        ...currentValues,
+        itemCost: String(nextPrice),
+      };
+    });
+    setFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      itemCost: '',
+    }));
+  };
+
+  const handlePriceKeyDown = (event) => {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      stepPriceByDollar(1);
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      stepPriceByDollar(-1);
+    }
+  };
+
   const handlePickupHubChange = (pickupHubId) => {
     setValues((currentValues) => ({
       ...currentValues,
@@ -228,7 +260,7 @@ export function CreateListingPage() {
                 id="item-name"
                 label="Item name"
                 leadingIcon="listing"
-                placeholder="Desk Lamp"
+                placeholder="Example: Mini fridge..."
                 value={values.itemName}
                 onChange={handleChange('itemName')}
                 error={fieldErrors.itemName}
@@ -240,10 +272,12 @@ export function CreateListingPage() {
                 leadingIcon="payment"
                 type="number"
                 min="0"
-                step="0.01"
+                step="1"
+                inputMode="numeric"
                 placeholder="20"
                 value={values.itemCost}
                 onChange={handleChange('itemCost')}
+                onKeyDown={handlePriceKeyDown}
                 error={fieldErrors.itemCost}
                 required
               />
@@ -328,7 +362,7 @@ export function CreateListingPage() {
               id="item-description"
               label="Description"
               leadingIcon="description"
-              placeholder="Lamp for studying"
+              placeholder="Example: Compact fridge for a dorm room..."
               value={values.itemDescription}
               onChange={handleChange('itemDescription')}
               error={fieldErrors.itemDescription}
@@ -340,7 +374,7 @@ export function CreateListingPage() {
               id="item-details"
               label="Details"
               leadingIcon="category"
-              placeholder="Warm bulb included"
+              placeholder="Example: Includes removable shelf. Small scratch on the side..."
               value={values.itemDetails}
               onChange={handleChange('itemDetails')}
               error={fieldErrors.itemDetails}
