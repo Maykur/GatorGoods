@@ -441,6 +441,38 @@ export function ItemPage() {
     }));
   };
 
+  const stepOfferPriceByDollar = (direction) => {
+    setOfferValues((currentValues) => {
+      const currentPrice = Number(currentValues.offeredPrice);
+      const basePrice = Number.isFinite(currentPrice) ? currentPrice : 0;
+      const nextPrice =
+        direction > 0
+          ? Math.floor(basePrice) + 1
+          : Math.max(0, Math.ceil(basePrice) - 1);
+
+      return {
+        ...currentValues,
+        offeredPrice: String(nextPrice),
+      };
+    });
+    setOfferFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      offeredPrice: '',
+    }));
+  };
+
+  const handleOfferPriceKeyDown = (event) => {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      stepOfferPriceByDollar(1);
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      stepOfferPriceByDollar(-1);
+    }
+  };
+
   const handleMeetupHubChange = (meetupHubId) => {
     setOfferValues((currentValues) => ({
       ...currentValues,
@@ -631,9 +663,11 @@ export function ItemPage() {
                         leadingIcon="payment"
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="1"
+                        inputMode="numeric"
                         value={offerValues.offeredPrice}
                         onChange={handleOfferFieldChange('offeredPrice')}
+                        onKeyDown={handleOfferPriceKeyDown}
                         error={offerFieldErrors.offeredPrice}
                         placeholder="18"
                         required

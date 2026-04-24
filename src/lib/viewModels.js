@@ -72,6 +72,13 @@ function getFirstName(value) {
   return normalizedValue.split(/\s+/)[0];
 }
 
+function getProfileImageValue(profile, key) {
+  const normalizedProfile = profile?.profile || profile || {};
+  const urlKey = `${key}Url`;
+
+  return normalizedProfile?.[urlKey] || normalizedProfile?.[key];
+}
+
 function truncateText(value, maxLength) {
   const normalizedValue = normalizeText(value);
 
@@ -246,7 +253,7 @@ export function toListingDetailViewModel(raw, viewerId = null, sellerProfile = n
     seller: {
       id: sellerId,
       name: cardView.sellerName,
-      avatarUrl: normalizeImageUrl(normalizeText(normalizedSellerProfile?.profilePicture, '')),
+      avatarUrl: normalizeImageUrl(getProfileImageValue(normalizedSellerProfile, 'profilePicture')),
     },
     isOwner: Boolean(viewerId && sellerId && sellerId === viewerId),
   };
@@ -293,7 +300,9 @@ export function toConversationPreviewViewModel(raw, profileOrViewerId, listing, 
   return {
     id: raw?._id || '',
     participantName,
-    participantAvatarUrl: normalizeText(raw?.otherParticipant?.avatarUrl, normalizeText(profile?.profile?.profilePicture, '')),
+    participantAvatarUrl: normalizeImageUrl(
+      raw?.otherParticipant?.avatarUrl || getProfileImageValue(profile, 'profilePicture')
+    ),
     listingName: truncatedActiveItemTitle,
     activeItemTitle: truncatedActiveItemTitle,
     fullActiveItemTitle: activeItemTitle,
@@ -324,8 +333,8 @@ export function toProfileHeaderViewModel(rawProfile, listings = [], viewerId = n
   return {
     id: normalizeText(profile?.profileID, ''),
     displayName: normalizeText(profile?.profileName, 'GatorGoods User'),
-    avatarUrl: normalizeText(profile?.profilePicture, ''),
-    bannerUrl: normalizeText(profile?.profileBanner, ''),
+    avatarUrl: normalizeImageUrl(getProfileImageValue(profile, 'profilePicture')),
+    bannerUrl: normalizeImageUrl(getProfileImageValue(profile, 'profileBanner')),
     bio: normalizeText(profile?.profileBio, ''),
     instagramUrl: normalizeText(profile?.instagramUrl, ''),
     linkedinUrl: normalizeText(profile?.linkedinUrl, ''),
@@ -372,19 +381,13 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
       buyerProfile?.profile?.profileName || buyerProfile?.profileName || rawOffer?.buyerDisplayName,
       'Buyer'
     ),
-    buyerAvatarUrl: normalizeText(
-      buyerProfile?.profile?.profilePicture || buyerProfile?.profilePicture,
-      ''
-    ),
+    buyerAvatarUrl: normalizeImageUrl(getProfileImageValue(buyerProfile, 'profilePicture')),
     sellerId: normalizeText(rawOffer?.sellerClerkUserId, ''),
     sellerName: normalizeText(
       sellerProfile?.profile?.profileName || sellerProfile?.profileName || listing?.userPublishingName,
       DEFAULT_SELLER_NAME
     ),
-    sellerAvatarUrl: normalizeText(
-      sellerProfile?.profile?.profilePicture || sellerProfile?.profilePicture,
-      ''
-    ),
+    sellerAvatarUrl: normalizeImageUrl(getProfileImageValue(sellerProfile, 'profilePicture')),
     offeredPrice: Number(rawOffer?.offeredPrice) || 0,
     offeredPriceLabel: formatPriceLabel(rawOffer?.offeredPrice),
     meetupLocation: getPickupHubLabel(meetupHubId, normalizeText(rawOffer?.meetupLocation, DEFAULT_LOCATION)),
@@ -407,6 +410,7 @@ export function toOfferCardViewModel(rawOffer, {listing, buyerProfile, sellerPro
 
 export function toTransactionViewModel(rawTransaction, {listing, buyerProfile, sellerProfile} = {}) {
   const acceptedTerms = rawTransaction?.acceptedTerms || {};
+  const transactionListing = listing || rawTransaction?.listing || null;
   const transactionOfferLike = {
     _id: rawTransaction?._id || '',
     listingId: rawTransaction?.listingId || '',
@@ -423,7 +427,7 @@ export function toTransactionViewModel(rawTransaction, {listing, buyerProfile, s
     status: rawTransaction?.status || 'scheduled',
   };
   const offerView = toOfferCardViewModel(transactionOfferLike, {
-    listing,
+    listing: transactionListing,
     buyerProfile,
     sellerProfile,
   });

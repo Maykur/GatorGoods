@@ -85,11 +85,11 @@ From the repository root:
   ```
 
   By default this safely reseeds only demo-tagged records and leaves unrelated marketplace data alone. The presentation dataset includes:
-  - 8 polished accounts
-  - 13 live listings across all 8 marketplace categories, plus 1 historical deleted-item thread context
-  - 14 offers
-  - 7 participant-first conversation threads with populated seller and buyer inbox views, including several multi-item relationship threads, item-history context, and compact viewer-aware sent/accepted/rejected offer events
-  - presenter-owned `Desk Lamp` (`active`) and `Mini Fridge` (`reserved`) listings for the core demo flow
+  - 11 polished accounts
+  - 21 live listings across all 8 marketplace categories, plus 1 historical deleted-item thread context
+  - 32 offers
+  - 21 participant-first conversation threads with populated seller and buyer inbox views, including several multi-item relationship threads, item-history context, and compact viewer-aware sent/accepted/rejected offer events
+  - a campus-realistic `mini fridge` cluster with 5 browseable options, including 4 `active` listings and 1 `reserved` listing for evaluation tasks
 
   Useful seed inputs:
   - `DEMO_USER_ASSIGNMENTS='[{"email":"you@ufl.edu","clerkSecretKeyEnv":"PRESENTER_CLERK_SECRET_KEY"},{"email":"friend@ufl.edu","clerkSecretKeyEnv":"SECONDARY_CLERK_SECRET_KEY"}]'`
@@ -104,7 +104,7 @@ From the repository root:
     Required when `DEMO_USER_EMAIL` is set, and also for any `DEMO_USER_MAP` entries that use `email`. If a map entry uses a direct Clerk `id`, the seed can still link data to that user without the secret.
     You can also override the secret per mapped user with `clerkSecretKey` or, more safely, `clerkSecretKeyEnv`.
   - `SEED_FULL_RESET=true`
-    Clears every backend collection before seeding. Use only when you want a complete reset.
+    Clears every backend collection before seeding. Use this for study sessions or demos when you need a clean marketplace feed without leftover personal listings.
   - `SEED_TAG=custom-demo-tag`
     Overrides the default safe cleanup namespace (`gatorgoods-demo`).
   - `FAKER_SEED=20260401`

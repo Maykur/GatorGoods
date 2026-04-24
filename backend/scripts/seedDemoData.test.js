@@ -639,10 +639,10 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
 
   assert.equal(dataset.presenterProfile.profileID, 'presenter_demo_user');
   assert.equal(dataset.communityProfiles.length, 10);
-  assert.equal(dataset.listings.length, 23);
-  assert.equal(dataset.offers.length, 29);
+  assert.equal(dataset.listings.length, 27);
+  assert.equal(dataset.offers.length, 32);
   assert.equal(dataset.transactions.length, 8);
-  assert.equal(dataset.conversations.length, 18);
+  assert.equal(dataset.conversations.length, 21);
   assert.deepEqual(dataset.deletedListingKeys, ['shoe-rack']);
 
   const presenterListings = dataset.listings.filter((listing) => listing.ownerKey === 'presenter');
@@ -654,6 +654,13 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
 
   const reservedListing = dataset.listings.find((listing) => listing.key === 'desk-lamp');
   const activeListing = dataset.listings.find((listing) => listing.key === 'mini-fridge');
+  const miniFridgeListings = dataset.listings.filter((listing) => listing.key.startsWith('mini-fridge'));
+  const edwardProfile = dataset.communityProfiles.find((profile) => profile.key === 'noah');
+  const phillipProfile = dataset.communityProfiles.find((profile) => profile.key === 'mateo');
+  const darleneProfile = dataset.communityProfiles.find((profile) => profile.key === 'cameron');
+  const edwardListings = dataset.listings.filter((listing) => listing.ownerKey === 'noah');
+  const phillipListings = dataset.listings.filter((listing) => listing.ownerKey === 'mateo');
+  const darleneListings = dataset.listings.filter((listing) => listing.ownerKey === 'cameron');
   const problemTransaction = dataset.transactions.find((transaction) => transaction.key === 'transaction-gaming-monitor-presenter');
   const completedTransactions = dataset.transactions.filter((transaction) => transaction.status === 'completed');
   const inFlightTransactions = dataset.transactions.filter((transaction) => ['scheduled', 'buyerConfirmed', 'sellerConfirmed'].includes(transaction.status));
@@ -669,6 +676,27 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
   assert.equal(
     dataset.offers.filter((offer) => offer.listingKey === reservedListing.key && offer.status === 'declined').length,
     3
+  );
+  assert.equal(miniFridgeListings.length, 5);
+  assert.equal(miniFridgeListings.filter((listing) => listing.status === 'active').length, 4);
+  assert.equal(miniFridgeListings.filter((listing) => listing.status === 'reserved').length, 1);
+  assert.equal(
+    dataset.listings.find((listing) => listing.key === 'mini-fridge-dorm-white').status,
+    'active'
+  );
+  assert.equal(
+    ['noah', 'cameron', 'mateo'].includes(
+      dataset.listings.find((listing) => listing.key === 'mini-fridge-dorm-white').ownerKey
+    ),
+    true
+  );
+  assert.equal(
+    dataset.offers.filter((offer) => offer.listingKey === 'mini-fridge-freezer' && offer.status === 'accepted').length,
+    1
+  );
+  assert.equal(
+    dataset.offers.filter((offer) => offer.listingKey === 'mini-fridge-dorm-white').length,
+    0
   );
   assert.equal(reservedListing.originalPickupHubId, 'library-west');
   assert.equal(reservedListing.pickupHubId, 'reitz');
@@ -705,6 +733,18 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
     true
   );
   assert.equal(
+    dataset.conversations.some((conversation) => conversation.key === 'conv-mini-fridge-black-priya'),
+    true
+  );
+  assert.equal(
+    dataset.conversations.some((conversation) => conversation.key === 'conv-mini-fridge-retro-cameron'),
+    true
+  );
+  assert.equal(
+    dataset.conversations.some((conversation) => conversation.key === 'conv-mini-fridge-freezer-ethan'),
+    true
+  );
+  assert.equal(
     dataset.conversations.some((conversation) => conversation.key === 'conv-rolling-cart-sofia'),
     true
   );
@@ -727,6 +767,10 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
   assert.deepEqual(
     dataset.conversations.find((conversation) => conversation.key === 'conv-mini-fridge-priya').linkedListingKeys,
     ['board-game', 'stroller-organizer', 'mini-fridge']
+  );
+  assert.deepEqual(
+    dataset.conversations.find((conversation) => conversation.key === 'conv-mini-fridge-retro-cameron').linkedListingKeys,
+    ['kitchen-cart', 'mini-fridge-retro']
   );
   assert.deepEqual(
     dataset.conversations.find((conversation) => conversation.key === 'conv-rolling-cart-sofia').linkedListingKeys,
@@ -764,6 +808,24 @@ test('buildSeedDataset creates the expected presentation-ready shape', () => {
       .messages.filter((message) => message.offerEventType === 'sent').length,
     2
   );
+  assert.equal(edwardProfile.ufVerified, false);
+  assert.equal(phillipProfile.ufVerified, false);
+  assert.equal(darleneProfile.ufVerified, false);
+  assert.equal(edwardProfile.profileRating < 3.5, true);
+  assert.equal(phillipProfile.profileRating < 3.5, true);
+  assert.equal(darleneProfile.profileRating < 3.5, true);
+  assert.equal(edwardProfile.trustMetrics.safety < 55, true);
+  assert.equal(phillipProfile.trustMetrics.accuracy < 55, true);
+  assert.equal(darleneProfile.trustMetrics.accuracy < 50, true);
+  assert.equal(
+    miniFridgeListings.some(
+      (listing) => listing.status === 'active' && ['noah', 'cameron', 'mateo'].includes(listing.ownerKey)
+    ),
+    true
+  );
+  assert.equal(edwardListings.every((listing) => listing.itemDetails.toLowerCase().includes('as-is') || listing.itemDetails.toLowerCase().includes('not')), true);
+  assert.equal(phillipListings.every((listing) => ['fair', 'good'].includes(String(listing.itemCondition).toLowerCase())), true);
+  assert.equal(darleneListings.every((listing) => String(listing.itemCondition).toLowerCase() === 'fair'), true);
   assert.equal(
     ['presenter', 'leo', 'priya', 'sofia', 'nina'].every((profileKey) => {
       const listingCount = dataset.listings.filter((listing) => listing.ownerKey === profileKey).length;
@@ -936,7 +998,7 @@ test('insertSeedDataset wires accepted offers, conversations, and favorites corr
   assert.match(systemMessages[2].body, /Meetup details updated to Reitz Union/);
 
   const vanityMirrorOffer = offers.find((offer) => offer.message.includes('carry the mirror back right away'));
-  const airPurifierOffer = offers.find((offer) => offer.message.includes('come by tonight and keep the handoff short'));
+  const airPurifierOffer = offers.find((offer) => offer.message.includes('if you are actually there'));
   const standingDeskListing = await Item.findOne({itemName: 'Compact Standing Desk'});
   const airPurifierListing = await Item.findOne({itemName: 'Compact Air Purifier'});
   const vanityMirrorListing = await Item.findOne({itemName: 'Lighted Vanity Mirror'});

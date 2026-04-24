@@ -1,6 +1,7 @@
 // REFERENCE: https://stackoverflow.com/questions/70203488/how-can-i-fetch-data-from-mongodb-and-display-it-on-react-front-end
 
 require('dotenv').config();
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
@@ -851,6 +852,45 @@ function buildItemImageUrl(itemId) {
   return `/items/${normalizedItemId}/image`;
 }
 
+function isInlineImageDataUrl(value) {
+  return normalizeOptionalString(value).startsWith('data:image/');
+}
+
+function buildListingImageApiUrl(liveListing, fallbackImageUrl = '') {
+  const liveListingId = toIdString(liveListing?._id || liveListing?.id);
+
+  if (liveListingId) {
+    return buildItemImageUrl(liveListingId);
+  }
+
+  const normalizedFallback = normalizeOptionalString(fallbackImageUrl);
+
+  return isInlineImageDataUrl(normalizedFallback) ? '' : normalizedFallback;
+}
+
+function getMediaVersion(value) {
+  const normalizedValue = normalizeOptionalString(value);
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return crypto.createHash('sha1').update(normalizedValue).digest('hex').slice(0, 10);
+}
+
+function buildProfileMediaUrl(profileId, mediaType, mediaValue = '') {
+  const normalizedProfileId = normalizeOptionalString(profileId);
+
+  if (!normalizedProfileId || !['avatar', 'banner'].includes(mediaType)) {
+    return '';
+  }
+
+  const mediaVersion = getMediaVersion(mediaValue);
+  const versionQuery = mediaVersion ? `?v=${mediaVersion}` : '';
+
+  return `/profile/${encodeURIComponent(normalizedProfileId)}/${mediaType}${versionQuery}`;
+}
+
 function buildItemFeedSummary(rawItem) {
   const item = rawItem?.toObject ? rawItem.toObject() : rawItem;
   const itemId = toIdString(item?._id || item?.id);
@@ -874,6 +914,46 @@ function buildItemFeedSummary(rawItem) {
   };
 }
 
+function buildItemDetailSummary(rawItem) {
+  const item = rawItem?.toObject ? rawItem.toObject() : rawItem;
+
+  if (!item) {
+    return null;
+  }
+
+  return {
+    ...buildItemFeedSummary(item),
+    itemDescription: item.itemDescription || '',
+    itemDetails: item.itemDetails || '',
+    userPublishingID: item.userPublishingID || '',
+    reservedOfferId: toIdString(item.reservedOfferId),
+  };
+}
+
+function buildProfilePublicSummary(rawProfile) {
+  const profile = rawProfile?.toObject ? rawProfile.toObject() : rawProfile;
+
+  if (!profile) {
+    return null;
+  }
+
+  const profileId = profile.profileID || '';
+  const profilePictureUrl = profile.profilePicture
+    ? buildProfileMediaUrl(profileId, 'avatar', profile.profilePicture)
+    : '';
+  const profileBannerUrl = profile.profileBanner
+    ? buildProfileMediaUrl(profileId, 'banner', profile.profileBanner)
+    : '';
+
+  return {
+    ...profile,
+    profilePicture: profilePictureUrl,
+    profileBanner: profileBannerUrl,
+    profilePictureUrl,
+    profileBannerUrl,
+  };
+}
+
 function parseDataUrl(value = '') {
   const match = value.match(/^data:([^;,]+)?((?:;[^,]*)*?),(.*)$/s);
 
@@ -890,6 +970,28 @@ function parseDataUrl(value = '') {
     mimeType,
     data: isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodeURIComponent(payload), 'utf8'),
   };
+}
+
+function sendStoredMediaValue(resp, value, notFoundMessage) {
+  const normalizedValue = normalizeOptionalString(value);
+
+  if (!normalizedValue) {
+    return resp.status(404).json({message: notFoundMessage});
+  }
+
+  if (/^https?:\/\//i.test(normalizedValue)) {
+    return resp.redirect(normalizedValue);
+  }
+
+  const parsedDataUrl = parseDataUrl(normalizedValue);
+
+  if (!parsedDataUrl) {
+    return resp.redirect(normalizedValue);
+  }
+
+  resp.set('Content-Type', parsedDataUrl.mimeType);
+  resp.set('Cache-Control', 'public, max-age=31536000, immutable');
+  return resp.send(parsedDataUrl.data);
 }
 
 async function connectToDatabase(uri = process.env.mongo_url) {
@@ -1248,7 +1350,31 @@ function buildTransactionAcceptedTermsSnapshot(offer = {}, {pickupSpecifics = ''
   };
 }
 
-function serializeTransaction(transaction) {
+function serializeTransactionListing(listing) {
+  if (!listing) {
+    return null;
+  }
+
+  return {
+    _id: toIdString(listing._id),
+    itemName: listing.itemName || '',
+    itemCost: listing.itemCost || '',
+    itemCondition: listing.itemCondition || '',
+    itemLocation: listing.itemLocation || '',
+    pickupHubId: listing.pickupHubId || '',
+    pickupArea: listing.pickupArea || '',
+    originalItemLocation: listing.originalItemLocation || '',
+    originalPickupHubId: listing.originalPickupHubId || '',
+    originalPickupArea: listing.originalPickupArea || '',
+    itemPictureUrl: listing._id ? `/items/${toIdString(listing._id)}/image` : '',
+    itemCat: listing.itemCat || '',
+    userPublishingName: listing.userPublishingName || '',
+    status: listing.status || '',
+    reservedOfferId: toIdString(listing.reservedOfferId),
+  };
+}
+
+function serializeTransaction(transaction, {listing = null} = {}) {
   if (!transaction) {
     return null;
   }
@@ -1278,9 +1404,15 @@ function serializeTransaction(transaction) {
     sellerReviewedAt: transaction.sellerReviewedAt || null,
     buyerReview: transaction.buyerReview || null,
     sellerReview: transaction.sellerReview || null,
+    listing: serializeTransactionListing(listing),
     createdAt: transaction.createdAt || null,
     updatedAt: transaction.updatedAt || null,
   };
+}
+
+async function serializeTransactionWithListing(transaction) {
+  const listing = transaction?.listingId ? await Item.findById(transaction.listingId) : null;
+  return serializeTransaction(transaction, {listing});
 }
 
 async function ensureTransactionForAcceptedOffer(
@@ -2147,7 +2279,7 @@ function buildLinkedItemApiSummary(linkedItem = {}, stateMaps, {selected = false
   return {
     listingId,
     title: liveListing?.itemName || linkedItem.title || '',
-    imageUrl: liveListing?.itemPicture || linkedItem.imageUrl || '',
+    imageUrl: buildListingImageApiUrl(liveListing, linkedItem.imageUrl || ''),
     firstLinkedAt: linkedItem.firstLinkedAt || null,
     lastContextAt: linkedItem.lastContextAt || null,
     firstContextMessageId: linkedItem.firstContextMessageId || null,
@@ -2187,7 +2319,10 @@ function buildMessageAttachedItemSummary(
   return {
     listingId,
     title: liveListing?.itemName || message?.attachedListingTitle || linkedItem.title || '',
-    imageUrl: liveListing?.itemPicture || message?.attachedListingImageUrl || linkedItem.imageUrl || '',
+    imageUrl: buildListingImageApiUrl(
+      liveListing,
+      message?.attachedListingImageUrl || linkedItem.imageUrl || ''
+    ),
     lastKnownStatus: liveListing?.status || linkedItem.lastKnownStatus || 'deleted',
     state: deriveLinkedItemState({
       listing: liveListing,
@@ -2351,6 +2486,7 @@ async function serializeMessages(messages = [], conversation, options = {}) {
 
     return {
       ...messageObject,
+      attachedListingImageUrl: undefined,
       attachedItem: buildMessageAttachedItemSummary(messageObject, stateMaps, linkedItemsById, options),
       offerContext: buildOfferApiSummary(messageObject.offerSnapshot, {
         includeEventTitle: true,
@@ -2600,7 +2736,13 @@ app.get('/api/conversations', async (req, resp) => {
           otherParticipant: otherParticipantProfile ? {
             id: otherParticipantProfile.profileID,
             name: otherParticipantProfile.profileName,
-            avatarUrl: otherParticipantProfile.profilePicture || '',
+            avatarUrl: otherParticipantProfile.profilePicture
+              ? buildProfileMediaUrl(
+                otherParticipantProfile.profileID,
+                'avatar',
+                otherParticipantProfile.profilePicture
+              )
+              : '',
           } : null,
           lastMessageSenderClerkUserId:
             latestMessageSenderByConversationId.get(toIdString(conversation._id)) || '',
@@ -3085,7 +3227,7 @@ app.get('/api/transactions/by-offer/:offerId', async (req, resp) => {
       return resp.status(404).json({message: 'Transaction not found'});
     }
 
-    resp.json(serializeTransaction(transaction));
+    resp.json(await serializeTransactionWithListing(transaction));
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch transaction', error: e.message});
   }
@@ -3348,7 +3490,7 @@ app.patch('/api/transactions/:id/decision', async (req, resp) => {
       await finalizeCompletedTransaction(transaction, requesterClerkUserId);
     }
 
-    resp.json(serializeTransaction(transaction));
+    resp.json(await serializeTransactionWithListing(transaction));
   } catch (e) {
     resp.status(500).json({message: 'Failed to update transaction', error: e.message});
   }
@@ -3443,7 +3585,7 @@ app.patch('/api/transactions/:id/review', async (req, resp) => {
       await finalizeCompletedTransaction(transaction, requesterClerkUserId);
     }
 
-    resp.json(serializeTransaction(transaction));
+    resp.json(await serializeTransactionWithListing(transaction));
   } catch (e) {
     resp.status(500).json({message: 'Failed to submit transaction review', error: e.message});
   }
@@ -3640,25 +3782,7 @@ app.get('/items', async (req, resp) => {
 app.get('/items/:id/image', async (req, resp) => {
   try {
     const item = await Item.findById(req.params.id).select('itemPicture');
-
-    if (!item || !item.itemPicture) {
-      return resp.status(404).json({message: 'Listing image not found'});
-    }
-
-    if (/^https?:\/\//i.test(item.itemPicture)) {
-      resp.redirect(item.itemPicture);
-      return;
-    }
-
-    const parsedDataUrl = parseDataUrl(item.itemPicture);
-
-    if (!parsedDataUrl) {
-      return resp.status(404).json({message: 'Listing image not found'});
-    }
-
-    resp.set('Content-Type', parsedDataUrl.mimeType);
-    resp.set('Cache-Control', 'public, max-age=31536000, immutable');
-    resp.send(parsedDataUrl.data);
+    return sendStoredMediaValue(resp, item?.itemPicture, 'Listing image not found');
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch listing image', error: e.message});
   }
@@ -3672,7 +3796,7 @@ app.get('/items/:id', async (req, resp) => {
     if (!item){
         return resp.status(404).json({message: 'Item not found'});
     }
-    resp.status(200).json(item);    
+    resp.status(200).json(buildItemDetailSummary(item));
   } catch (e) {
     resp.status(500).json({message: 'Failed to fetch', error: e.message});
   }
@@ -3698,6 +3822,24 @@ app.delete('/item/:item', async (req, resp) => {
   }
 });
 
+app.get('/profile/:profileID/avatar', async (req, resp) => {
+    try{
+        const profile = await Profile.findOne({profileID: req.params.profileID}).select('profilePicture');
+        return sendStoredMediaValue(resp, profile?.profilePicture, 'Profile image not found');
+    } catch (e) {
+        resp.status(500).json({error: e.message});
+    }
+});
+
+app.get('/profile/:profileID/banner', async (req, resp) => {
+    try{
+        const profile = await Profile.findOne({profileID: req.params.profileID}).select('profileBanner');
+        return sendStoredMediaValue(resp, profile?.profileBanner, 'Profile banner not found');
+    } catch (e) {
+        resp.status(500).json({error: e.message});
+    }
+});
+
 // Grabbing user profile information from DB
 app.get('/profile/:profileID', async (req, resp) => {
     try{
@@ -3706,7 +3848,10 @@ app.get('/profile/:profileID', async (req, resp) => {
             return resp.status(404).json({message: 'No Profile'});
         }
         const listings = await Item.find({userPublishingID: req.params.profileID,});
-        resp.json({profile, listings});
+        resp.json({
+          profile: buildProfilePublicSummary(profile),
+          listings: listings.map((listing) => buildItemFeedSummary(listing)),
+        });
     } catch (e) {
         resp.status(500).json({error: e.message});
     }

@@ -395,6 +395,8 @@ export function ProfilePage({ ownerView = false }) {
       };
       const currentProfilePicture = normalizeProfileImageValue(profileHeader?.avatarUrl);
       const nextProfilePicture = normalizeProfileImageValue(profileForm.profilePicture);
+      const currentProfileBanner = normalizeProfileImageValue(profileHeader?.bannerUrl);
+      const nextProfileBanner = normalizeProfileImageValue(profileForm.profileBanner);
 
       if (ownerView && user?.setProfileImage && nextProfilePicture !== currentProfilePicture) {
         const imageResource = await user.setProfileImage({
@@ -406,6 +408,14 @@ export function ProfilePage({ ownerView = false }) {
         }
 
         nextProfilePayload.profilePicture = imageResource?.publicUrl || '';
+      }
+
+      if (nextProfilePicture === currentProfilePicture) {
+        delete nextProfilePayload.profilePicture;
+      }
+
+      if (nextProfileBanner === currentProfileBanner) {
+        delete nextProfilePayload.profileBanner;
       }
 
       const response = await fetch(`${API_BASE_URL}/user/${profileId}`, {

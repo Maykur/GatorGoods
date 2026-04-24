@@ -168,6 +168,20 @@ test('GET /items/:id/image serves stored data-url images', async () => {
   assert.match(Buffer.from(response.body).toString('utf8'), /<svg/);
 });
 
+test('GET /profile/:profileID/avatar serves stored profile data-url images', async () => {
+  await Profile.create({
+    profileID: 'user_avatar',
+    profileName: 'Avatar Seller',
+    profilePicture: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"></svg>')}`,
+  });
+
+  const response = await request(app).get('/profile/user_avatar/avatar');
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers['content-type'], /^image\/svg\+xml/);
+  assert.match(Buffer.from(response.body).toString('utf8'), /<svg/);
+});
+
 test('GET /items filters listings by approved pickup location', async () => {
   await seedProfileAndItem({
     item: {
@@ -251,6 +265,10 @@ test('GET /items/:id returns an item', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.itemName, 'Desk Lamp');
   assert.equal(response.body._id, item.id);
+  assert.equal(response.body.itemPicture, undefined);
+  assert.equal(response.body.itemPictureUrl, `/items/${item.id}/image`);
+  assert.equal(response.body.itemDescription, 'Lamp for studying');
+  assert.equal(response.body.itemDetails, 'Warm bulb included');
 });
 
 test('GET /items/:id returns 404 for a missing item', async () => {
@@ -280,11 +298,18 @@ test('GET /profile/:profileID returns the profile and its listings', async () =>
 
   assert.equal(response.status, 200);
   assert.equal(response.body.profile.profileID, 'user_1');
-  assert.equal(response.body.profile.profileBanner, 'https://example.com/banner.png');
+  assert.match(response.body.profile.profilePicture, /^\/profile\/user_1\/avatar\?v=[a-f0-9]{10}$/);
+  assert.match(response.body.profile.profilePictureUrl, /^\/profile\/user_1\/avatar\?v=[a-f0-9]{10}$/);
+  assert.match(response.body.profile.profileBanner, /^\/profile\/user_1\/banner\?v=[a-f0-9]{10}$/);
+  assert.match(response.body.profile.profileBannerUrl, /^\/profile\/user_1\/banner\?v=[a-f0-9]{10}$/);
   assert.equal(response.body.profile.ufVerified, true);
   assert.equal(response.body.profile.trustMetrics.reliability, 92);
   assert.equal(response.body.listings.length, 1);
   assert.equal(response.body.listings[0].itemName, 'Desk Lamp');
+  assert.equal(response.body.listings[0].itemPicture, undefined);
+  assert.equal(response.body.listings[0].itemPictureUrl, `/items/${response.body.listings[0]._id}/image`);
+  assert.equal(response.body.listings[0].itemDescription, undefined);
+  assert.equal(response.body.listings[0].itemDetails, undefined);
 });
 
 test('POST /user upserts richer profile fields without dropping defaults', async () => {
@@ -701,10 +726,10 @@ test('POST /api/conversations/:id/messages stores attached item snapshots and up
   assert.equal(response.status, 201);
   assert.equal(response.body.attachedListingId.toString(), secondItem.id);
   assert.equal(response.body.attachedListingTitle, secondItem.itemName);
-  assert.equal(response.body.attachedListingImageUrl, secondItem.itemPicture);
+  assert.equal(response.body.attachedListingImageUrl, undefined);
   assert.equal(response.body.attachedItem.listingId.toString(), secondItem.id);
   assert.equal(response.body.attachedItem.title, secondItem.itemName);
-  assert.equal(response.body.attachedItem.imageUrl, secondItem.itemPicture);
+  assert.equal(response.body.attachedItem.imageUrl, `/items/${secondItem.id}/image`);
   assert.equal(response.body.attachedItem.state, 'active');
   assert.equal(response.body.attachedItem.relationshipRole, 'buying');
 
@@ -785,7 +810,10 @@ test('GET /api/conversations returns paginated preview context with participant 
   assert.equal(response.body.conversations[0].linkedItems[0].imageUrl, undefined);
   assert.equal(response.body.conversations[0].otherParticipant.id, profile.profileID);
   assert.equal(response.body.conversations[0].otherParticipant.name, profile.profileName);
-  assert.equal(response.body.conversations[0].otherParticipant.avatarUrl, profile.profilePicture);
+  assert.match(
+    response.body.conversations[0].otherParticipant.avatarUrl,
+    new RegExp(`^/profile/${profile.profileID}/avatar\\?v=[a-f0-9]{10}$`)
+  );
   assert.equal(response.body.conversations[0].lastMessageSenderClerkUserId, 'buyer_1');
 });
 
